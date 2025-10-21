@@ -1,0 +1,68 @@
+# ==========================
+# Flutter / Dart
+# ==========================
+**/build/
+**/.dart_tool/
+**/.flutter-plugins
+**/.flutter-plugins-dependencies
+**/.packages
+**/.pub-cache/
+**/.idea/
+**/.vscode/
+**/pubspec.lock
+**/coverage/
+*.lock
+
+# Flutter generated files
+**/ios/Flutter/.last_build_id
+**/android/.gradle/
+**/android/app/build/
+
+# ==========================
+# Python / FastAPI
+# ==========================
+**/__pycache__/
+**/*.pyc
+**/*.pyo
+**/*.pyd
+**/venv/
+**/.env
+**/.pytest_cache/
+**/.mypy_cache/
+**/instance/
+**/*.db
+**/*.sqlite3
+
+# ==========================
+# OS / IDE / Misc
+# ==========================
+.DS_Store
+Thumbs.db
+*.log
+*.tmp
+*.swp
+*.swo
+
+# ==========================
+# Environment / Secrets
+# ==========================
+.env
+.env.*
+secrets.json
+firebase_config.json
+google-services.json
+GoogleService-Info.plist
+
+# ==========================
+# Node / Web (if ever used)
+# ==========================
+node_modules/
+npm-debug.log
+yarn-error.log
+
+# ==========================
+# JetBrains / VSCode metadata
+# ==========================
+.idea/
+.vscode/
+*.iml
