@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'dart:math';
-
+import 'direct_messages_page.dart';
+import '../widgets/custom_nav_bar.dart';
 class CommunityFeedPage extends StatefulWidget {
   const CommunityFeedPage({super.key});
 
@@ -23,9 +24,17 @@ class _CommunityFeedPageState extends State<CommunityFeedPage> {
     // Generate sample random posts
     for (int i = 0; i < 15; i++) {
       posts.add({
-        "name": ["Moiz Pasha", "Taha Ahmed", "Sara Malik", "Ali Khan", "Fatima Noor"][random.nextInt(5)],
+        "name": [
+          "Moiz Pasha",
+          "Taha Ahmed",
+          "Sara Malik",
+          "Ali Khan",
+          "Fatima Noor"
+        ][random.nextInt(5)],
         "time": "${random.nextInt(6) + 1} hours ago",
-        "title": random.nextBool() ? "Discussion on Flutter Project ${random.nextInt(20)}" : null,
+        "title": random.nextBool()
+            ? "Discussion on Flutter Project ${random.nextInt(20)}"
+            : null,
         "description": [
           "Hey everyone! Let's form a study group for tomorrow's lab session.",
           "Does anyone know how to fix the Android emulator issue?",
@@ -50,6 +59,12 @@ class _CommunityFeedPageState extends State<CommunityFeedPage> {
 
   @override
   Widget build(BuildContext context) {
+    final Size screenSize = MediaQuery.of(context).size;
+    final bool isLandscape = screenSize.width > screenSize.height;
+
+    // Feed width constraint: wider screens get centered content
+    final double maxContentWidth = isLandscape ? 600 : screenSize.width * 0.95;
+
     return Scaffold(
       backgroundColor: Colors.white,
       appBar: AppBar(
@@ -89,56 +104,43 @@ class _CommunityFeedPageState extends State<CommunityFeedPage> {
             onPressed: () {
               Navigator.push(
                 context,
-                MaterialPageRoute(builder: (_) => const MessagesPage()),
+                MaterialPageRoute(builder: (_) => const DirectMessagesPage()),
               );
             },
           ),
           const SizedBox(width: 8),
         ],
       ),
-      body: ListView.builder(
-        padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
-        itemCount: posts.length,
-        itemBuilder: (context, index) {
-          final post = posts[index];
-          final bool isLiked = likedPosts[index] ?? false;
-          final int likes = likeCounts[index] ?? post["likes"];
-          final int comments = post["comments"];
+      body: Center(
+        child: ConstrainedBox(
+          constraints: BoxConstraints(maxWidth: maxContentWidth),
+          child: ListView.builder(
+            padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
+            itemCount: posts.length,
+            itemBuilder: (context, index) {
+              final post = posts[index];
+              final bool isLiked = likedPosts[index] ?? false;
+              final int likes = likeCounts[index] ?? post["likes"];
+              final int comments = post["comments"];
 
-          return _buildPostCard(
-            index: index,
-            name: post["name"],
-            time: post["time"],
-            image: post["image"],
-            title: post["title"],
-            description: post["description"],
-            isLiked: isLiked,
-            likes: likes,
-            comments: comments,
-          );
-        },
-      ),
-      bottomNavigationBar: BottomNavigationBar(
-        currentIndex: 0,
-        selectedItemColor: blue,
-        unselectedItemColor: Colors.grey,
-        showUnselectedLabels: true,
-        type: BottomNavigationBarType.fixed,
-        items: const [
-          BottomNavigationBarItem(icon: Icon(Icons.home_filled), label: "Feed"),
-          BottomNavigationBarItem(icon: Icon(Icons.people_alt), label: "Connect"),
-          BottomNavigationBarItem(
-            icon: CircleAvatar(
-              radius: 15,
-              backgroundColor: Color(0xFF1976D2),
-              child: Icon(Icons.add, color: Colors.white, size: 20),
-            ),
-            label: "Post",
+              return _buildPostCard(
+                index: index,
+                name: post["name"],
+                time: post["time"],
+                image: post["image"],
+                title: post["title"],
+                description: post["description"],
+                isLiked: isLiked,
+                likes: likes,
+                comments: comments,
+              );
+            },
           ),
-          BottomNavigationBarItem(icon: Icon(Icons.grid_view), label: "Hub"),
-          BottomNavigationBarItem(icon: Icon(Icons.person), label: "Profile"),
-        ],
+        ),
       ),
+      bottomNavigationBar: const CustomNavBar(currentIndex: 0),
+
+
     );
   }
 
@@ -263,7 +265,7 @@ class _CommunityFeedPageState extends State<CommunityFeedPage> {
   }
 }
 
-// Dummy pages for navigation
+// Dummy notifications page
 class NotificationsPage extends StatelessWidget {
   const NotificationsPage({super.key});
 
@@ -273,20 +275,6 @@ class NotificationsPage extends StatelessWidget {
       appBar: AppBar(title: const Text("Notifications")),
       body: const Center(
         child: Text("No new notifications yet."),
-      ),
-    );
-  }
-}
-
-class MessagesPage extends StatelessWidget {
-  const MessagesPage({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text("Messages")),
-      body: const Center(
-        child: Text("No new messages yet."),
       ),
     );
   }
