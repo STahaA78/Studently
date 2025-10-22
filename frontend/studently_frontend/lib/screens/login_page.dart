@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
-import 'signup_basic_page.dart'; // <-- import the signup page here
+import 'signup_basic_page.dart';
+import 'community_feed_page.dart';
 
 class LoginPage extends StatelessWidget {
   const LoginPage({super.key});
@@ -9,7 +10,8 @@ class LoginPage extends StatelessWidget {
     final Color blue = const Color(0xFF1976D2);
     final Size screenSize = MediaQuery.of(context).size;
     final bool isLandscape = screenSize.width > screenSize.height;
-    final double formWidth = isLandscape ? screenSize.width * 0.6 : screenSize.width * 0.85;
+    final double formWidth =
+        isLandscape ? screenSize.width * 0.6 : screenSize.width * 0.85;
 
     return Scaffold(
       backgroundColor: Colors.white,
@@ -54,7 +56,8 @@ class LoginPage extends StatelessWidget {
                         keyboardType: TextInputType.emailAddress,
                         decoration: InputDecoration(
                           hintText: 'Email',
-                          contentPadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
+                          contentPadding: const EdgeInsets.symmetric(
+                              horizontal: 18, vertical: 14),
                           border: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(25),
                           ),
@@ -67,7 +70,8 @@ class LoginPage extends StatelessWidget {
                         obscureText: true,
                         decoration: InputDecoration(
                           hintText: 'Password',
-                          contentPadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
+                          contentPadding: const EdgeInsets.symmetric(
+                              horizontal: 18, vertical: 14),
                           border: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(25),
                           ),
@@ -79,17 +83,24 @@ class LoginPage extends StatelessWidget {
                         alignment: Alignment.centerRight,
                         child: TextButton(
                           onPressed: () {},
-                          child: Text('Forgot Password?', style: TextStyle(color: blue)),
+                          child:
+                              Text('Forgot Password?', style: TextStyle(color: blue)),
                         ),
                       ),
                       const SizedBox(height: 10),
 
-                      // Login Button
+                      // ===== Login Button =====
                       SizedBox(
                         width: double.infinity,
                         child: ElevatedButton(
                           onPressed: () {
-                            // Add login logic or navigation here
+                            // Navigate to community feed page
+                            Navigator.pushReplacement(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => const CommunityFeedPage(),
+                              ),
+                            );
                           },
                           style: ElevatedButton.styleFrom(
                             backgroundColor: blue,
@@ -108,14 +119,16 @@ class LoginPage extends StatelessWidget {
                           ),
                         ),
                       ),
+
                       const SizedBox(height: 30),
 
-                      // OR Divider
+                      // ===== OR Divider =====
                       Row(
                         children: [
                           const Expanded(child: Divider(thickness: 1)),
                           Padding(
-                            padding: const EdgeInsets.symmetric(horizontal: 8),
+                            padding:
+                                const EdgeInsets.symmetric(horizontal: 8),
                             child: Text(
                               'OR',
                               style: TextStyle(color: Colors.grey[700]),
@@ -126,7 +139,7 @@ class LoginPage extends StatelessWidget {
                       ),
                       const SizedBox(height: 30),
 
-                      // Sign Up Button (navigates to SignupBasicPage)
+                      // ===== Sign Up Button =====
                       SizedBox(
                         width: double.infinity,
                         child: OutlinedButton(
@@ -139,7 +152,8 @@ class LoginPage extends StatelessWidget {
                             );
                           },
                           style: OutlinedButton.styleFrom(
-                            padding: const EdgeInsets.symmetric(vertical: 16),
+                            padding:
+                                const EdgeInsets.symmetric(vertical: 16),
                             side: BorderSide(color: blue, width: 1.5),
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(25),

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'community_feed_page.dart';
 
 class SignupEmailVerificationPage extends StatefulWidget {
   const SignupEmailVerificationPage({super.key});
@@ -49,6 +50,14 @@ class _SignupEmailVerificationPageState
     String code = _controllers.map((e) => e.text).join();
     if (code.length == 6) {
       _showCircularNotification("✅ Verified", color: Colors.green);
+
+      // Navigate after 2.2 seconds (after notification animation)
+      Future.delayed(const Duration(milliseconds: 2200), () {
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (_) => const CommunityFeedPage()),
+        );
+      });
     } else {
       _showCircularNotification("❗ Enter all digits", color: Colors.redAccent);
     }
