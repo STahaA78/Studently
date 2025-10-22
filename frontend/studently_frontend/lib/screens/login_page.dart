@@ -1,11 +1,5 @@
 import 'package:flutter/material.dart';
-
-void main() {
-  runApp(const MaterialApp(
-    debugShowCheckedModeBanner: false,
-    home: LoginPage(),
-  ));
-}
+import 'signup_basic_page.dart'; // <-- import the signup page here
 
 class LoginPage extends StatelessWidget {
   const LoginPage({super.key});
@@ -26,13 +20,13 @@ class LoginPage extends StatelessWidget {
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                // ===== Logo + Title Row =====
+                // ===== Logo + Title =====
                 Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     Image.asset(
                       'assets/images/studently_logo.png',
-                      height: 40,
+                      height: 80, // enlarged logo
                     ),
                     const SizedBox(width: 8),
                     Text(
@@ -85,10 +79,7 @@ class LoginPage extends StatelessWidget {
                         alignment: Alignment.centerRight,
                         child: TextButton(
                           onPressed: () {},
-                          child: Text(
-                            'Forgot Password?',
-                            style: TextStyle(color: blue),
-                          ),
+                          child: Text('Forgot Password?', style: TextStyle(color: blue)),
                         ),
                       ),
                       const SizedBox(height: 10),
@@ -97,7 +88,9 @@ class LoginPage extends StatelessWidget {
                       SizedBox(
                         width: double.infinity,
                         child: ElevatedButton(
-                          onPressed: () {},
+                          onPressed: () {
+                            // Add login logic or navigation here
+                          },
                           style: ElevatedButton.styleFrom(
                             backgroundColor: blue,
                             padding: const EdgeInsets.symmetric(vertical: 16),
@@ -133,11 +126,18 @@ class LoginPage extends StatelessWidget {
                       ),
                       const SizedBox(height: 30),
 
-                      // Sign Up Button
+                      // Sign Up Button (navigates to SignupBasicPage)
                       SizedBox(
                         width: double.infinity,
                         child: OutlinedButton(
-                          onPressed: () {},
+                          onPressed: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => const SignupBasicPage(),
+                              ),
+                            );
+                          },
                           style: OutlinedButton.styleFrom(
                             padding: const EdgeInsets.symmetric(vertical: 16),
                             side: BorderSide(color: blue, width: 1.5),
