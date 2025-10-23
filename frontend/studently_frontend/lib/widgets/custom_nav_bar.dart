@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../screens/community_feed_page.dart';
 import '../screens/connect_discover_page.dart';
 import '../screens/profile_page.dart';
+import '../screens/knowledge_hub_page.dart';
 
 class CustomNavBar extends StatelessWidget {
   final int currentIndex;
@@ -13,8 +14,9 @@ class CustomNavBar extends StatelessWidget {
     const Color blue = Color(0xFF1976D2);
 
     void _onItemTapped(int index) {
-      if (index == currentIndex) return;
+      if (index == currentIndex) return; // stay on same page
 
+      // ✅ Define the correct destination for each tab
       Widget? destination;
       switch (index) {
         case 0:
@@ -29,31 +31,35 @@ class CustomNavBar extends StatelessWidget {
           );
           return;
         case 3:
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text("Hub page coming soon!")),
-          );
-          return;
+          destination = const KnowledgeHubPage(); // ✅ HUB FIX
+          break;
         case 4:
           destination = const ProfilePage();
           break;
       }
 
+      // ✅ Use pushReplacement instead of pushAndRemoveUntil for smoother transitions
       if (destination != null) {
-        Navigator.pushAndRemoveUntil(
+        Navigator.pushReplacement(
           context,
-          MaterialPageRoute(builder: (_) => destination!),
-          (route) => false,
+          PageRouteBuilder(
+            pageBuilder: (_, __, ___) => destination!,
+            transitionDuration: const Duration(milliseconds: 200),
+            transitionsBuilder: (_, animation, __, child) {
+              return FadeTransition(opacity: animation, child: child);
+            },
+          ),
         );
       }
     }
 
     return BottomNavigationBar(
       currentIndex: currentIndex,
+      onTap: _onItemTapped,
+      type: BottomNavigationBarType.fixed,
       selectedItemColor: blue,
       unselectedItemColor: Colors.grey,
       showUnselectedLabels: true,
-      type: BottomNavigationBarType.fixed,
-      onTap: _onItemTapped,
       items: const [
         BottomNavigationBarItem(icon: Icon(Icons.home_filled), label: "Feed"),
         BottomNavigationBarItem(icon: Icon(Icons.people_alt), label: "Connect"),

@@ -20,23 +20,16 @@ class _ChatPageState extends State<ChatPage> {
   final Color blue = const Color(0xFF1976D2);
   final Random random = Random();
 
-  // Sample group senders
-  final List<String> groupMembers = [
-    "Moiz",
-    "Taha",
-    "Sara",
-    "Ali",
-    "Fatima",
-  ];
+  // Group members (for sample use)
+  final List<String> groupMembers = ["Moiz", "Taha", "Sara", "Ali", "Fatima"];
 
-  // Generates random color for each sender
+  // Generate random color for each member
   late final Map<String, Color> memberColors = {
     for (var member in groupMembers)
-      member: Colors.primaries[random.nextInt(Colors.primaries.length)]
-          .shade700
+      member: Colors.primaries[random.nextInt(Colors.primaries.length)].shade700
   };
 
-  // Sample chat messages (we’ll simulate both individual and group)
+  // Sample messages
   final List<Map<String, dynamic>> messages = [];
 
   @override
@@ -44,7 +37,6 @@ class _ChatPageState extends State<ChatPage> {
     super.initState();
 
     if (widget.isGroup) {
-      // Group chat messages
       messages.addAll([
         {
           "text": "Hey everyone, meeting at 3 PM today?",
@@ -72,23 +64,21 @@ class _ChatPageState extends State<ChatPage> {
         },
       ]);
     } else {
-      // Private chat messages
       messages.addAll([
         {
           "text":
-              "Hi, I just wanted to confirm that you are still coming to see the football match on Thursday.",
+              "Hi, just wanted to confirm if you're coming to the football match on Thursday.",
           "isMe": true,
           "time": "10:00 AM"
         },
         {
-          "text":
-              "Yes, I am still coming. I was thinking that we should try out the new burger place after the match.",
+          "text": "Yes, I am! Let’s grab food after.",
           "isMe": false,
           "time": "10:05 AM"
         },
         {
           "text":
-              "Awesome, thanks! Let me know if you need any clarification on anything. I'm free for a quick call later today if that helps.",
+              "Perfect, see you there! Let’s discuss our project too if we get time.",
           "isMe": true,
           "time": "10:07 AM"
         },
@@ -98,17 +88,18 @@ class _ChatPageState extends State<ChatPage> {
 
   void _sendMessage() {
     final text = _messageController.text.trim();
-    if (text.isNotEmpty) {
-      setState(() {
-        messages.add({
-          "text": text,
-          "sender": widget.isGroup ? "You" : null,
-          "isMe": true,
-          "time": "Now",
-        });
+    if (text.isEmpty) return;
+
+    setState(() {
+      messages.add({
+        "text": text,
+        "sender": widget.isGroup ? "You" : null,
+        "isMe": true,
+        "time": "Now",
       });
-      _messageController.clear();
-    }
+    });
+
+    _messageController.clear();
   }
 
   @override
@@ -116,11 +107,10 @@ class _ChatPageState extends State<ChatPage> {
     return Scaffold(
       backgroundColor: Colors.white,
       appBar: AppBar(
-        backgroundColor: Colors.white,
         elevation: 0.3,
+        backgroundColor: Colors.white,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new_rounded,
-              color: Colors.black87),
+          icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.black87),
           onPressed: () => Navigator.pop(context),
         ),
         title: Text(
@@ -132,13 +122,17 @@ class _ChatPageState extends State<ChatPage> {
           ),
         ),
         centerTitle: true,
-        actions: const [
-          Icon(Icons.info_outline, color: Colors.black54),
-          SizedBox(width: 10),
+        actions: [
+          Icon(
+            widget.isGroup ? Icons.groups_2_rounded : Icons.info_outline,
+            color: Colors.black54,
+          ),
+          const SizedBox(width: 10),
         ],
       ),
       body: Column(
         children: [
+          // Chat messages
           Expanded(
             child: ListView.builder(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
@@ -150,36 +144,34 @@ class _ChatPageState extends State<ChatPage> {
                 final String? sender = msg["sender"];
 
                 return Align(
-                  alignment:
-                      isMe ? Alignment.centerRight : Alignment.centerLeft,
+                  alignment: isMe ? Alignment.centerRight : Alignment.centerLeft,
                   child: Container(
                     margin: const EdgeInsets.symmetric(vertical: 5),
                     constraints: BoxConstraints(
-                        maxWidth: MediaQuery.of(context).size.width * 0.75),
+                      maxWidth: MediaQuery.of(context).size.width * 0.75,
+                    ),
                     child: Column(
-                      crossAxisAlignment: isMe
-                          ? CrossAxisAlignment.end
-                          : CrossAxisAlignment.start,
+                      crossAxisAlignment:
+                          isMe ? CrossAxisAlignment.end : CrossAxisAlignment.start,
                       children: [
+                        // Sender name for group chats
                         if (showSender && sender != null)
                           Padding(
-                            padding:
-                                const EdgeInsets.only(left: 6, bottom: 2),
+                            padding: const EdgeInsets.only(left: 6, bottom: 2),
                             child: Text(
                               sender,
                               style: TextStyle(
                                 color: memberColors[sender],
-                                fontWeight: FontWeight.w700,
+                                fontWeight: FontWeight.bold,
                                 fontSize: 13,
                               ),
                             ),
                           ),
+                        // Message bubble
                         Container(
                           padding: const EdgeInsets.all(12),
                           decoration: BoxDecoration(
-                            color: isMe
-                                ? blue
-                                : Colors.grey.shade200,
+                            color: isMe ? blue : Colors.grey.shade200,
                             borderRadius: BorderRadius.only(
                               topLeft: const Radius.circular(12),
                               topRight: const Radius.circular(12),
@@ -201,9 +193,8 @@ class _ChatPageState extends State<ChatPage> {
                               Text(
                                 msg["time"],
                                 style: TextStyle(
-                                  color: isMe
-                                      ? Colors.white70
-                                      : Colors.grey.shade600,
+                                  color:
+                                      isMe ? Colors.white70 : Colors.grey.shade600,
                                   fontSize: 11,
                                 ),
                               ),
@@ -217,7 +208,8 @@ class _ChatPageState extends State<ChatPage> {
               },
             ),
           ),
-          // Input field
+
+          // Message input area
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
             decoration: BoxDecoration(
@@ -234,8 +226,8 @@ class _ChatPageState extends State<ChatPage> {
               children: [
                 Expanded(
                   child: Container(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 14, vertical: 6),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
                     decoration: BoxDecoration(
                       color: Colors.grey.shade100,
                       borderRadius: BorderRadius.circular(30),

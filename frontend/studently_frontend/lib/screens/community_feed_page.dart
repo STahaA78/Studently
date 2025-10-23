@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'dart:math';
 import 'direct_messages_page.dart';
 import '../widgets/custom_nav_bar.dart';
+import 'post_details_page.dart';
+
 class CommunityFeedPage extends StatefulWidget {
   const CommunityFeedPage({super.key});
 
@@ -22,19 +24,11 @@ class _CommunityFeedPageState extends State<CommunityFeedPage> {
     super.initState();
 
     // Generate sample random posts
-    for (int i = 0; i < 15; i++) {
+    for (int i = 0; i < 10; i++) {
       posts.add({
-        "name": [
-          "Moiz Pasha",
-          "Taha Ahmed",
-          "Sara Malik",
-          "Ali Khan",
-          "Fatima Noor"
-        ][random.nextInt(5)],
+        "name": ["Moiz Pasha", "Taha Ahmed", "Sara Malik", "Ali Khan", "Fatima Noor"][random.nextInt(5)],
         "time": "${random.nextInt(6) + 1} hours ago",
-        "title": random.nextBool()
-            ? "Discussion on Flutter Project ${random.nextInt(20)}"
-            : null,
+        "title": random.nextBool() ? "Discussion on Flutter Project ${random.nextInt(20)}" : null,
         "description": [
           "Hey everyone! Let's form a study group for tomorrow's lab session.",
           "Does anyone know how to fix the Android emulator issue?",
@@ -43,7 +37,7 @@ class _CommunityFeedPageState extends State<CommunityFeedPage> {
           "Need suggestions on improving my Flutter UI layout."
         ][random.nextInt(5)],
         "likes": random.nextInt(40) + 1,
-        "comments": random.nextInt(10) + 1,
+        "comments": random.nextInt(5) + 1,
         "image": random.nextBool() ? "assets/images/group_study.jpg" : null,
       });
     }
@@ -57,12 +51,26 @@ class _CommunityFeedPageState extends State<CommunityFeedPage> {
     });
   }
 
+  Future<void> openPostDetails(int index) async {
+    // Navigate and wait for updates
+    final updatedPost = await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => PostDetailsPage(postData: Map<String, dynamic>.from(posts[index])),
+      ),
+    );
+
+    if (updatedPost != null) {
+      setState(() {
+        posts[index] = updatedPost;
+      });
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final Size screenSize = MediaQuery.of(context).size;
     final bool isLandscape = screenSize.width > screenSize.height;
-
-    // Feed width constraint: wider screens get centered content
     final double maxContentWidth = isLandscape ? 600 : screenSize.width * 0.95;
 
     return Scaffold(
@@ -72,40 +80,23 @@ class _CommunityFeedPageState extends State<CommunityFeedPage> {
         backgroundColor: Colors.white,
         title: Row(
           children: [
-            Image.asset(
-              'assets/images/studently_logo.png',
-              height: 26,
-            ),
+            Image.asset('assets/images/studently_logo.png', height: 26),
             const SizedBox(width: 6),
-            Text(
-              'Studently',
-              style: TextStyle(
-                fontSize: 22,
-                color: blue,
-                fontWeight: FontWeight.w700,
-              ),
-            ),
+            Text('Studently',
+                style: TextStyle(fontSize: 22, color: blue, fontWeight: FontWeight.w700)),
           ],
         ),
         actions: [
           IconButton(
-            icon: const Icon(Icons.notifications_none_rounded,
-                color: Colors.black, size: 26),
+            icon: const Icon(Icons.notifications_none_rounded, color: Colors.black, size: 26),
             onPressed: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (_) => const NotificationsPage()),
-              );
+              Navigator.push(context, MaterialPageRoute(builder: (_) => const NotificationsPage()));
             },
           ),
           IconButton(
-            icon: const Icon(Icons.mail_outline_rounded,
-                color: Colors.black, size: 26),
+            icon: const Icon(Icons.mail_outline_rounded, color: Colors.black, size: 26),
             onPressed: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (_) => const DirectMessagesPage()),
-              );
+              Navigator.push(context, MaterialPageRoute(builder: (_) => const DirectMessagesPage()));
             },
           ),
           const SizedBox(width: 8),
@@ -123,24 +114,26 @@ class _CommunityFeedPageState extends State<CommunityFeedPage> {
               final int likes = likeCounts[index] ?? post["likes"];
               final int comments = post["comments"];
 
-              return _buildPostCard(
-                index: index,
-                name: post["name"],
-                time: post["time"],
-                image: post["image"],
-                title: post["title"],
-                description: post["description"],
-                isLiked: isLiked,
-                likes: likes,
-                comments: comments,
+              return GestureDetector(
+                onTap: () => openPostDetails(index),
+                child: _buildPostCard(
+                  index: index,
+                  name: post["name"],
+                  time: post["time"],
+                  image: post["image"],
+                  title: post["title"],
+                  description: post["description"],
+                  isLiked: isLiked,
+                  likes: likes,
+                  comments: comments,
+                  onCommentTap: () => openPostDetails(index),
+                ),
               );
             },
           ),
         ),
       ),
       bottomNavigationBar: const CustomNavBar(currentIndex: 0),
-
-
     );
   }
 
@@ -154,6 +147,7 @@ class _CommunityFeedPageState extends State<CommunityFeedPage> {
     required bool isLiked,
     required int likes,
     required int comments,
+    required VoidCallback onCommentTap,
   }) {
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
@@ -162,11 +156,7 @@ class _CommunityFeedPageState extends State<CommunityFeedPage> {
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
-          BoxShadow(
-            color: Colors.grey.withOpacity(0.1),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
-          ),
+          BoxShadow(color: Colors.grey.withOpacity(0.1), blurRadius: 8, offset: const Offset(0, 2)),
         ],
       ),
       child: Column(
@@ -177,19 +167,14 @@ class _CommunityFeedPageState extends State<CommunityFeedPage> {
             children: [
               CircleAvatar(
                 backgroundColor: Colors.grey.shade300,
-                child: Text(
-                  name[0],
-                  style: const TextStyle(
-                      color: Colors.black, fontWeight: FontWeight.w600),
-                ),
+                child: Text(name[0],
+                    style: const TextStyle(color: Colors.black, fontWeight: FontWeight.w600)),
               ),
               const SizedBox(width: 10),
               Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(name,
-                      style: const TextStyle(
-                          fontWeight: FontWeight.w600, fontSize: 15)),
+                  Text(name, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 15)),
                   Text(time, style: const TextStyle(color: Colors.grey)),
                 ],
               ),
@@ -205,19 +190,11 @@ class _CommunityFeedPageState extends State<CommunityFeedPage> {
           if (image != null) const SizedBox(height: 10),
 
           if (title != null)
-            Text(
-              title,
-              style: const TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
+            Text(title,
+                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
           if (title != null) const SizedBox(height: 6),
 
-          Text(
-            description,
-            style: const TextStyle(fontSize: 15, color: Colors.black87),
-          ),
+          Text(description, style: const TextStyle(fontSize: 15, color: Colors.black87)),
           const SizedBox(height: 12),
 
           Row(
@@ -235,25 +212,15 @@ class _CommunityFeedPageState extends State<CommunityFeedPage> {
                   ),
                   const SizedBox(width: 6),
                   Text("$likes",
-                      style:
-                          const TextStyle(fontSize: 14, color: Colors.black87)),
+                      style: const TextStyle(fontSize: 14, color: Colors.black87)),
                   const SizedBox(width: 18),
                   GestureDetector(
-                    onTap: () {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text("Comments feature coming soon!"),
-                          duration: Duration(seconds: 1),
-                        ),
-                      );
-                    },
-                    child: const Icon(Icons.chat_bubble_outline,
-                        size: 22, color: Colors.grey),
+                    onTap: onCommentTap,
+                    child: const Icon(Icons.chat_bubble_outline, size: 22, color: Colors.grey),
                   ),
                   const SizedBox(width: 6),
                   Text("$comments",
-                      style:
-                          const TextStyle(fontSize: 14, color: Colors.black87)),
+                      style: const TextStyle(fontSize: 14, color: Colors.black87)),
                 ],
               ),
               const Icon(Icons.share_outlined, size: 22, color: Colors.grey),
@@ -265,7 +232,6 @@ class _CommunityFeedPageState extends State<CommunityFeedPage> {
   }
 }
 
-// Dummy notifications page
 class NotificationsPage extends StatelessWidget {
   const NotificationsPage({super.key});
 
@@ -273,9 +239,7 @@ class NotificationsPage extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text("Notifications")),
-      body: const Center(
-        child: Text("No new notifications yet."),
-      ),
+      body: const Center(child: Text("No new notifications yet.")),
     );
   }
 }
