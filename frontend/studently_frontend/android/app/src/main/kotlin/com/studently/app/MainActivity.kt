@@ -1,4 +1,4 @@
-package com.example.studently_frontend
+package com.studently.app
 
 import io.flutter.embedding.android.FlutterActivity
 
