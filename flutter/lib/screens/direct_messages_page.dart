@@ -32,7 +32,7 @@ class _DirectMessagesPageState extends State<DirectMessagesPage> {
       "name": "AI Study Group",
       "message": "Meeting starts at 3 PM today.",
       "time": "Fri",
-      "unread": 0,
+      "unread": 1,
       "isGroup": true,
     },
     {
@@ -139,17 +139,14 @@ class _DirectMessagesPageState extends State<DirectMessagesPage> {
                         overflow: TextOverflow.ellipsis,
                         style: const TextStyle(color: Colors.black54),
                       ),
-                      trailing: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
+                      trailing: Row(
+                        mainAxisSize: MainAxisSize.min,
                         children: [
                           Text(
                             chat["time"],
-                            style: const TextStyle(
-                              color: Colors.grey,
-                              fontSize: 13,
-                            ),
+                            style: const TextStyle(color: Colors.grey, fontSize: 13),
                           ),
-                          const SizedBox(height: 6),
+                          const SizedBox(width: 8),
                           if (chat["unread"] > 0)
                             Container(
                               padding: const EdgeInsets.all(6),

@@ -54,13 +54,6 @@ google-services.json
 GoogleService-Info.plist
 
 # ==========================
-# Node / Web (if ever used)
-# ==========================
-node_modules/
-npm-debug.log
-yarn-error.log
-
-# ==========================
 # JetBrains / VSCode metadata
 # ==========================
 .idea/
