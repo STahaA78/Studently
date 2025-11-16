@@ -52,6 +52,7 @@ secrets.json
 firebase_config.json
 google-services.json
 GoogleService-Info.plist
+*-venv/
 
 # ==========================
 # JetBrains / VSCode metadata
