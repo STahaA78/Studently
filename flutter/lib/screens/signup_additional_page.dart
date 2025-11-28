@@ -1,14 +1,20 @@
 import 'package:flutter/material.dart';
 import 'signup_email_verification_page.dart'; // Import for navigation
+import 'package:studently/models.dart';
+import 'package:studently/logger.dart';
+import 'package:email_otp/email_otp.dart';
 
 class SignupAdditionalPage extends StatefulWidget {
-  const SignupAdditionalPage({super.key});
+  // User passed from basic signup
+  final User user;
+  const SignupAdditionalPage({super.key, required this.user});
 
   @override
   State<SignupAdditionalPage> createState() => _SignupAdditionalPageState();
 }
 
 class _SignupAdditionalPageState extends State<SignupAdditionalPage> {
+  // variables from the previous page
   DateTime? selectedDate;
   String? selectedDepartment;
   String? selectedBatch;
@@ -16,6 +22,42 @@ class _SignupAdditionalPageState extends State<SignupAdditionalPage> {
   final List<String> batches = ['2022', '2023', '2024', '2025'];
   final List<String> interests = ['Programming', 'Gaming'];
   final TextEditingController _interestController = TextEditingController();
+  String? _dateError;
+  String? _departmentError;
+  String? _batchError;
+  String? _interestsError;
+
+  bool _validateAdditional() {
+    final missing = <String>[];
+    if (selectedDate == null) missing.add('Birthday');
+    if (selectedDepartment == null || selectedDepartment!.isEmpty) missing.add('Department');
+    if (selectedBatch == null || selectedBatch!.isEmpty) missing.add('Batch');
+    if (interests.isEmpty) missing.add('Interests');
+
+    setState(() {
+      _dateError = selectedDate == null ? 'Please select your birthday' : null;
+      _departmentError = (selectedDepartment == null || selectedDepartment!.isEmpty) ? 'Please select department' : null;
+      _batchError = (selectedBatch == null || selectedBatch!.isEmpty) ? 'Please select batch' : null;
+      _interestsError = interests.isEmpty ? 'Please add at least one interest' : null;
+    });
+
+    return missing.isEmpty;
+  }
+
+  //Send Email OTP
+  Future<bool> _sendOtp() async {
+    logger.i("[$runtimeType] SendOTP Started");
+    logger.d("[$runtimeType] Email: ${widget.user.email}");
+    try {
+      // Implement OTP sending logic here
+      await EmailOTP.sendOTP(email: widget.user.email);
+      logger.i("[$runtimeType] OTP sent successfully to ${widget.user.email}");
+    } catch (e) {
+      logger.e("[$runtimeType] Failed to send OTP to ${widget.user.email}", error: e);
+      return false;
+    }
+    return true;
+  }
 
   Future<void> _pickDate(BuildContext context) async {
     final DateTime? picked = await showDatePicker(
@@ -25,8 +67,11 @@ class _SignupAdditionalPageState extends State<SignupAdditionalPage> {
       lastDate: DateTime.now(),
     );
     if (picked != null && picked != selectedDate) {
+      if (!context.mounted) return;
       setState(() {
         selectedDate = picked;
+        widget.user.birthdate = picked;
+        _dateError = null;
       });
     }
   }
@@ -140,8 +185,17 @@ class _SignupAdditionalPageState extends State<SignupAdditionalPage> {
                         hint: 'Select your department',
                         value: selectedDepartment,
                         items: departments,
-                        onChanged: (value) => setState(() => selectedDepartment = value),
+                        onChanged: (value) => setState(() {
+                          selectedDepartment = value;
+                          widget.user.department = value;
+                          _departmentError = null;
+                        }),
                       ),
+                      if (_departmentError != null)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 6),
+                          child: Text(_departmentError!, style: TextStyle(color: Colors.redAccent, fontSize: 12)),
+                        ),
                       const SizedBox(height: 20),
 
                       // ===== Batch =====
@@ -158,8 +212,17 @@ class _SignupAdditionalPageState extends State<SignupAdditionalPage> {
                         hint: 'Select your batch',
                         value: selectedBatch,
                         items: batches,
-                        onChanged: (value) => setState(() => selectedBatch = value),
+                        onChanged: (value) => setState(() {
+                          selectedBatch = value;
+                          widget.user.batch = value;
+                          _batchError = null;
+                        }),
                       ),
+                      if (_batchError != null)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 6),
+                          child: Text(_batchError!, style: TextStyle(color: Colors.redAccent, fontSize: 12)),
+                        ),
                       const SizedBox(height: 20),
 
                       // ===== Interests =====
@@ -181,66 +244,89 @@ class _SignupAdditionalPageState extends State<SignupAdditionalPage> {
                           alignment: WrapAlignment.center,
                           children: [
                             ...interests.map(
-                              (interest) => Chip(
-                                label: Text(interest),
-                                deleteIcon: const Icon(Icons.close),
-                                backgroundColor: blue.withOpacity(0.2),
-                                onDeleted: () {
-                                  setState(() {
-                                    interests.remove(interest);
-                                  });
-                                },
-                              ),
-                            ),
-                            GestureDetector(
-                              onTap: () async {
-                                await showDialog(
-                                  context: context,
-                                  builder: (ctx) => AlertDialog(
-                                    title: const Text('Add Interest'),
-                                    content: TextField(
-                                      controller: _interestController,
-                                      decoration: const InputDecoration(
-                                        hintText: 'Enter new interest',
-                                      ),
-                                    ),
-                                    actions: [
-                                      TextButton(
-                                        onPressed: () => Navigator.pop(ctx),
-                                        child: const Text('Cancel'),
-                                      ),
-                                      TextButton(
-                                        onPressed: () {
-                                          setState(() {
-                                            if (_interestController.text.isNotEmpty) {
-                                              interests.add(_interestController.text);
-                                            }
-                                            _interestController.clear();
-                                          });
-                                          Navigator.pop(ctx);
-                                        },
-                                        child: const Text('Add'),
-                                      ),
-                                    ],
-                                  ),
-                                );
+                            (interest) => Chip(
+                              label: Text(interest),
+                              deleteIcon: const Icon(Icons.close),
+                              backgroundColor: blue.withOpacity(0.2),
+                              onDeleted: () {
+                                setState(() {
+                                  interests.remove(interest);
+                                  widget.user.interests = List.from(interests);
+                                  if (interests.isNotEmpty) _interestsError = null;
+                                });
                               },
-                              child: const Icon(Icons.add, color: Colors.blue),
                             ),
+                            ),
+                                  GestureDetector(
+                                    onTap: () async {
+                                      await showDialog(
+                                        context: context,
+                                        builder: (ctx) => AlertDialog(
+                                          title: const Text('Add Interest'),
+                                          content: TextField(
+                                            controller: _interestController,
+                                            decoration: const InputDecoration(
+                                              hintText: 'Enter new interest',
+                                            ),
+                                          ),
+                                          actions: [
+                                            TextButton(
+                                              onPressed: () => Navigator.pop(ctx),
+                                              child: const Text('Cancel'),
+                                            ),
+                                            TextButton(
+                                              onPressed: () {
+                                                setState(() {
+                                                  if (_interestController.text.isNotEmpty) {
+                                                    interests.add(_interestController.text);
+                                                    widget.user.interests = List.from(interests);
+                                                    _interestsError = null;
+                                                  }
+                                                  _interestController.clear();
+                                                });
+                                                Navigator.pop(ctx);
+                                              },
+                                              child: const Text('Add'),
+                                            ),
+                                          ],
+                                        ),
+                                      );
+                                    },
+                                    child: const Icon(Icons.add, color: Colors.blue),
+                                  ),
                           ],
                         ),
                       ),
                       const SizedBox(height: 30),
 
+                      if (_dateError != null)
+                        Padding(
+                          padding: const EdgeInsets.only(bottom: 8.0),
+                          child: Text(_dateError!, style: TextStyle(color: Colors.redAccent, fontSize: 12)),
+                        ),
+                      if (_interestsError != null)
+                        Padding(
+                          padding: const EdgeInsets.only(bottom: 8.0),
+                          child: Text(_interestsError!, style: TextStyle(color: Colors.redAccent, fontSize: 12)),
+                        ),
+
                       // ===== Complete Sign Up Button =====
                       SizedBox(
                         width: double.infinity,
                         child: ElevatedButton(
-                          onPressed: () {
+                          onPressed: () async {
+                            logger.i("[$runtimeType] Complete Sign Up Button Pressed");
+                            // validate required additional fields
+                            if (!_validateAdditional()) return;
+
+                            // send OTP then navigate to verification with the populated user
+                            bool otpSent = await _sendOtp();
+                            if (!otpSent) return;
+                            if (!context.mounted) return;
                             Navigator.push(
                               context,
                               MaterialPageRoute(
-                                builder: (context) => const SignupEmailVerificationPage(),
+                                builder: (context) => SignupEmailVerificationPage(user: widget.user),
                               ),
                             );
                           },

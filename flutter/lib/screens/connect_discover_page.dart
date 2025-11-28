@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'dart:math';
 import '../widgets/custom_nav_bar.dart';
 
 class ConnectDiscoverPage extends StatefulWidget {

@@ -1,20 +1,36 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'community_feed_page.dart';
+import 'package:email_otp/email_otp.dart';
+import 'package:studently/auth_service.dart';
+import 'package:studently/logger.dart';
+import 'package:studently/models.dart';
 
 class SignupEmailVerificationPage extends StatefulWidget {
-  const SignupEmailVerificationPage({super.key});
+  final User user;
+  const SignupEmailVerificationPage({super.key, required this.user});
 
   @override
-  State<SignupEmailVerificationPage> createState() =>
-      _SignupEmailVerificationPageState();
+  State<SignupEmailVerificationPage> createState() => _SignupEmailVerificationPageState();
 }
 
-class _SignupEmailVerificationPageState
-    extends State<SignupEmailVerificationPage> {
-  final List<TextEditingController> _controllers =
-      List.generate(6, (_) => TextEditingController());
+class _SignupEmailVerificationPageState extends State<SignupEmailVerificationPage> {
+  final List<TextEditingController> _controllers = List.generate(6, (_) => TextEditingController());
   final FocusScopeNode _focusScopeNode = FocusScopeNode();
+  String? _otpError;
+
+  //Signup Logic
+  Future<void> register() async {
+    logger.i("[$runtimeType] Firebase Registration Started");
+    try {
+      await authService.value.createAccount(
+        email: widget.user.email, password: widget.user.password,
+      );
+      logger.i("[$runtimeType] Firebase Registration Successful");
+    } catch (e) {
+      logger.e("[$runtimeType] Firebase Registration Failed" , error: e);
+    }
+  }
 
   @override
   void dispose() {
@@ -26,10 +42,11 @@ class _SignupEmailVerificationPageState
   }
 
   void _showCircularNotification(String message, {Color color = Colors.blue}) {
+    if (!mounted) return;
     OverlayEntry? entry;
 
     entry = OverlayEntry(
-      builder: (context) {
+      builder: (ctx) {
         return Positioned(
           top: 50,
           left: 0,
@@ -43,24 +60,40 @@ class _SignupEmailVerificationPageState
       },
     );
 
-    Overlay.of(context).insert(entry);
+    final overlay = Overlay.of(context);
+    overlay.insert(entry);
   }
 
-  void _verifyCode() {
-    String code = _controllers.map((e) => e.text).join();
-    if (code.length == 6) {
-      _showCircularNotification("✅ Verified", color: Colors.green);
-
-      // Navigate after 2.2 seconds (after notification animation)
-      Future.delayed(const Duration(milliseconds: 2200), () {
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(builder: (_) => const CommunityFeedPage()),
-        );
-      });
-    } else {
+  Future<void> _verifyCode() async {
+    final code = _controllers.map((e) => e.text).join();
+    if (code.length != 6) {
+      setState(() => _otpError = 'Enter all 6 digits');
       _showCircularNotification("❗ Enter all digits", color: Colors.redAccent);
+      return;
     }
+
+    // verify OTP using EmailOTP
+    final isValid = EmailOTP.verifyOTP(otp: code);
+    if (!isValid) {
+      setState(() => _otpError = 'Invalid code');
+      _showCircularNotification("❗ Invalid code", color: Colors.redAccent);
+      return;
+    }
+
+    setState(() => _otpError = null);
+
+    if (!mounted) return;
+    _showCircularNotification("✅ Verified", color: Colors.green);
+
+    // create firebase account then navigate
+    await register();
+
+    await Future.delayed(const Duration(milliseconds: 2200));
+    if (!mounted) return;
+    Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(builder: (_) => const CommunityFeedPage()),
+    );
   }
 
   void _resendCode() {
@@ -139,6 +172,7 @@ class _SignupEmailVerificationPageState
                             FilteringTextInputFormatter.digitsOnly,
                           ],
                           onChanged: (value) {
+                            if (_otpError != null) setState(() => _otpError = null);
                             if (value.isNotEmpty && index < 5) {
                               FocusScope.of(context).nextFocus();
                             }
@@ -166,6 +200,11 @@ class _SignupEmailVerificationPageState
                   ),
                 ),
                 const SizedBox(height: 20),
+                if (_otpError != null)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 12.0),
+                    child: Text(_otpError!, style: TextStyle(color: Colors.redAccent, fontSize: 13)),
+                  ),
 
                 GestureDetector(
                   onTap: _resendCode,
