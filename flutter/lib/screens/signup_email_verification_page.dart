@@ -1,10 +1,11 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:http/http.dart' as http;
 import 'community_feed_page.dart';
 import 'package:email_otp/email_otp.dart';
-import 'package:studently/auth_service.dart';
-import 'package:studently/logger.dart';
 import 'package:studently/models.dart';
+import 'package:studently/logger.dart';
 
 class SignupEmailVerificationPage extends StatefulWidget {
   final User user;
@@ -16,28 +17,11 @@ class SignupEmailVerificationPage extends StatefulWidget {
 
 class _SignupEmailVerificationPageState extends State<SignupEmailVerificationPage> {
   final List<TextEditingController> _controllers = List.generate(6, (_) => TextEditingController());
-  final FocusScopeNode _focusScopeNode = FocusScopeNode();
   String? _otpError;
-
-  //Signup Logic
-  Future<void> register() async {
-    logger.i("[$runtimeType] Firebase Registration Started");
-    try {
-      await authService.value.createAccount(
-        email: widget.user.email, password: widget.user.password,
-      );
-      logger.i("[$runtimeType] Firebase Registration Successful");
-    } catch (e) {
-      logger.e("[$runtimeType] Firebase Registration Failed" , error: e);
-    }
-  }
 
   @override
   void dispose() {
-    for (var controller in _controllers) {
-      controller.dispose();
-    }
-    _focusScopeNode.dispose();
+    for (var controller in _controllers) controller.dispose();
     super.dispose();
   }
 
@@ -46,22 +30,58 @@ class _SignupEmailVerificationPageState extends State<SignupEmailVerificationPag
     OverlayEntry? entry;
 
     entry = OverlayEntry(
-      builder: (ctx) {
-        return Positioned(
-          top: 50,
-          left: 0,
-          right: 0,
-          child: CircularSlideNotification(
-            message: message,
-            background: color,
-            onDismissed: () => entry?.remove(),
-          ),
-        );
-      },
+      builder: (ctx) => Positioned(
+        top: 50,
+        left: 0,
+        right: 0,
+        child: CircularSlideNotification(
+          message: message,
+          background: color,
+          onDismissed: () => entry?.remove(),
+        ),
+      ),
     );
 
-    final overlay = Overlay.of(context);
-    overlay.insert(entry);
+    Overlay.of(context).insert(entry);
+  }
+
+  /// Send user data to backend
+  Future<bool> _sendUserToBackend() async {
+    final url = Uri.parse('http://127.0.0.1:8000/users/register');
+
+    final Map<String, dynamic> payload = {
+      "Name": widget.user.name,
+      "email": widget.user.email,
+      "password": widget.user.password,
+      "birthday": widget.user.birthday, // already in MM/DD/YYYY format
+      "department": widget.user.department,
+      "batch": widget.user.batch,
+      "interests": widget.user.interests,
+      "university": widget.user.university ?? "FAST",
+      "profile_picture": widget.user.profilePicture,
+      "bio": widget.user.bio,
+    };
+
+    try {
+      final response = await http.post(
+        url,
+        headers: {"Content-Type": "application/json"},
+        body: jsonEncode(payload),
+      );
+
+      if (response.statusCode == 201 || response.statusCode == 200) {
+        logger.i("[$runtimeType] User registered successfully");
+        return true;
+      } else {
+        logger.e("[$runtimeType] Backend registration failed: ${response.body}");
+        _showCircularNotification("❗ Backend registration failed", color: Colors.redAccent);
+        return false;
+      }
+    } catch (e) {
+      logger.e("[$runtimeType] Error sending user to backend", error: e);
+      _showCircularNotification("❗ Network error", color: Colors.redAccent);
+      return false;
+    }
   }
 
   Future<void> _verifyCode() async {
@@ -72,7 +92,6 @@ class _SignupEmailVerificationPageState extends State<SignupEmailVerificationPag
       return;
     }
 
-    // verify OTP using EmailOTP
     final isValid = EmailOTP.verifyOTP(otp: code);
     if (!isValid) {
       setState(() => _otpError = 'Invalid code');
@@ -81,14 +100,12 @@ class _SignupEmailVerificationPageState extends State<SignupEmailVerificationPag
     }
 
     setState(() => _otpError = null);
-
-    if (!mounted) return;
     _showCircularNotification("✅ Verified", color: Colors.green);
 
-    // create firebase account then navigate
-    await register();
+    // Send user data to backend
+    bool backendSuccess = await _sendUserToBackend();
+    if (!backendSuccess) return;
 
-    await Future.delayed(const Duration(milliseconds: 2200));
     if (!mounted) return;
     Navigator.pushReplacement(
       context,
@@ -105,18 +122,14 @@ class _SignupEmailVerificationPageState extends State<SignupEmailVerificationPag
     final Color blue = const Color(0xFF1976D2);
     final Size screenSize = MediaQuery.of(context).size;
     final bool isLandscape = screenSize.width > screenSize.height;
-    final double contentWidth =
-        isLandscape ? screenSize.width * 0.6 : screenSize.width * 0.85;
+    final double contentWidth = isLandscape ? screenSize.width * 0.6 : screenSize.width * 0.85;
 
     return Scaffold(
       backgroundColor: Colors.white,
       appBar: AppBar(
         elevation: 0,
         backgroundColor: Colors.white,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.black),
-          onPressed: () => Navigator.pop(context),
-        ),
+        leading: IconButton(icon: const Icon(Icons.arrow_back, color: Colors.black), onPressed: () => Navigator.pop(context)),
       ),
       body: SafeArea(
         child: Center(
@@ -124,33 +137,18 @@ class _SignupEmailVerificationPageState extends State<SignupEmailVerificationPag
             padding: const EdgeInsets.symmetric(vertical: 20),
             child: Column(
               children: [
-                const Text(
-                  'Verify Your Email',
-                  style: TextStyle(
-                    fontSize: 26,
-                    fontWeight: FontWeight.w800,
-                    color: Colors.black,
-                  ),
-                  textAlign: TextAlign.center,
-                ),
+                const Text('Verify Your Email', style: TextStyle(fontSize: 26, fontWeight: FontWeight.w800, color: Colors.black), textAlign: TextAlign.center),
                 const SizedBox(height: 10),
                 Text(
                   "This helps us confirm it's really you and\nkeep our platform spam-free.",
                   textAlign: TextAlign.center,
-                  style: TextStyle(
-                    fontSize: 15,
-                    color: Colors.grey[700],
-                    height: 1.4,
-                  ),
+                  style: TextStyle(fontSize: 15, color: Colors.grey[700], height: 1.4),
                 ),
                 const SizedBox(height: 40),
                 const Text(
                   "Enter the 6-digit verification code sent to your email",
                   textAlign: TextAlign.center,
-                  style: TextStyle(
-                    fontWeight: FontWeight.w500,
-                    fontSize: 15,
-                  ),
+                  style: TextStyle(fontWeight: FontWeight.w500, fontSize: 15),
                 ),
                 const SizedBox(height: 20),
 
@@ -164,35 +162,20 @@ class _SignupEmailVerificationPageState extends State<SignupEmailVerificationPag
                         width: 45,
                         child: TextField(
                           controller: _controllers[index],
-                          focusNode: index == 0 ? _focusScopeNode : null,
                           textAlign: TextAlign.center,
                           keyboardType: TextInputType.number,
-                          inputFormatters: [
-                            LengthLimitingTextInputFormatter(1),
-                            FilteringTextInputFormatter.digitsOnly,
-                          ],
+                          inputFormatters: [LengthLimitingTextInputFormatter(1), FilteringTextInputFormatter.digitsOnly],
                           onChanged: (value) {
                             if (_otpError != null) setState(() => _otpError = null);
-                            if (value.isNotEmpty && index < 5) {
-                              FocusScope.of(context).nextFocus();
-                            }
-                            if (value.isEmpty && index > 0) {
-                              FocusScope.of(context).previousFocus();
-                            }
+                            if (value.isNotEmpty && index < 5) FocusScope.of(context).nextFocus();
+                            if (value.isEmpty && index > 0) FocusScope.of(context).previousFocus();
                           },
                           decoration: InputDecoration(
                             filled: true,
                             fillColor: Colors.grey.shade100,
-                            contentPadding:
-                                const EdgeInsets.symmetric(vertical: 16),
-                            border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(12),
-                              borderSide: BorderSide(color: Colors.grey.shade300),
-                            ),
-                            focusedBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(12),
-                              borderSide: BorderSide(color: blue, width: 2),
-                            ),
+                            contentPadding: const EdgeInsets.symmetric(vertical: 16),
+                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: Colors.grey.shade300)),
+                            focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: blue, width: 2)),
                           ),
                         ),
                       );
@@ -201,21 +184,11 @@ class _SignupEmailVerificationPageState extends State<SignupEmailVerificationPag
                 ),
                 const SizedBox(height: 20),
                 if (_otpError != null)
-                  Padding(
-                    padding: const EdgeInsets.only(bottom: 12.0),
-                    child: Text(_otpError!, style: TextStyle(color: Colors.redAccent, fontSize: 13)),
-                  ),
+                  Padding(padding: const EdgeInsets.only(bottom: 12.0), child: Text(_otpError!, style: TextStyle(color: Colors.redAccent, fontSize: 13))),
 
                 GestureDetector(
                   onTap: _resendCode,
-                  child: Text(
-                    'Resend code',
-                    style: TextStyle(
-                      color: blue,
-                      fontSize: 15,
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
+                  child: Text('Resend code', style: TextStyle(color: blue, fontSize: 15, fontWeight: FontWeight.w500)),
                 ),
                 const SizedBox(height: 30),
 
@@ -226,18 +199,9 @@ class _SignupEmailVerificationPageState extends State<SignupEmailVerificationPag
                     style: ElevatedButton.styleFrom(
                       backgroundColor: blue,
                       padding: const EdgeInsets.symmetric(vertical: 16),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(25),
-                      ),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(25)),
                     ),
-                    child: const Text(
-                      'Verify',
-                      style: TextStyle(
-                        fontSize: 18,
-                        color: Colors.white,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
+                    child: const Text('Verify', style: TextStyle(fontSize: 18, color: Colors.white, fontWeight: FontWeight.w500)),
                   ),
                 ),
               ],
@@ -249,44 +213,29 @@ class _SignupEmailVerificationPageState extends State<SignupEmailVerificationPag
   }
 }
 
-/// 🔔 Circular notification widget with slide animation
+/// Circular notification widget
 class CircularSlideNotification extends StatefulWidget {
   final String message;
   final Color background;
   final VoidCallback onDismissed;
 
-  const CircularSlideNotification({
-    super.key,
-    required this.message,
-    required this.background,
-    required this.onDismissed,
-  });
+  const CircularSlideNotification({super.key, required this.message, required this.background, required this.onDismissed});
 
   @override
-  State<CircularSlideNotification> createState() =>
-      _CircularSlideNotificationState();
+  State<CircularSlideNotification> createState() => _CircularSlideNotificationState();
 }
 
-class _CircularSlideNotificationState extends State<CircularSlideNotification>
-    with SingleTickerProviderStateMixin {
+class _CircularSlideNotificationState extends State<CircularSlideNotification> with SingleTickerProviderStateMixin {
   late AnimationController _controller;
   late Animation<Offset> _slideAnimation;
 
   @override
   void initState() {
     super.initState();
-    _controller = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 500),
-      reverseDuration: const Duration(milliseconds: 400),
-    );
-    _slideAnimation =
-        Tween(begin: const Offset(0, -1), end: const Offset(0, 0)).animate(
-      CurvedAnimation(parent: _controller, curve: Curves.easeOutBack),
-    );
+    _controller = AnimationController(vsync: this, duration: const Duration(milliseconds: 500), reverseDuration: const Duration(milliseconds: 400));
+    _slideAnimation = Tween(begin: const Offset(0, -1), end: const Offset(0, 0)).animate(CurvedAnimation(parent: _controller, curve: Curves.easeOutBack));
 
     _controller.forward();
-
     Future.delayed(const Duration(seconds: 2), () {
       _controller.reverse();
       Future.delayed(const Duration(milliseconds: 400), widget.onDismissed);
@@ -312,28 +261,14 @@ class _CircularSlideNotificationState extends State<CircularSlideNotification>
               color: widget.background,
               shape: BoxShape.rectangle,
               borderRadius: BorderRadius.circular(50),
-              boxShadow: [
-                BoxShadow(
-                  color: widget.background.withOpacity(0.5),
-                  blurRadius: 12,
-                  spreadRadius: 1,
-                  offset: const Offset(0, 4),
-                ),
-              ],
+              boxShadow: [BoxShadow(color: widget.background.withOpacity(0.5), blurRadius: 12, spreadRadius: 1, offset: const Offset(0, 4))],
             ),
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
                 const Icon(Icons.notifications_none, color: Colors.white),
                 const SizedBox(width: 8),
-                Text(
-                  widget.message,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 16,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
+                Text(widget.message, style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w600)),
               ],
             ),
           ),

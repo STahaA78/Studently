@@ -16,6 +16,7 @@ class _SignupBasicPageState extends State<SignupBasicPage> {
   final TextEditingController _nameController = TextEditingController();
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
+
   // Focus nodes for validation on focus change
   final FocusNode _nameFocus = FocusNode();
   final FocusNode _emailFocus = FocusNode();
@@ -58,7 +59,6 @@ class _SignupBasicPageState extends State<SignupBasicPage> {
       setState(() => _emailError = 'Enter a valid email address');
       return false;
     }
-    // Ensure it’s a NUCES Lahore email
     if (!email.endsWith("@lhr.nu.edu.pk")) {
       setState(() => _emailError = 'Email must be a valid NUCES Lahore email');
       return false;
@@ -277,9 +277,10 @@ class _SignupBasicPageState extends State<SignupBasicPage> {
                             logger.d("[$runtimeType] Next Button Pressed with Name: $name, Email: $email, Password: $pass");
                             if (_validateInputs(name: name, email: email, pass: pass)) {
                               final user = User(
-                                fullName: name,
+                                name: name,
                                 email: email,
                                 password: pass,
+                                birthday: null, // Birthday will be filled in next page
                               );
                               Navigator.push(
                                 context,
@@ -291,8 +292,7 @@ class _SignupBasicPageState extends State<SignupBasicPage> {
                           },
                           style: ElevatedButton.styleFrom(
                             backgroundColor: blue,
-                            padding:
-                                const EdgeInsets.symmetric(vertical: 16),
+                            padding: const EdgeInsets.symmetric(vertical: 16),
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(25),
                             ),
@@ -315,16 +315,13 @@ class _SignupBasicPageState extends State<SignupBasicPage> {
                         children: [
                           const Text(
                             "Already have an account? ",
-                            style: TextStyle(
-                                fontSize: 15, color: Colors.black87),
+                            style: TextStyle(fontSize: 15, color: Colors.black87),
                           ),
                           GestureDetector(
                             onTap: () {
                               Navigator.pushReplacement(
                                 context,
-                                MaterialPageRoute(
-                                    builder: (context) =>
-                                        const LoginPage()),
+                                MaterialPageRoute(builder: (context) => const LoginPage()),
                               );
                             },
                             child: Text(

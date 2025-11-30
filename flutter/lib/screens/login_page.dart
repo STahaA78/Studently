@@ -1,4 +1,6 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
 import 'signup_basic_page.dart';
 import 'community_feed_page.dart';
 
@@ -20,6 +22,7 @@ class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
 
   bool _showSuccess = false;
   bool _showError = false;
+  String _errorText = "Please fill in both Email and Password";
 
   @override
   void initState() {
@@ -60,33 +63,57 @@ class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
     super.dispose();
   }
 
-  void _login(BuildContext context) {
+  void _login(BuildContext context) async {
     String email = _emailController.text.trim();
     String password = _passwordController.text.trim();
 
     if (email.isEmpty || password.isEmpty) {
-      _showErrorNotification();
+      _showErrorNotification("Please fill in both Email and Password");
       return;
     }
 
-    // ✅ Success Notification
-    setState(() => _showSuccess = true);
-    _successController.forward();
+    try {
+      final response = await http.post(
+        Uri.parse("http://127.0.0.1:8000/users/login"), 
+        headers: {"Content-Type": "application/json"},
+        body: jsonEncode({
+          "email": email,
+          "password": password,
+        }),
+      );
 
-    Future.delayed(const Duration(seconds: 2), () {
-      _successController.reverse().then((_) {
-        setState(() => _showSuccess = false);
-        Navigator.pushAndRemoveUntil(
-          context,
-          MaterialPageRoute(builder: (context) => const CommunityFeedPage()),
-          (route) => false,
-        );
-      });
-    });
+      final data = jsonDecode(response.body);
+
+      if (data["success"] == true) {
+        // ✅ Success Notification
+        setState(() => _showSuccess = true);
+        _successController.forward();
+
+        Future.delayed(const Duration(seconds: 2), () {
+          _successController.reverse().then((_) {
+            setState(() => _showSuccess = false);
+            Navigator.pushAndRemoveUntil(
+              context,
+              MaterialPageRoute(builder: (context) => const CommunityFeedPage()),
+              (route) => false,
+            );
+          });
+        });
+      } else {
+        // 🔴 Error Notification
+        _showErrorNotification(data["detail"] ?? "Invalid email or password");
+      }
+    } catch (e) {
+      _showErrorNotification("Server error. Please try again.");
+    }
   }
 
-  void _showErrorNotification() {
-    setState(() => _showError = true);
+  void _showErrorNotification(String message) {
+    setState(() {
+      _errorText = message;
+      _showError = true;
+    });
+
     _errorController.forward();
 
     Future.delayed(const Duration(seconds: 2), () {
@@ -294,9 +321,9 @@ class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
                     ),
                   ],
                 ),
-                child: const Text(
-                  "Please fill in both Email and Password",
-                  style: TextStyle(
+                child: Text(
+                  _errorText,
+                  style: const TextStyle(
                       color: Colors.white,
                       fontWeight: FontWeight.w600,
                       fontSize: 15),

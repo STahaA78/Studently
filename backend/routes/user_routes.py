@@ -16,7 +16,6 @@ def register(user: UserCreate):
     user_dict["password"] = hashed_pass
     user_dict["email"] = user.email.lower()
     user_dict["birthday"] = datetime.combine(user.birthday, datetime.min.time())
-    user_dict["created_at"] = datetime.utcnow()
     result = users_collection.insert_one(user_dict)
     return {"success": True}
 #Verify User

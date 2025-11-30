@@ -1,11 +1,10 @@
 import 'package:flutter/material.dart';
-import 'signup_email_verification_page.dart'; // Import for navigation
+import 'signup_email_verification_page.dart';
 import 'package:studently/models.dart';
 import 'package:studently/logger.dart';
 import 'package:email_otp/email_otp.dart';
 
 class SignupAdditionalPage extends StatefulWidget {
-  // User passed from basic signup
   final User user;
   const SignupAdditionalPage({super.key, required this.user});
 
@@ -14,18 +13,25 @@ class SignupAdditionalPage extends StatefulWidget {
 }
 
 class _SignupAdditionalPageState extends State<SignupAdditionalPage> {
-  // variables from the previous page
-  DateTime? selectedDate;
+  String? selectedDate; // MM/DD/YYYY
   String? selectedDepartment;
   String? selectedBatch;
   final List<String> departments = ['Computer Science', 'IT', 'ECE', 'Mechanical'];
   final List<String> batches = ['2022', '2023', '2024', '2025'];
-  final List<String> interests = ['Programming', 'Gaming'];
+  List<String> interests = ['Programming', 'Gaming'];
   final TextEditingController _interestController = TextEditingController();
+
   String? _dateError;
   String? _departmentError;
   String? _batchError;
   String? _interestsError;
+
+  @override
+  void initState() {
+    super.initState();
+    // Sync initial interests to User object
+    widget.user.interests = List.from(interests);
+  }
 
   bool _validateAdditional() {
     final missing = <String>[];
@@ -41,15 +47,19 @@ class _SignupAdditionalPageState extends State<SignupAdditionalPage> {
       _interestsError = interests.isEmpty ? 'Please add at least one interest' : null;
     });
 
+    // Always update final state of User before sending OTP/API
+    widget.user.birthday = selectedDate;
+    widget.user.department = selectedDepartment;
+    widget.user.batch = selectedBatch;
+    widget.user.interests = List.from(interests);
+
     return missing.isEmpty;
   }
 
-  //Send Email OTP
   Future<bool> _sendOtp() async {
     logger.i("[$runtimeType] SendOTP Started");
     logger.d("[$runtimeType] Email: ${widget.user.email}");
     try {
-      // Implement OTP sending logic here
       await EmailOTP.sendOTP(email: widget.user.email);
       logger.i("[$runtimeType] OTP sent successfully to ${widget.user.email}");
     } catch (e) {
@@ -66,11 +76,10 @@ class _SignupAdditionalPageState extends State<SignupAdditionalPage> {
       firstDate: DateTime(1960),
       lastDate: DateTime.now(),
     );
-    if (picked != null && picked != selectedDate) {
-      if (!context.mounted) return;
+    if (picked != null && context.mounted) {
       setState(() {
-        selectedDate = picked;
-        widget.user.birthdate = picked;
+        selectedDate = '${picked.month.toString().padLeft(2, '0')}/${picked.day.toString().padLeft(2, '0')}/${picked.year}';
+        widget.user.birthday = selectedDate;
         _dateError = null;
       });
     }
@@ -81,8 +90,7 @@ class _SignupAdditionalPageState extends State<SignupAdditionalPage> {
     final Color blue = const Color(0xFF1976D2);
     final Size screenSize = MediaQuery.of(context).size;
     final bool isLandscape = screenSize.width > screenSize.height;
-    final double formWidth =
-        isLandscape ? screenSize.width * 0.6 : screenSize.width * 0.85;
+    final double formWidth = isLandscape ? screenSize.width * 0.6 : screenSize.width * 0.85;
 
     return Scaffold(
       backgroundColor: Colors.white,
@@ -91,9 +99,7 @@ class _SignupAdditionalPageState extends State<SignupAdditionalPage> {
         backgroundColor: Colors.white,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back, color: Colors.black),
-          onPressed: () {
-            Navigator.pop(context);
-          },
+          onPressed: () => Navigator.pop(context),
         ),
       ),
       body: SafeArea(
@@ -102,43 +108,21 @@ class _SignupAdditionalPageState extends State<SignupAdditionalPage> {
             padding: const EdgeInsets.symmetric(vertical: 20),
             child: Column(
               children: [
-                // ===== Header =====
-                const Text(
-                  'Almost Done!',
-                  style: TextStyle(
-                    fontSize: 28,
-                    fontWeight: FontWeight.w800,
-                    color: Colors.black,
-                  ),
-                  textAlign: TextAlign.center,
-                ),
+                const Text('Almost Done!', style: TextStyle(fontSize: 28, fontWeight: FontWeight.w800)),
                 const SizedBox(height: 8),
-                Text(
-                  'Help us personalize your experience by\nproviding a few more details.',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    fontSize: 15,
-                    color: Colors.grey[700],
-                    height: 1.4,
-                  ),
+                Text('Help us personalize your experience by\nproviding a few more details.',
+                  textAlign: TextAlign.center, style: TextStyle(fontSize: 15, color: Colors.grey[700], height: 1.4),
                 ),
                 const SizedBox(height: 30),
 
-                // ===== Form =====
                 SizedBox(
                   width: formWidth,
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.center,
                     children: [
-                      // ===== Birthday =====
-                      const Text(
-                        'Birthday',
-                        style: TextStyle(
-                          fontWeight: FontWeight.w500,
-                          fontSize: 15,
-                        ),
-                        textAlign: TextAlign.center,
-                      ),
+
+                      // Birthday
+                      const Text('Birthday', style: TextStyle(fontWeight: FontWeight.w500, fontSize: 15)),
                       const SizedBox(height: 6),
                       GestureDetector(
                         onTap: () => _pickDate(context),
@@ -147,182 +131,126 @@ class _SignupAdditionalPageState extends State<SignupAdditionalPage> {
                           decoration: BoxDecoration(
                             color: Colors.grey.shade100,
                             borderRadius: BorderRadius.circular(25),
-                            boxShadow: [
-                              BoxShadow(
-                                color: Colors.grey.withOpacity(0.2),
-                                blurRadius: 6,
-                                offset: const Offset(0, 3),
-                              ),
-                            ],
+                            boxShadow: [BoxShadow(color: Colors.grey.withOpacity(0.2), blurRadius: 6, offset: const Offset(0, 3))],
                           ),
                           child: Row(
                             mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             children: [
-                              Text(
-                                selectedDate == null
-                                    ? 'Pick a date'
-                                    : '${selectedDate!.day}/${selectedDate!.month}/${selectedDate!.year}',
-                                style: const TextStyle(fontSize: 15),
-                              ),
+                              Text(selectedDate ?? 'Pick a date', style: const TextStyle(fontSize: 15)),
                               const Icon(Icons.calendar_today, color: Colors.grey),
                             ],
                           ),
                         ),
                       ),
+                      if (_dateError != null) Padding(
+                        padding: const EdgeInsets.only(top: 6),
+                        child: Text(_dateError!, style: const TextStyle(color: Colors.redAccent, fontSize: 12)),
+                      ),
                       const SizedBox(height: 20),
 
-                      // ===== Department =====
-                      const Text(
-                        'Department',
-                        style: TextStyle(
-                          fontWeight: FontWeight.w500,
-                          fontSize: 15,
-                        ),
-                        textAlign: TextAlign.center,
-                      ),
+                      // Department Dropdown
+                      const Text('Department', style: TextStyle(fontWeight: FontWeight.w500, fontSize: 15)),
                       const SizedBox(height: 6),
                       _buildStyledDropdown<String>(
                         hint: 'Select your department',
                         value: selectedDepartment,
                         items: departments,
-                        onChanged: (value) => setState(() {
-                          selectedDepartment = value;
-                          widget.user.department = value;
-                          _departmentError = null;
-                        }),
+                        onChanged: (value) {
+                          setState(() {
+                            selectedDepartment = value;
+                            widget.user.department = value;
+                            _departmentError = null;
+                          });
+                        },
                       ),
-                      if (_departmentError != null)
-                        Padding(
-                          padding: const EdgeInsets.only(top: 6),
-                          child: Text(_departmentError!, style: TextStyle(color: Colors.redAccent, fontSize: 12)),
-                        ),
+                      if (_departmentError != null) Padding(
+                        padding: const EdgeInsets.only(top: 6),
+                        child: Text(_departmentError!, style: const TextStyle(color: Colors.redAccent, fontSize: 12)),
+                      ),
                       const SizedBox(height: 20),
 
-                      // ===== Batch =====
-                      const Text(
-                        'Batch',
-                        style: TextStyle(
-                          fontWeight: FontWeight.w500,
-                          fontSize: 15,
-                        ),
-                        textAlign: TextAlign.center,
-                      ),
+                      // Batch Dropdown
+                      const Text('Batch', style: TextStyle(fontWeight: FontWeight.w500, fontSize: 15)),
                       const SizedBox(height: 6),
                       _buildStyledDropdown<String>(
                         hint: 'Select your batch',
                         value: selectedBatch,
                         items: batches,
-                        onChanged: (value) => setState(() {
-                          selectedBatch = value;
-                          widget.user.batch = value;
-                          _batchError = null;
-                        }),
+                        onChanged: (value) {
+                          setState(() {
+                            selectedBatch = value;
+                            widget.user.batch = value;
+                            _batchError = null;
+                          });
+                        },
                       ),
-                      if (_batchError != null)
-                        Padding(
-                          padding: const EdgeInsets.only(top: 6),
-                          child: Text(_batchError!, style: TextStyle(color: Colors.redAccent, fontSize: 12)),
-                        ),
+                      if (_batchError != null) Padding(
+                        padding: const EdgeInsets.only(top: 6),
+                        child: Text(_batchError!, style: const TextStyle(color: Colors.redAccent, fontSize: 12)),
+                      ),
                       const SizedBox(height: 20),
 
-                      // ===== Interests =====
-                      const Text(
-                        'Interests',
-                        style: TextStyle(
-                          fontWeight: FontWeight.w500,
-                          fontSize: 15,
-                        ),
-                        textAlign: TextAlign.center,
-                      ),
+                      // Interests
+                      const Text('Interests', style: TextStyle(fontWeight: FontWeight.w500, fontSize: 15)),
                       const SizedBox(height: 6),
-                      Container(
-                        padding: const EdgeInsets.all(8),
-                        color: Colors.transparent,
-                        child: Wrap(
-                          spacing: 8,
-                          runSpacing: 8,
-                          alignment: WrapAlignment.center,
-                          children: [
-                            ...interests.map(
-                            (interest) => Chip(
-                              label: Text(interest),
-                              deleteIcon: const Icon(Icons.close),
-                              backgroundColor: blue.withOpacity(0.2),
-                              onDeleted: () {
-                                setState(() {
-                                  interests.remove(interest);
-                                  widget.user.interests = List.from(interests);
-                                  if (interests.isNotEmpty) _interestsError = null;
-                                });
-                              },
-                            ),
-                            ),
-                                  GestureDetector(
-                                    onTap: () async {
-                                      await showDialog(
-                                        context: context,
-                                        builder: (ctx) => AlertDialog(
-                                          title: const Text('Add Interest'),
-                                          content: TextField(
-                                            controller: _interestController,
-                                            decoration: const InputDecoration(
-                                              hintText: 'Enter new interest',
-                                            ),
-                                          ),
-                                          actions: [
-                                            TextButton(
-                                              onPressed: () => Navigator.pop(ctx),
-                                              child: const Text('Cancel'),
-                                            ),
-                                            TextButton(
-                                              onPressed: () {
-                                                setState(() {
-                                                  if (_interestController.text.isNotEmpty) {
-                                                    interests.add(_interestController.text);
-                                                    widget.user.interests = List.from(interests);
-                                                    _interestsError = null;
-                                                  }
-                                                  _interestController.clear();
-                                                });
-                                                Navigator.pop(ctx);
-                                              },
-                                              child: const Text('Add'),
-                                            ),
-                                          ],
-                                        ),
-                                      );
-                                    },
-                                    child: const Icon(Icons.add, color: Colors.blue),
-                                  ),
-                          ],
-                        ),
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: [
+                          ...interests.map((interest) => Chip(
+                            label: Text(interest),
+                            deleteIcon: const Icon(Icons.close),
+                            backgroundColor: blue.withOpacity(0.2),
+                            onDeleted: () {
+                              setState(() {
+                                interests.remove(interest);
+                                widget.user.interests = List.from(interests);
+                                if (interests.isNotEmpty) _interestsError = null;
+                              });
+                            },
+                          )),
+                          GestureDetector(
+                            onTap: () async {
+                              await showDialog(
+                                context: context,
+                                builder: (ctx) => AlertDialog(
+                                  title: const Text('Add Interest'),
+                                  content: TextField(controller: _interestController, decoration: const InputDecoration(hintText: 'Enter new interest')),
+                                  actions: [
+                                    TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+                                    TextButton(onPressed: () {
+                                      setState(() {
+                                        if (_interestController.text.isNotEmpty) {
+                                          interests.add(_interestController.text);
+                                          widget.user.interests = List.from(interests);
+                                          _interestsError = null;
+                                        }
+                                        _interestController.clear();
+                                      });
+                                      Navigator.pop(ctx);
+                                    }, child: const Text('Add')),
+                                  ],
+                                ),
+                              );
+                            },
+                            child: const Icon(Icons.add, color: Colors.blue),
+                          ),
+                        ],
+                      ),
+                      if (_interestsError != null) Padding(
+                        padding: const EdgeInsets.only(top: 6),
+                        child: Text(_interestsError!, style: const TextStyle(color: Colors.redAccent, fontSize: 12)),
                       ),
                       const SizedBox(height: 30),
 
-                      if (_dateError != null)
-                        Padding(
-                          padding: const EdgeInsets.only(bottom: 8.0),
-                          child: Text(_dateError!, style: TextStyle(color: Colors.redAccent, fontSize: 12)),
-                        ),
-                      if (_interestsError != null)
-                        Padding(
-                          padding: const EdgeInsets.only(bottom: 8.0),
-                          child: Text(_interestsError!, style: TextStyle(color: Colors.redAccent, fontSize: 12)),
-                        ),
-
-                      // ===== Complete Sign Up Button =====
+                      // Complete Sign Up Button
                       SizedBox(
                         width: double.infinity,
                         child: ElevatedButton(
                           onPressed: () async {
-                            logger.i("[$runtimeType] Complete Sign Up Button Pressed");
-                            // validate required additional fields
                             if (!_validateAdditional()) return;
-
-                            // send OTP then navigate to verification with the populated user
                             bool otpSent = await _sendOtp();
-                            if (!otpSent) return;
-                            if (!context.mounted) return;
+                            if (!otpSent || !context.mounted) return;
                             Navigator.push(
                               context,
                               MaterialPageRoute(
@@ -333,18 +261,9 @@ class _SignupAdditionalPageState extends State<SignupAdditionalPage> {
                           style: ElevatedButton.styleFrom(
                             backgroundColor: blue,
                             padding: const EdgeInsets.symmetric(vertical: 16),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(25),
-                            ),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(25)),
                           ),
-                          child: const Text(
-                            'Complete Sign Up',
-                            style: TextStyle(
-                              fontSize: 18,
-                              color: Colors.white,
-                              fontWeight: FontWeight.w500,
-                            ),
-                          ),
+                          child: const Text('Complete Sign Up', style: TextStyle(fontSize: 18, color: Colors.white, fontWeight: FontWeight.w500)),
                         ),
                       ),
                     ],
@@ -358,7 +277,6 @@ class _SignupAdditionalPageState extends State<SignupAdditionalPage> {
     );
   }
 
-  ///  Stylish Dropdown Builder
   Widget _buildStyledDropdown<T>({
     required String hint,
     required T? value,
@@ -369,41 +287,18 @@ class _SignupAdditionalPageState extends State<SignupAdditionalPage> {
       decoration: BoxDecoration(
         color: Colors.grey.shade100,
         borderRadius: BorderRadius.circular(25),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.grey.withOpacity(0.2),
-            blurRadius: 6,
-            offset: const Offset(0, 3),
-          ),
-        ],
+        boxShadow: [BoxShadow(color: Colors.grey.withOpacity(0.2), blurRadius: 6, offset: const Offset(0, 3))],
       ),
       child: DropdownButtonFormField<T>(
         value: value,
-        decoration: InputDecoration(
-          border: InputBorder.none,
-          contentPadding:
-              const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
-        ),
+        decoration: const InputDecoration(border: InputBorder.none, contentPadding: EdgeInsets.symmetric(horizontal: 18, vertical: 14)),
         isExpanded: true,
         dropdownColor: Colors.white,
         icon: const Icon(Icons.keyboard_arrow_down_rounded, color: Colors.grey),
-        hint: Text(
-          hint,
-          style: const TextStyle(fontSize: 15, color: Colors.grey),
-        ),
-        items: items
-            .map(
-              (item) => DropdownMenuItem<T>(
-                value: item as T,
-                child: Text(
-                  item,
-                  style: const TextStyle(fontSize: 15),
-                ),
-              ),
-            )
-            .toList(),
+        hint: Text(hint, style: const TextStyle(fontSize: 15, color: Colors.grey)),
+        items: items.map((item) => DropdownMenuItem<T>(value: item as T, child: Text(item, style: const TextStyle(fontSize: 15)))).toList(),
         onChanged: onChanged,
-        borderRadius: BorderRadius.circular(20), // Rounded popup
+        borderRadius: BorderRadius.circular(20),
         menuMaxHeight: 220,
       ),
     );
