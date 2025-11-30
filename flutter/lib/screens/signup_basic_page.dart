@@ -48,7 +48,7 @@ class _SignupBasicPageState extends State<SignupBasicPage> {
   }
 
   bool _validateEmail() {
-    final email = _emailController.text.trim();
+    final email = _emailController.text.trim().toLowerCase();
     if (email.isEmpty) {
       setState(() => _emailError = 'Email cannot be empty');
       return false;
@@ -56,6 +56,11 @@ class _SignupBasicPageState extends State<SignupBasicPage> {
     final emailRegex = RegExp(r"^[^@\s]+@[^@\s]+\.[^@\s]+$");
     if (!emailRegex.hasMatch(email)) {
       setState(() => _emailError = 'Enter a valid email address');
+      return false;
+    }
+    // Ensure it’s a NUCES Lahore email
+    if (!email.endsWith("@lhr.nu.edu.pk")) {
+      setState(() => _emailError = 'Email must be a valid NUCES Lahore email');
       return false;
     }
     if (_emailError != null) setState(() => _emailError = null);
@@ -219,7 +224,7 @@ class _SignupBasicPageState extends State<SignupBasicPage> {
                         focusNode: _emailFocus,
                         keyboardType: TextInputType.emailAddress,
                         decoration: InputDecoration(
-                          hintText: 'john.doe@example.com',
+                          hintText: 'john.doe@lhr.nu.edu.pk',
                           errorText: _emailError,
                           contentPadding: const EdgeInsets.symmetric(
                               horizontal: 18, vertical: 14),
@@ -272,9 +277,9 @@ class _SignupBasicPageState extends State<SignupBasicPage> {
                             logger.d("[$runtimeType] Next Button Pressed with Name: $name, Email: $email, Password: $pass");
                             if (_validateInputs(name: name, email: email, pass: pass)) {
                               final user = User(
-                                fullName: _nameController.text.trim(),
-                                email: _emailController.text.trim().toLowerCase(),
-                                password: _passwordController.text.trim(),
+                                fullName: name,
+                                email: email,
+                                password: pass,
                               );
                               Navigator.push(
                                 context,
