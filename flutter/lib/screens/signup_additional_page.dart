@@ -50,8 +50,13 @@ class _SignupAdditionalPageState extends State<SignupAdditionalPage> {
     logger.d("[$runtimeType] Email: ${widget.user.email}");
     try {
       // Implement OTP sending logic here
-      await EmailOTP.sendOTP(email: widget.user.email);
-      logger.i("[$runtimeType] OTP sent successfully to ${widget.user.email}");
+      final sent = await EmailOTP.sendOTP(email: widget.user.email);
+      if (sent) {
+        logger.i("[$runtimeType] OTP sent successfully to ${widget.user.email}");
+      } else {
+        logger.w("[$runtimeType] OTP sending failed to ${widget.user.email}");
+        //return false;
+      }
     } catch (e) {
       logger.e("[$runtimeType] Failed to send OTP to ${widget.user.email}", error: e);
       return false;
