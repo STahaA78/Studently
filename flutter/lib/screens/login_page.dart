@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'signup_basic_page.dart';
 import 'community_feed_page.dart';
+import 'package:flutter_svg/flutter_svg.dart';
+import 'package:google_fonts/google_fonts.dart';
+import 'package:studently/utils/constants.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -120,17 +123,16 @@ class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
                     Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        Image.asset(
-                          'assets/images/studently_logo.png',
-                          height: 80,
+                        SvgPicture.asset(
+                          'assets/images/logo.svg',
+                          height: 50,
                         ),
-                        const SizedBox(width: 8),
                         Text(
                           'Studently',
-                          style: TextStyle(
+                          style: GoogleFonts.poppins(
                             color: blue,
                             fontSize: 36,
-                            fontWeight: FontWeight.w800,
+                            fontWeight: FontWeight.w700,
                             fontStyle: FontStyle.italic,
                             letterSpacing: 0.5,
                           ),
@@ -148,60 +150,44 @@ class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
                           TextField(
                             controller: _emailController,
                             keyboardType: TextInputType.emailAddress,
-                            decoration: InputDecoration(
+                            decoration: const InputDecoration(
                               hintText: 'Email',
-                              contentPadding: const EdgeInsets.symmetric(
-                                  horizontal: 18, vertical: 14),
-                              border: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(25),
-                              ),
                             ),
                           ),
-                          const SizedBox(height: 16),
+                          const SizedBox(height: AppStyle.verticalSpacingNormal),
                           TextField(
                             controller: _passwordController,
                             obscureText: true,
-                            decoration: InputDecoration(
+                            decoration: const InputDecoration(
                               hintText: 'Password',
-                              contentPadding: const EdgeInsets.symmetric(
-                                  horizontal: 18, vertical: 14),
-                              border: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(25),
-                              ),
                             ),
                           ),
                           Align(
                             alignment: Alignment.centerRight,
                             child: TextButton(
                               onPressed: () {},
+                              style: TextButton.styleFrom(
+                                padding: AppStyle.normalVerticalHorizontalPadding,
+                              ),
                               child: Text('Forgot Password?',
-                                  style: TextStyle(color: blue)),
+                                  style: TextStyle(color: AppStyle.blue)),
                             ),
                           ),
-                          const SizedBox(height: 10),
                           SizedBox(
                             width: double.infinity,
                             child: ElevatedButton(
                               onPressed: () => _login(context),
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: blue,
-                                padding:
-                                    const EdgeInsets.symmetric(vertical: 16),
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(25),
-                                ),
-                              ),
                               child: const Text(
                                 'Login',
                                 style: TextStyle(
-                                  fontSize: 18,
-                                  color: Colors.white,
-                                  fontWeight: FontWeight.w500,
+                                  fontSize: AppStyle.smallFontSize,
+                                  color: AppStyle.white,
+                                  fontWeight: AppStyle.smallFontWeight,
                                 ),
                               ),
                             ),
                           ),
-                          const SizedBox(height: 30),
+                          const SizedBox(height: AppStyle.verticalSpacingLarge),
                           Row(
                             children: [
                               const Expanded(child: Divider(thickness: 1)),
@@ -214,7 +200,7 @@ class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
                               const Expanded(child: Divider(thickness: 1)),
                             ],
                           ),
-                          const SizedBox(height: 30),
+                          const SizedBox(height: AppStyle.verticalSpacingLarge),
                           SizedBox(
                             width: double.infinity,
                             child: OutlinedButton(
@@ -227,19 +213,12 @@ class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
                                   ),
                                 );
                               },
-                              style: OutlinedButton.styleFrom(
-                                padding: const EdgeInsets.symmetric(vertical: 16),
-                                side: BorderSide(color: blue, width: 1.5),
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(25),
-                                ),
-                              ),
-                              child: Text(
+                              child: const Text(
                                 'Sign Up',
                                 style: TextStyle(
-                                  fontSize: 18,
-                                  color: blue,
-                                  fontWeight: FontWeight.w500,
+                                  fontSize: AppStyle.smallFontSize,
+                                  color: AppStyle.blue,
+                                  fontWeight: AppStyle.smallFontWeight,
                                 ),
                               ),
                             ),
