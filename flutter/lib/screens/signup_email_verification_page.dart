@@ -1,305 +1,230 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'community_feed_page.dart';
+import 'package:email_otp/email_otp.dart';
+import 'package:studently/auth_service.dart';
+import 'package:studently/logger.dart';
+import 'package:studently/models.dart';
+import 'package:pinput/pinput.dart';
+import 'dart:async';
 
 class SignupEmailVerificationPage extends StatefulWidget {
-  const SignupEmailVerificationPage({super.key});
+  final User user;
+  const SignupEmailVerificationPage({super.key, required this.user});
 
   @override
-  State<SignupEmailVerificationPage> createState() =>
-      _SignupEmailVerificationPageState();
+  State<SignupEmailVerificationPage> createState() => _SignupEmailVerificationPageState();
 }
 
-class _SignupEmailVerificationPageState
-    extends State<SignupEmailVerificationPage> {
-  final List<TextEditingController> _controllers =
-      List.generate(6, (_) => TextEditingController());
-  final FocusScopeNode _focusScopeNode = FocusScopeNode();
+class _SignupEmailVerificationPageState extends State<SignupEmailVerificationPage> {
+  final TextEditingController _otpController = TextEditingController();
+  final FocusNode _otpFocusNode = FocusNode();
+  
+  String? _otpError;
+  //Timer code
+  Timer? _resendTimer;
+  int _secondsRemaining = 0;
+  bool get _canResend => _secondsRemaining == 0;
+
+  final defaultPinTheme = PinTheme(
+    width: 45,
+    height: 55,
+    textStyle: const TextStyle(fontSize: 22, color: Colors.black, fontWeight: FontWeight.bold),
+    decoration: BoxDecoration(
+      color: Colors.grey.shade100,
+      borderRadius: BorderRadius.circular(12),
+      border: Border.all(color: Colors.grey.shade300),
+    ),
+  );
+
+  // Timer Helper
+  void _startResendTimer() {
+    setState(() { 
+      _secondsRemaining = 30; // 30 seconds cooldown
+    });
+
+    _resendTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (_secondsRemaining == 0) {
+        _resendTimer?.cancel();
+      } else {
+        setState(() {
+          _secondsRemaining--;
+        });
+      }
+    });
+  }
+  //Signup Logic
+  Future<void> register() async {
+    logger.i("[$runtimeType] Firebase Registration Started");
+    try {
+      await authService.value.createAccount(
+        email: widget.user.email, password: widget.user.password,
+      );
+      logger.i("[$runtimeType] Firebase Registration Successful");
+    } catch (e) {
+      logger.e("[$runtimeType] Firebase Registration Failed" , error: e);
+    }
+  }
 
   @override
   void dispose() {
-    for (var controller in _controllers) {
-      controller.dispose();
-    }
-    _focusScopeNode.dispose();
+    _otpController.dispose();
+    _otpFocusNode.dispose();
+    _resendTimer?.cancel();
     super.dispose();
   }
 
-  void _showCircularNotification(String message, {Color color = Colors.blue}) {
-    OverlayEntry? entry;
-
-    entry = OverlayEntry(
-      builder: (context) {
-        return Positioned(
-          top: 50,
-          left: 0,
-          right: 0,
-          child: CircularSlideNotification(
-            message: message,
-            background: color,
-            onDismissed: () => entry?.remove(),
-          ),
-        );
-      },
-    );
-
-    Overlay.of(context).insert(entry);
-  }
-
-  void _verifyCode() {
-    String code = _controllers.map((e) => e.text).join();
-    if (code.length == 6) {
-      _showCircularNotification("✅ Verified", color: Colors.green);
-
-      // Navigate after 2.2 seconds (after notification animation)
-      Future.delayed(const Duration(milliseconds: 2200), () {
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(builder: (_) => const CommunityFeedPage()),
-        );
+  Future<void> _verifyCode() async {
+    final code = _otpController.text.trim();
+    
+    // 1. Check Length
+    if (code.length != 6) {
+      setState(() {
+        _otpError = 'Enter all 6 digits';
       });
-    } else {
-      _showCircularNotification("❗ Enter all digits", color: Colors.redAccent);
+      return;
     }
+
+    // 2. Check Validity
+    final isValid = EmailOTP.verifyOTP(otp: code);
+    if (!isValid) {
+      setState(() {
+        _otpError = 'Invalid code. Please try again.';
+      });
+      // Clear the field so they can type again easily
+      return;
+    }
+
+    // 3. Success
+    setState(() {
+      _otpError = null; // Clear any previous errors
+    });
+
+    await register();
+
+    if (!mounted) return;
+    Navigator.pushAndRemoveUntil(
+      context,
+      MaterialPageRoute(builder: (_) => const CommunityFeedPage()),
+      (route) => false,
+    );
   }
 
   void _resendCode() {
-    _showCircularNotification("📧 Code Resent", color: Colors.blueAccent);
+    // 1. Send the email again
+    EmailOTP.sendOTP(email: widget.user.email); 
+
+    // 2. Start the visual countdown
+    _startResendTimer();
   }
 
   @override
-  Widget build(BuildContext context) {
-    final Color blue = const Color(0xFF1976D2);
-    final Size screenSize = MediaQuery.of(context).size;
-    final bool isLandscape = screenSize.width > screenSize.height;
-    final double contentWidth =
-        isLandscape ? screenSize.width * 0.6 : screenSize.width * 0.85;
+    Widget build(BuildContext context) {
+      final Color blue = const Color(0xFF1976D2);
+      final Size screenSize = MediaQuery.of(context).size;
+      final double contentWidth = screenSize.width * 0.85;
 
-    return Scaffold(
-      backgroundColor: Colors.white,
-      appBar: AppBar(
-        elevation: 0,
+      // Define the style for the FOCUSED box (Blue border)
+      final focusedPinTheme = defaultPinTheme.copyDecorationWith(
+            border: Border.all(color: blue, width: 2),
+            borderRadius: BorderRadius.circular(12),
+      );
+      // Style for the boxes when there is an error
+      final errorPinTheme = defaultPinTheme.copyDecorationWith(
+            border: Border.all(color: Colors.redAccent, width: 2),
+            color: Colors.red.shade50, // This sets the light red background
+            borderRadius: BorderRadius.circular(12),
+      );
+      return Scaffold(
         backgroundColor: Colors.white,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.black),
-          onPressed: () => Navigator.pop(context),
+        appBar: AppBar(
+          elevation: 0,
+          backgroundColor: Colors.white,
+          leading: IconButton(
+            icon: const Icon(Icons.arrow_back, color: Colors.black),
+            onPressed: () => Navigator.pop(context),
+          ),
         ),
-      ),
-      body: SafeArea(
-        child: Center(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.symmetric(vertical: 20),
-            child: Column(
-              children: [
-                const Text(
-                  'Verify Your Email',
-                  style: TextStyle(
-                    fontSize: 26,
-                    fontWeight: FontWeight.w800,
-                    color: Colors.black,
+        body: SafeArea(
+          child: Center(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.symmetric(vertical: 20),
+              child: Column(
+                children: [
+                  const Text('Verify Your Email', style: TextStyle(fontSize: 26, fontWeight: FontWeight.w800)),
+                  const SizedBox(height: 10),
+                  Text(
+                    "A verification code has been sent to ${widget.user.email}.\nThis step ensures the Integrity of the Studently Community.\n",
+                    textAlign: TextAlign.center,
+                    style: TextStyle(fontSize: 15, color: Colors.grey[700]),
                   ),
-                  textAlign: TextAlign.center,
-                ),
-                const SizedBox(height: 10),
-                Text(
-                  "This helps us confirm it's really you and\nkeep our platform spam-free.",
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    fontSize: 15,
-                    color: Colors.grey[700],
-                    height: 1.4,
-                  ),
-                ),
-                const SizedBox(height: 40),
-                const Text(
-                  "Enter the 6-digit verification code sent to your email",
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    fontWeight: FontWeight.w500,
-                    fontSize: 15,
-                  ),
-                ),
-                const SizedBox(height: 20),
-
-                // OTP Boxes
-                SizedBox(
-                  width: contentWidth,
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: List.generate(6, (index) {
-                      return SizedBox(
-                        width: 45,
-                        child: TextField(
-                          controller: _controllers[index],
-                          focusNode: index == 0 ? _focusScopeNode : null,
-                          textAlign: TextAlign.center,
-                          keyboardType: TextInputType.number,
-                          inputFormatters: [
-                            LengthLimitingTextInputFormatter(1),
-                            FilteringTextInputFormatter.digitsOnly,
-                          ],
-                          onChanged: (value) {
-                            if (value.isNotEmpty && index < 5) {
-                              FocusScope.of(context).nextFocus();
-                            }
-                            if (value.isEmpty && index > 0) {
-                              FocusScope.of(context).previousFocus();
-                            }
-                          },
-                          decoration: InputDecoration(
-                            filled: true,
-                            fillColor: Colors.grey.shade100,
-                            contentPadding:
-                                const EdgeInsets.symmetric(vertical: 16),
-                            border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(12),
-                              borderSide: BorderSide(color: Colors.grey.shade300),
-                            ),
-                            focusedBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(12),
-                              borderSide: BorderSide(color: blue, width: 2),
-                            ),
-                          ),
-                        ),
-                      );
-                    }),
-                  ),
-                ),
-                const SizedBox(height: 20),
-
-                GestureDetector(
-                  onTap: _resendCode,
-                  child: Text(
-                    'Resend code',
-                    style: TextStyle(
-                      color: blue,
-                      fontSize: 15,
-                      fontWeight: FontWeight.w500,
+                  const SizedBox(height: 40),
+                  // ==================== OTP Input Field ====================
+                  Pinput(
+                    length: 6,
+                    controller: _otpController,
+                    focusNode: _otpFocusNode,
+                    
+                    // Styles
+                    defaultPinTheme: defaultPinTheme,
+                    focusedPinTheme: focusedPinTheme,
+                    errorPinTheme: errorPinTheme, // Uses the red style defined above
+                    
+                    // Text Style for the error message below the box
+                    errorTextStyle: const TextStyle(
+                      color: Colors.redAccent, 
+                      fontSize: 14, 
+                      fontWeight: FontWeight.w500
                     ),
-                  ),
-                ),
-                const SizedBox(height: 30),
 
-                SizedBox(
-                  width: contentWidth,
-                  child: ElevatedButton(
-                    onPressed: _verifyCode,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: blue,
-                      padding: const EdgeInsets.symmetric(vertical: 16),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(25),
-                      ),
-                    ),
-                    child: const Text(
-                      'Verify',
+                    // Behavior
+                    pinputAutovalidateMode: PinputAutovalidateMode.onSubmit,
+                    showCursor: true,
+                    
+                    // THE KEY LOGIC:
+                    forceErrorState: _otpError != null, // Turn boxes red if error exists
+                    errorText: _otpError,               // Show this text below boxes
+                    
+                    onCompleted: (pin) => _verifyCode(),
+                    
+                    onChanged: (value) {
+                      // UX Improvement: Clear the error immediately when they start typing
+                      if (_otpError != null) {
+                        setState(() => _otpError = null);
+                      }
+                    },
+                  ),
+                  // ===================================================
+
+                  const SizedBox(height: 20),
+                  GestureDetector(
+                    onTap: _canResend ? _resendCode : null,
+                    child: Text(
+                      _canResend ? 'Resend Code' : 'Resend code in $_secondsRemaining seconds',
                       style: TextStyle(
-                        fontSize: 18,
-                        color: Colors.white,
-                        fontWeight: FontWeight.w500,
+                        color: _canResend ? blue : Colors.grey,
+                        fontSize: 15,
+                        fontWeight: FontWeight.w500
                       ),
                     ),
                   ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-/// 🔔 Circular notification widget with slide animation
-class CircularSlideNotification extends StatefulWidget {
-  final String message;
-  final Color background;
-  final VoidCallback onDismissed;
-
-  const CircularSlideNotification({
-    super.key,
-    required this.message,
-    required this.background,
-    required this.onDismissed,
-  });
-
-  @override
-  State<CircularSlideNotification> createState() =>
-      _CircularSlideNotificationState();
-}
-
-class _CircularSlideNotificationState extends State<CircularSlideNotification>
-    with SingleTickerProviderStateMixin {
-  late AnimationController _controller;
-  late Animation<Offset> _slideAnimation;
-
-  @override
-  void initState() {
-    super.initState();
-    _controller = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 500),
-      reverseDuration: const Duration(milliseconds: 400),
-    );
-    _slideAnimation =
-        Tween(begin: const Offset(0, -1), end: const Offset(0, 0)).animate(
-      CurvedAnimation(parent: _controller, curve: Curves.easeOutBack),
-    );
-
-    _controller.forward();
-
-    Future.delayed(const Duration(seconds: 2), () {
-      _controller.reverse();
-      Future.delayed(const Duration(milliseconds: 400), widget.onDismissed);
-    });
-  }
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return SlideTransition(
-      position: _slideAnimation,
-      child: Center(
-        child: Material(
-          color: Colors.transparent,
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-            decoration: BoxDecoration(
-              color: widget.background,
-              shape: BoxShape.rectangle,
-              borderRadius: BorderRadius.circular(50),
-              boxShadow: [
-                BoxShadow(
-                  color: widget.background.withOpacity(0.5),
-                  blurRadius: 12,
-                  spreadRadius: 1,
-                  offset: const Offset(0, 4),
-                ),
-              ],
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Icon(Icons.notifications_none, color: Colors.white),
-                const SizedBox(width: 8),
-                Text(
-                  widget.message,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 16,
-                    fontWeight: FontWeight.w600,
+                  const SizedBox(height: 30),
+                  SizedBox(
+                    width: contentWidth,
+                    child: ElevatedButton(
+                      onPressed: _verifyCode,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: blue,
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(25)),
+                      ),
+                      child: const Text('Verify', style: TextStyle(fontSize: 18, color: Colors.white)),
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
         ),
-      ),
-    );
+      );
+    }
   }
-}
