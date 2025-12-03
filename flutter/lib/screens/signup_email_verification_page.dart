@@ -10,7 +10,6 @@ import 'dart:async';
 class SignupEmailVerificationPage extends StatefulWidget {
   final User user;
   const SignupEmailVerificationPage({super.key, required this.user});
-
   @override
   State<SignupEmailVerificationPage> createState() => _SignupEmailVerificationPageState();
 }

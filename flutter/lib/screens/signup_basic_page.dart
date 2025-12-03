@@ -3,7 +3,6 @@ import 'login_page.dart';
 import 'signup_additional_page.dart';
 import 'package:studently/models.dart';
 import 'package:studently/logger.dart';
-
 class SignupBasicPage extends StatefulWidget {
   const SignupBasicPage({super.key});
 
@@ -161,9 +160,7 @@ class _SignupBasicPageState extends State<SignupBasicPage> {
                     ),
                   ],
                 ),
-
                 const SizedBox(height: 15),
-
                 // Subtitle
                 Text(
                   "Let's get you started. Please fill in your\nbasic information below.",
@@ -175,7 +172,6 @@ class _SignupBasicPageState extends State<SignupBasicPage> {
                   ),
                 ),
                 const SizedBox(height: 40),
-
                 // FORM
                 SizedBox(
                   width: formWidth,
@@ -260,7 +256,6 @@ class _SignupBasicPageState extends State<SignupBasicPage> {
                         onEditingComplete: () => FocusScope.of(context).unfocus(),
                       ),
                       const SizedBox(height: 30),
-
                       // NEXT BUTTON
                       SizedBox(
                         width: double.infinity,
@@ -335,7 +330,7 @@ class _SignupBasicPageState extends State<SignupBasicPage> {
                       ),
                     ],
                   ),
-                )
+                ),
               ],
             ),
           ),
