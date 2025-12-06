@@ -1,4 +1,4 @@
-from pydantic import BaseModel, EmailStr, validator
+from pydantic import BaseModel, EmailStr, field_validator
 from datetime import date, datetime
 from typing import Optional, List
 
@@ -6,7 +6,7 @@ class UserCreate(BaseModel):
     Name: str
     email: EmailStr
     password: str
-    birthday: str  # Input from frontend as MM/DD/YY
+    birthday: date  # Input from frontend as MM/DD/YY
     department: str
     batch: str
     interests: List[str]
@@ -14,8 +14,10 @@ class UserCreate(BaseModel):
     profile_picture: Optional[str] = None
     bio: Optional[str] = None
 
-    @validator("birthday")
+    @field_validator("birthday", mode="before")
     def validate_birthday(cls, v):
+        if isinstance(v, date):
+            return v
         for fmt in ("%m/%d/%y", "%m/%d/%Y"):
             try:
                 return datetime.strptime(v, fmt).date()
