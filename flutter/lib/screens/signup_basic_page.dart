@@ -3,6 +3,7 @@ import 'login_page.dart';
 import 'signup_additional_page.dart';
 import 'package:studently/models.dart';
 import 'package:studently/logger.dart';
+
 class SignupBasicPage extends StatefulWidget {
   const SignupBasicPage({super.key});
 
@@ -15,6 +16,7 @@ class _SignupBasicPageState extends State<SignupBasicPage> {
   final TextEditingController _nameController = TextEditingController();
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
+
   // Focus nodes for validation on focus change
   final FocusNode _nameFocus = FocusNode();
   final FocusNode _emailFocus = FocusNode();
@@ -47,7 +49,7 @@ class _SignupBasicPageState extends State<SignupBasicPage> {
   }
 
   bool _validateEmail() {
-    final email = _emailController.text.trim();
+    final email = _emailController.text.trim().toLowerCase();
     if (email.isEmpty) {
       setState(() => _emailError = 'Email cannot be empty');
       return false;
@@ -55,6 +57,10 @@ class _SignupBasicPageState extends State<SignupBasicPage> {
     final emailRegex = RegExp(r"^[^@\s]+@[^@\s]+\.[^@\s]+$");
     if (!emailRegex.hasMatch(email)) {
       setState(() => _emailError = 'Enter a valid email address');
+      return false;
+    }
+    if (!email.endsWith("@lhr.nu.edu.pk")) {
+      setState(() => _emailError = 'Email must be a valid NUCES Lahore email');
       return false;
     }
     if (_emailError != null) setState(() => _emailError = null);
@@ -160,7 +166,9 @@ class _SignupBasicPageState extends State<SignupBasicPage> {
                     ),
                   ],
                 ),
+
                 const SizedBox(height: 15),
+
                 // Subtitle
                 Text(
                   "Let's get you started. Please fill in your\nbasic information below.",
@@ -172,6 +180,7 @@ class _SignupBasicPageState extends State<SignupBasicPage> {
                   ),
                 ),
                 const SizedBox(height: 40),
+
                 // FORM
                 SizedBox(
                   width: formWidth,
@@ -215,7 +224,7 @@ class _SignupBasicPageState extends State<SignupBasicPage> {
                         focusNode: _emailFocus,
                         keyboardType: TextInputType.emailAddress,
                         decoration: InputDecoration(
-                          hintText: 'john.doe@example.com',
+                          hintText: 'john.doe@lhr.nu.edu.pk',
                           errorText: _emailError,
                           contentPadding: const EdgeInsets.symmetric(
                               horizontal: 18, vertical: 14),
@@ -256,6 +265,7 @@ class _SignupBasicPageState extends State<SignupBasicPage> {
                         onEditingComplete: () => FocusScope.of(context).unfocus(),
                       ),
                       const SizedBox(height: 30),
+
                       // NEXT BUTTON
                       SizedBox(
                         width: double.infinity,
@@ -267,9 +277,10 @@ class _SignupBasicPageState extends State<SignupBasicPage> {
                             logger.d("[$runtimeType] Next Button Pressed with Name: $name, Email: $email, Password: $pass");
                             if (_validateInputs(name: name, email: email, pass: pass)) {
                               final user = User(
-                                fullName: _nameController.text.trim(),
-                                email: _emailController.text.trim().toLowerCase(),
-                                password: _passwordController.text.trim(),
+                                name: name,
+                                email: email,
+                                password: pass,
+                                birthday: null, // Birthday will be filled in next page
                               );
                               Navigator.push(
                                 context,
@@ -281,8 +292,7 @@ class _SignupBasicPageState extends State<SignupBasicPage> {
                           },
                           style: ElevatedButton.styleFrom(
                             backgroundColor: blue,
-                            padding:
-                                const EdgeInsets.symmetric(vertical: 16),
+                            padding: const EdgeInsets.symmetric(vertical: 16),
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(25),
                             ),
@@ -305,16 +315,13 @@ class _SignupBasicPageState extends State<SignupBasicPage> {
                         children: [
                           const Text(
                             "Already have an account? ",
-                            style: TextStyle(
-                                fontSize: 15, color: Colors.black87),
+                            style: TextStyle(fontSize: 15, color: Colors.black87),
                           ),
                           GestureDetector(
                             onTap: () {
                               Navigator.pushReplacement(
                                 context,
-                                MaterialPageRoute(
-                                    builder: (context) =>
-                                        const LoginPage()),
+                                MaterialPageRoute(builder: (context) => const LoginPage()),
                               );
                             },
                             child: Text(
@@ -330,7 +337,7 @@ class _SignupBasicPageState extends State<SignupBasicPage> {
                       ),
                     ],
                   ),
-                ),
+                )
               ],
             ),
           ),
