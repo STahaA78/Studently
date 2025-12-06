@@ -1,23 +1,18 @@
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI
+from routes.user_routes import router as user_router
 from contextlib import asynccontextmanager
 import logging
 
-logging.basicConfig(
-    level=logging.DEBUG,  # Set to INFO or ERROR in production
-    format="%(asctime)s [%(levelname)s] %(name)s - %(message)s"
-)
+logging.basicConfig(level=logging.DEBUG)
 LOGGER = logging.getLogger(__name__)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     LOGGER.info("Studently Backend Starting Up...")
-    # Perform startup tasks here
     yield
     LOGGER.info("Studently Backend Shutting Down...")
-    # Perform shutdown tasks here
 
 app = FastAPI(title="Studently Backend", lifespan=lifespan)
 
-@app.get("/health")
-async def health_check():
-    return {"status": "healthy"}
+# Include routes from user_routes.py
+app.include_router(user_router, prefix="/users")
