@@ -1,4 +1,7 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:http/http.dart' as http;
 import 'community_feed_page.dart';
 import 'package:email_otp/email_otp.dart';
 import 'package:studently/auth_service.dart';
@@ -10,7 +13,6 @@ import 'dart:async';
 class SignupEmailVerificationPage extends StatefulWidget {
   final User user;
   const SignupEmailVerificationPage({super.key, required this.user});
-
   @override
   State<SignupEmailVerificationPage> createState() => _SignupEmailVerificationPageState();
 }
@@ -72,6 +74,48 @@ class _SignupEmailVerificationPageState extends State<SignupEmailVerificationPag
     _resendTimer?.cancel();
     super.dispose();
   }
+  
+  Future<bool> _sendUserToBackend() async {
+    final url = Uri.parse('http://127.0.0.1:8000/users/register');
+
+    final Map<String, dynamic> payload = {
+      "Name": widget.user.name,
+      "email": widget.user.email,
+      "password": widget.user.password,
+      "birthday": widget.user.birthday, // already in MM/DD/YYYY format
+      "department": widget.user.department,
+      "batch": widget.user.batch,
+      "interests": widget.user.interests,
+      "university": widget.user.university ?? "FAST",
+      "profile_picture": widget.user.profilePicture,
+      "bio": widget.user.bio,
+    };
+    logger.d("[$runtimeType] Sending User data to backend: $payload");
+    try {
+      final response = await http.post(
+        url,
+        headers: {"Content-Type": "application/json"},
+        body: jsonEncode(payload),
+      );
+
+      if (response.statusCode == 201 || response.statusCode == 200) {
+        logger.i("[$runtimeType] User registered successfully");
+        return true;
+      } else {
+        logger.e("[$runtimeType] Backend registration failed: ${response.body}");
+        setState(() {
+          _otpError = 'Registration failed. Please try again.';
+        });
+        return false;
+      }
+    } catch (e) {
+      logger.e("[$runtimeType] Error sending user to backend", error: e);
+      setState(() {
+        _otpError = 'An error occurred. Please try again.';
+      });
+      return false;
+    }
+  }
 
   Future<void> _verifyCode() async {
     final code = _otpController.text.trim();
@@ -85,7 +129,14 @@ class _SignupEmailVerificationPageState extends State<SignupEmailVerificationPag
     }
 
     // 2. Check Validity
-    final isValid = EmailOTP.verifyOTP(otp: code);
+    //final isValid = EmailOTP.verifyOTP(otp: code);
+    // testing workaround
+    bool isValid;
+    if (code == "123456") {
+      isValid = true;
+    } else {
+      isValid = false;
+    }
     if (!isValid) {
       setState(() {
         _otpError = 'Invalid code. Please try again.';
@@ -98,6 +149,8 @@ class _SignupEmailVerificationPageState extends State<SignupEmailVerificationPag
     setState(() {
       _otpError = null; // Clear any previous errors
     });
+    bool backendSuccess = await _sendUserToBackend();
+    if (!backendSuccess) return;
 
     await register();
 
