@@ -74,76 +74,58 @@ class _ConnectDiscoverPageState extends State<ConnectDiscoverPage> {
 
   @override
   Widget build(BuildContext context) {
-    final Size screenSize = MediaQuery.of(context).size;
-    final bool isLandscape = screenSize.width > screenSize.height;
-    final double maxWidth = isLandscape ? 600 : screenSize.width * 0.95;
 
     return Scaffold(
       backgroundColor: Colors.white,
-      appBar: AppBar(
-        elevation: 0,
-        backgroundColor: Colors.white,
-        centerTitle: true,
-        title: const Text(
-          "Connect",
-          style: TextStyle(
-            color: Colors.black,
-            fontSize: 20,
-            fontWeight: FontWeight.w600,
-          ),
-        ),
-        bottom: PreferredSize(
-          preferredSize: const Size.fromHeight(12), // distance below AppBar
-          child: Column(
-            children: [
-              SizedBox(height: 8), // how far down you want the line
-              Container(
-                height: 1,
-                color: Color(0xFFE0E0E0),
-              ),
-            ],
-          ),
-        ),
-      ),
-      body: Center(
-        child: ConstrainedBox(
-          constraints: BoxConstraints(maxWidth: maxWidth),
-          child: Column(
-            children: [
-              // 🔍 Search bar
-              Container(
-                margin:
-                    const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-                decoration: BoxDecoration(
-                  color: Colors.grey.shade100,
-                  borderRadius: BorderRadius.circular(30),
-                  border: Border.all(color: Colors.grey.shade300),
+      body: SafeArea(
+        child: CustomScrollView(
+          slivers : [
+            SliverAppBar(
+              backgroundColor: Colors.white,
+              shadowColor: Colors.transparent,
+              surfaceTintColor: Colors.transparent,
+              elevation: 0,
+              centerTitle: true,
+              title: const Text(
+                "Connect",
+                style: TextStyle(
+                  color: Colors.black,
+                  fontSize: 20,
+                  fontWeight: FontWeight.w600,
                 ),
+              ),
+              bottom: PreferredSize(
+                preferredSize: const Size.fromHeight(8), // distance below AppBar
+                child: SizedBox(),
+              ),
+            ),
+            SliverToBoxAdapter(
+              child: Container(// Search bar
+                margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                 child: TextField(
                   controller: _searchController,
                   decoration: const InputDecoration(
                     prefixIcon: Icon(Icons.search, color: Colors.grey),
                     hintText: "Search Students...",
-                    border: InputBorder.none,
-                    contentPadding: EdgeInsets.symmetric(vertical: 14),
                   ),
                 ),
               ),
-
-              // Student cards
-              Expanded(
-                child: ListView.builder(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-                  itemCount: filteredStudents.length,
-                  itemBuilder: (context, index) {
-                    final student = filteredStudents[index];
-                    return _buildStudentCard(student);
-                  },
-                ),
+            ),
+        
+            SliverList(
+              delegate: SliverChildBuilderDelegate(
+                (context, index) {
+                  final student = filteredStudents[index];
+                  return Padding(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 16, vertical: 5),
+                    child: _buildStudentCard(student),
+                  );
+                },
+                childCount: filteredStudents.length,
               ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
       bottomNavigationBar: const CustomNavBar(currentIndex: 1),
@@ -152,18 +134,11 @@ class _ConnectDiscoverPageState extends State<ConnectDiscoverPage> {
 
   Widget _buildStudentCard(Map<String, dynamic> student) {
     return Container(
-      margin: const EdgeInsets.only(bottom: 16),
+      margin: const EdgeInsets.only(bottom: 8),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.grey.withOpacity(0.15),
-            blurRadius: 8,
-            offset: const Offset(0, 3),
-          ),
-        ],
         border: Border.all(color: Colors.grey.shade200),
       ),
       child: Column(
@@ -220,8 +195,8 @@ class _ConnectDiscoverPageState extends State<ConnectDiscoverPage> {
           const Text("Interests", style: TextStyle(fontWeight: FontWeight.w700)),
           const SizedBox(height: 6),
           Wrap(
-            spacing: 6,
-            runSpacing: -4,
+            spacing: 3,
+            runSpacing: 4,
             children: (student["interests"] as List<String>)
                 .map((interest) => Chip(
                       label: Text(

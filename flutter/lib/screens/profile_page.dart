@@ -71,6 +71,8 @@ class _ProfilePageState extends State<ProfilePage> {
       appBar: AppBar(
         elevation: 0,
         backgroundColor: Colors.white,
+        shadowColor: Colors.transparent,
+        surfaceTintColor: Colors.transparent,
         centerTitle: true,
         title: const Text(
           "Profile",
@@ -81,16 +83,8 @@ class _ProfilePageState extends State<ProfilePage> {
           ),
         ),
         bottom: PreferredSize(
-          preferredSize: const Size.fromHeight(12), // distance below AppBar
-          child: Column(
-            children: [
-              SizedBox(height: 8), // how far down you want the line
-              Container(
-                height: 1,
-                color: Color(0xFFE0E0E0),
-              ),
-            ],
-          ),
+          preferredSize: const Size.fromHeight(8), // distance below AppBar
+          child: SizedBox(),
         ),
       ),
       body: SingleChildScrollView(

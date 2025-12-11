@@ -48,7 +48,7 @@ class _PostDetailsPageState extends State<PostDetailsPage> {
 
   @override
   void dispose() {
-    Navigator.pop(context, post); // Return updated post data to feed
+    _commentController.dispose();
     super.dispose();
   }
 
@@ -56,25 +56,19 @@ class _PostDetailsPageState extends State<PostDetailsPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text("Post Details",
-            style: TextStyle(color: Colors.black, fontWeight: FontWeight.w600)),
-        backgroundColor: Colors.white,
+        title: const Text("Comments",
+        style: TextStyle(color: Colors.black, fontWeight: FontWeight.w600)),
         elevation: 0,
+        backgroundColor: Colors.white,
+        shadowColor: Colors.transparent,
+        surfaceTintColor: Colors.transparent,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back_ios, color: Colors.black),
           onPressed: () => Navigator.pop(context, post),
         ),
         bottom: PreferredSize(
-          preferredSize: const Size.fromHeight(12), // distance below AppBar
-          child: Column(
-            children: [
-              SizedBox(height: 8), // how far down you want the line
-              Container(
-                height: 1,
-                color: Color(0xFFE0E0E0),
-              ),
-            ],
-          ),
+          preferredSize: const Size.fromHeight(8), // distance below AppBar
+          child: SizedBox(),
         ),
       ),
       backgroundColor: Colors.white,
@@ -82,7 +76,6 @@ class _PostDetailsPageState extends State<PostDetailsPage> {
         children: [
           Expanded(
             child: ListView(
-              padding: const EdgeInsets.all(16),
               children: [
                 // Post Card
                 _buildPostCard(),
@@ -130,52 +123,70 @@ class _PostDetailsPageState extends State<PostDetailsPage> {
 
   Widget _buildPostCard() {
     return Container(
-      padding: const EdgeInsets.all(12),
+      width : double.infinity,
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        boxShadow: [
-          BoxShadow(color: Colors.grey.withOpacity(0.1), blurRadius: 6, offset: const Offset(0, 2)),
-        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              CircleAvatar(
-                backgroundColor: Colors.grey.shade300,
-                child: Text(post["name"][0],
-                    style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.black)),
-              ),
-              const SizedBox(width: 10),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(post["name"],
-                      style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 15)),
-                  Text(post["time"], style: const TextStyle(color: Colors.grey)),
-                ],
-              ),
-            ],
+          Padding(
+            padding: const EdgeInsets.only(left: 16, right: 16),
+            child: Row(
+              children: [
+                CircleAvatar(
+                  backgroundColor: Colors.grey.shade300,
+                  child: Text(post["name"][0],
+                      style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.black)),
+                ),
+                const SizedBox(width: 10),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(post["name"],
+                        style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 15)),
+                    Text(post["time"], style: const TextStyle(color: Colors.grey)),
+                  ],
+                ),
+              ],
+            ),
           ),
           const SizedBox(height: 10),
           if (post["image"] != null)
-            ClipRRect(
-              borderRadius: BorderRadius.circular(10),
-              child: Image.asset(post["image"], fit: BoxFit.cover),
+            Container(
+              width: double.infinity,
+              clipBehavior: Clip.hardEdge,              // <— important
+              decoration: const BoxDecoration(),
+              child: Image.asset(
+                post["image"],
+                fit: BoxFit.cover,                      // <— fills width
+              ),
             ),
-          const SizedBox(height: 8),
-          Text(post["description"], style: const TextStyle(fontSize: 15)),
+          if (post["image"] != null) const SizedBox(height: 10),
+          
+          if (post["title"] != null)
+            Padding(
+              padding: const EdgeInsets.only(left: 19.0, right: 19.0),
+              child: Text(post["title"],
+                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+            ),
+          if (post["title"] != null) const SizedBox(height: 6),
+          Padding(
+            padding: const EdgeInsets.only(left: 19, right: 19),
+            child: Text(post["description"], style: const TextStyle(fontSize: 15)),
+          ),
           const SizedBox(height: 8),
           Row(
             children: [
-              GestureDetector(
-                onTap: toggleLike,
-                child: Icon(
-                  (post["isLiked"] ?? false) ? Icons.favorite : Icons.favorite_border,
-                  color: (post["isLiked"] ?? false) ? Colors.red : Colors.grey,
-                  size: 22,
+              Padding(
+                padding: const EdgeInsets.only(left: 19),
+                child: GestureDetector(
+                  onTap: toggleLike,
+                  child: Icon(
+                    (post["isLiked"] ?? false) ? Icons.favorite : Icons.favorite_border,
+                    color: (post["isLiked"] ?? false) ? Colors.red : Colors.grey,
+                    size: 22,
+                  ),
                 ),
               ),
               const SizedBox(width: 6),

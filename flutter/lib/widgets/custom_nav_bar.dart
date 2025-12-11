@@ -38,9 +38,8 @@ class CustomNavBar extends StatelessWidget {
           break;
       }
 
-      // ✅ Use pushReplacement instead of pushAndRemoveUntil for smoother transitions
       if (destination != null) {
-        Navigator.pushReplacement(
+        Navigator.pushAndRemoveUntil(
           context,
           PageRouteBuilder(
             pageBuilder: (_, __, ___) => destination!,
@@ -49,6 +48,7 @@ class CustomNavBar extends StatelessWidget {
               return FadeTransition(opacity: animation, child: child);
             },
           ),
+          (route) => false, // Remove all previous routes
         );
       }
     }
