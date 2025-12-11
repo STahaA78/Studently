@@ -69,7 +69,7 @@ class _ProfilePageState extends State<ProfilePage> {
     return Scaffold(
       backgroundColor: Colors.white,
       appBar: AppBar(
-        elevation: 0.8,
+        elevation: 0,
         backgroundColor: Colors.white,
         centerTitle: true,
         title: const Text(
@@ -78,6 +78,18 @@ class _ProfilePageState extends State<ProfilePage> {
             color: Colors.black,
             fontWeight: FontWeight.w600,
             fontSize: 20,
+          ),
+        ),
+        bottom: PreferredSize(
+          preferredSize: const Size.fromHeight(12), // distance below AppBar
+          child: Column(
+            children: [
+              SizedBox(height: 8), // how far down you want the line
+              Container(
+                height: 1,
+                color: Color(0xFFE0E0E0),
+              ),
+            ],
           ),
         ),
       ),

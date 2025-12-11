@@ -81,7 +81,7 @@ class _ConnectDiscoverPageState extends State<ConnectDiscoverPage> {
     return Scaffold(
       backgroundColor: Colors.white,
       appBar: AppBar(
-        elevation: 0.3,
+        elevation: 0,
         backgroundColor: Colors.white,
         centerTitle: true,
         title: const Text(
@@ -90,6 +90,18 @@ class _ConnectDiscoverPageState extends State<ConnectDiscoverPage> {
             color: Colors.black,
             fontSize: 20,
             fontWeight: FontWeight.w600,
+          ),
+        ),
+        bottom: PreferredSize(
+          preferredSize: const Size.fromHeight(12), // distance below AppBar
+          child: Column(
+            children: [
+              SizedBox(height: 8), // how far down you want the line
+              Container(
+                height: 1,
+                color: Color(0xFFE0E0E0),
+              ),
+            ],
           ),
         ),
       ),

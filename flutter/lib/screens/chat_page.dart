@@ -107,7 +107,7 @@ class _ChatPageState extends State<ChatPage> {
     return Scaffold(
       backgroundColor: Colors.white,
       appBar: AppBar(
-        elevation: 0.3,
+        elevation: 0,
         backgroundColor: Colors.white,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.black87),
@@ -129,6 +129,18 @@ class _ChatPageState extends State<ChatPage> {
           ),
           const SizedBox(width: 10),
         ],
+        bottom: PreferredSize(
+          preferredSize: const Size.fromHeight(12), // distance below AppBar
+          child: Column(
+            children: [
+              SizedBox(height: 8), // how far down you want the line
+              Container(
+                height: 1,
+                color: Color(0xFFE0E0E0),
+              ),
+            ],
+          ),
+        ),
       ),
       body: Column(
         children: [

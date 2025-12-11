@@ -3,6 +3,9 @@ import 'dart:math';
 import 'direct_messages_page.dart';
 import '../widgets/custom_nav_bar.dart';
 import 'post_details_page.dart';
+import 'package:flutter_svg/flutter_svg.dart';
+import 'package:google_fonts/google_fonts.dart';
+import 'package:studently/utils/constants.dart';
 
 class CommunityFeedPage extends StatefulWidget {
   const CommunityFeedPage({super.key});
@@ -76,14 +79,34 @@ class _CommunityFeedPageState extends State<CommunityFeedPage> {
     return Scaffold(
       backgroundColor: Colors.white,
       appBar: AppBar(
-        elevation: 0.8,
+        elevation: 0,
         backgroundColor: Colors.white,
+        shadowColor: Colors.transparent,
+        surfaceTintColor: Colors.transparent,
         title: Row(
-          children: [
-            Image.asset('assets/images/studently_logo.png', height: 26),
-            const SizedBox(width: 6),
-            Text('Studently',
-                style: TextStyle(fontSize: 22, color: blue, fontWeight: FontWeight.w700)),
+          children: [                  
+            Padding(
+              padding: const EdgeInsets.only(right: AppStyle.logoSize - AppStyle.titleFontSize), // Visual Enhancement
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  SvgPicture.asset(
+                    'assets/images/logo.svg',
+                    height: AppStyle.logoSize,
+                  ),
+                  Text(
+                    'Studently',
+                    style: GoogleFonts.poppins(
+                      color: blue,
+                      fontSize: AppStyle.titleFontSize,
+                      fontWeight: FontWeight.w700,
+                      fontStyle: FontStyle.italic,
+                      letterSpacing: 0.5,
+                    ),
+                  ),
+                ],
+              ),
+            ),
           ],
         ),
         actions: [
@@ -101,6 +124,18 @@ class _CommunityFeedPageState extends State<CommunityFeedPage> {
           ),
           const SizedBox(width: 8),
         ],
+        bottom: PreferredSize(
+          preferredSize: const Size.fromHeight(12), // distance below AppBar
+          child: Column(
+            children: [
+              SizedBox(height: 8), // how far down you want the line
+              Container(
+                height: 1,
+                color: Color(0xFFE0E0E0),
+              ),
+            ],
+          ),
+        ),
       ),
       body: Center(
         child: ConstrainedBox(
@@ -238,7 +273,25 @@ class NotificationsPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text("Notifications")),
+      appBar: AppBar(
+        elevation: 0,
+        backgroundColor: Colors.white,
+        shadowColor: Colors.transparent,
+        surfaceTintColor: Colors.transparent,
+        title: const Text("Notifications"),
+        bottom: PreferredSize(
+          preferredSize: const Size.fromHeight(12), // distance below AppBar
+          child: Column(
+            children: [
+              SizedBox(height: 8), // how far down you want the line
+              Container(
+                height: 1,
+                color: Color(0xFFE0E0E0),
+              ),
+            ],
+          ),
+        ),
+      ),
       body: const Center(child: Text("No new notifications yet.")),
     );
   }

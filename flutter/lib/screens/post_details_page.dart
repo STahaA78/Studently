@@ -59,10 +59,22 @@ class _PostDetailsPageState extends State<PostDetailsPage> {
         title: const Text("Post Details",
             style: TextStyle(color: Colors.black, fontWeight: FontWeight.w600)),
         backgroundColor: Colors.white,
-        elevation: 0.5,
+        elevation: 0,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back_ios, color: Colors.black),
           onPressed: () => Navigator.pop(context, post),
+        ),
+        bottom: PreferredSize(
+          preferredSize: const Size.fromHeight(12), // distance below AppBar
+          child: Column(
+            children: [
+              SizedBox(height: 8), // how far down you want the line
+              Container(
+                height: 1,
+                color: Color(0xFFE0E0E0),
+              ),
+            ],
+          ),
         ),
       ),
       backgroundColor: Colors.white,
