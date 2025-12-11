@@ -13,6 +13,7 @@ class UserCreate(BaseModel):
     university: str = "FAST"
     profile_picture: Optional[str] = None
     bio: Optional[str] = None
+    isAdmin: bool = False  # Added isAdmin field (Default False)
 
     @field_validator("birthday", mode="before")
     def validate_birthday(cls, v):
@@ -50,6 +51,7 @@ class UserOut(BaseModel):
     bio: Optional[str] = None
     friends: List[str] = []
     created_at: Optional[datetime] = None
+    isAdmin: bool = False  # Return isAdmin status in profile
 
 # Model for handling Accept/Reject actions
 class FriendRequestAction(BaseModel):

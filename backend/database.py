@@ -9,7 +9,7 @@ MONGO_URL = "mongodb://localhost:27017"
 # MONGO_URL = "mongodb+srv://username:password@cluster0.mongodb.net/studently_db?retryWrites=true&w=majority"
 
 try:
-    # Connect to MongoDB with a timeout to catch connection errors quickly
+    # Connect to MongoDB with a timeout
     client = MongoClient(MONGO_URL, serverSelectionTimeoutMS=5000)
     
     # Trigger a command to verify the connection
@@ -23,6 +23,9 @@ try:
     posts_collection = db["posts"]
     conversations_collection = db["conversations"]
     messages_collection = db["messages"]
+    
+    # NEW: Knowledge Hub Collection
+    knowledge_hub_collection = db["knowledge_hub"]
 
     print("MongoDB connection established!")
 
