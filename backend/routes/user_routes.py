@@ -2,7 +2,7 @@ from fastapi import APIRouter, HTTPException
 from datetime import datetime
 from utils.auth import hash_password
 from database import users_collection
-from models.user_model import UserCreate, UserOut, UserLogin
+from models.user_model import UserCreate, UserLogin
 from utils.auth import verify_password
 import logging
 router = APIRouter()

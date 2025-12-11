@@ -18,6 +18,8 @@ dependencies:
   logger: ^2.6.2
   email_otp: ^3.0.2
   pinput: ^6.0.1
+  flutter_svg: ^2.2.3
+  google_fonts: ^6.3.2
 
 dev_dependencies:
   flutter_test:
@@ -40,5 +42,4 @@ flutter:
   uses-material-design: true
 
   assets:
-    - assets/images/studently_logo.png
-    - assets/images/group_study.jpg
+    - assets/images/
