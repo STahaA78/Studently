@@ -2,7 +2,11 @@ import 'package:flutter/material.dart';
 import 'signup_email_verification_page.dart';
 import 'package:studently/models.dart';
 import 'package:studently/logger.dart';
-import 'package:email_otp/email_otp.dart';
+import 'package:http/http.dart' as http;
+import 'community_feed_page.dart';
+import 'package:studently/auth_service.dart';
+import 'dart:convert';
+
 
 class SignupAdditionalPage extends StatefulWidget {
   final User user;
@@ -13,6 +17,7 @@ class SignupAdditionalPage extends StatefulWidget {
 }
 
 class _SignupAdditionalPageState extends State<SignupAdditionalPage> {
+  String? _completionError;
   String? selectedDate; // MM/DD/YYYY
   String? selectedDepartment;
   String? selectedBatch;
@@ -31,6 +36,73 @@ class _SignupAdditionalPageState extends State<SignupAdditionalPage> {
     super.initState();
     // Sync initial interests to User object
     widget.user.interests = List.from(interests);
+  }
+
+  Future<bool> _registerFirebase() async {
+    logger.i("[$runtimeType] Firebase Registration Started");
+    try {
+      await authService.value.createAccount(
+        email: widget.user.email, password: widget.user.password,
+      );
+      logger.i("[$runtimeType] Firebase Registration Successful");
+      return true;
+    } catch (e) {
+      logger.e("[$runtimeType] Firebase Registration Failed" , error: e);
+      setState(() {
+        _completionError = 'Failed to register. Please try again.';
+      });
+      return false;
+    }
+  }
+    Future<bool> _registerBackend() async {
+    final url = Uri.parse('http://127.0.0.1:8000/users/register');
+    final Map<String, dynamic> payload = {
+      "Name": widget.user.name,
+      "email": widget.user.email,
+      "password": widget.user.password,
+      "birthday": widget.user.birthday, // already in MM/DD/YYYY format
+      "department": widget.user.department,
+      "batch": widget.user.batch,
+      "interests": widget.user.interests,
+      "university": widget.user.university ?? "FAST",
+      "profile_picture": widget.user.profilePicture,
+      "bio": widget.user.bio,
+    };
+    logger.d("[$runtimeType] Sending User data to backend: $payload");
+    try {
+      final response = await http.post(
+        url,
+        headers: {"Content-Type": "application/json"},
+        body: jsonEncode(payload),
+      );
+      if (response.statusCode != 201 && response.statusCode != 200) {
+        logger.e("[$runtimeType] Backend registration failed: ", error: response.body);
+        setState(() {
+          _completionError = 'Registration failed. Please try again.';
+        });
+        return false;
+      }
+      logger.i("[$runtimeType] Backend registration successful");
+      return true;
+    } catch (e) {
+      logger.e("[$runtimeType] Error sending user to backend", error: e);
+      setState(() {
+        _completionError = 'An error occurred. Please try again.';
+      });
+      return false;
+    }
+    // Firebase registration
+  }
+  Future<void> _handleCompletion() async {
+    //final firebaseSuccess = await _registerFirebase();
+    final backendSuccess = await _registerBackend();
+    //if (!mounted || !firebaseSuccess || !backendSuccess) return;
+    if (!mounted || !backendSuccess) return;
+    Navigator.pushAndRemoveUntil(
+      context,
+      MaterialPageRoute(builder: (_) => const CommunityFeedPage()),
+      (route) => false,
+    );
   }
 
   bool _validateAdditional() {
@@ -54,24 +126,6 @@ class _SignupAdditionalPageState extends State<SignupAdditionalPage> {
     widget.user.interests = List.from(interests);
 
     return missing.isEmpty;
-  }
-
-  Future<bool> _sendOtp() async {
-    logger.i("[$runtimeType] SendOTP Started");
-    logger.d("[$runtimeType] Email: ${widget.user.email}");
-    try {
-      final sent = await EmailOTP.sendOTP(email: widget.user.email);
-      if (sent) {
-        logger.i("[$runtimeType] OTP sent successfully to ${widget.user.email}");
-      } else {
-        logger.w("[$runtimeType] OTP sending failed to ${widget.user.email}");
-        //return false;
-      }
-    } catch (e) {
-      logger.e("[$runtimeType] Failed to send OTP to ${widget.user.email}", error: e);
-      return false;
-    }
-    return true;
   }
 
   Future<void> _pickDate(BuildContext context) async {
@@ -254,14 +308,7 @@ class _SignupAdditionalPageState extends State<SignupAdditionalPage> {
                         child: ElevatedButton(
                           onPressed: () async {
                             if (!_validateAdditional()) return;
-                            bool otpSent = await _sendOtp();
-                            if (!otpSent || !context.mounted) return;
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (context) => SignupEmailVerificationPage(user: widget.user),
-                              ),
-                            );
+                            await _handleCompletion();
                           },
                           style: ElevatedButton.styleFrom(
                             backgroundColor: blue,
@@ -271,6 +318,14 @@ class _SignupAdditionalPageState extends State<SignupAdditionalPage> {
                           child: const Text('Complete Sign Up', style: TextStyle(fontSize: 18, color: Colors.white, fontWeight: FontWeight.w500)),
                         ),
                       ),
+                      if (_completionError != null) ...[
+                        const SizedBox(height: 10),
+                        Text(
+                          _completionError!,
+                          style: const TextStyle(color: Colors.redAccent, fontSize: 14, fontWeight: FontWeight.w500),
+                          textAlign: TextAlign.center,
+                        ),
+                      ],
                     ],
                   ),
                 ),

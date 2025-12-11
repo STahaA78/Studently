@@ -9,9 +9,13 @@ class AppStyle {
   // --- 1. Colors ---
   static const Color blue = Color(0xFF0F74C7);
   static const Color white = Colors.white;
-  // --- 2. Dimensions (Your Specific Requests) ---
-  static const double logoSize = 45.0;       
-  static const double titleFontSize = 36.0;  
+  // --- 2. Dimensions ---
+  static const double logoSize = 50.0;      
+  static const double titleFontSize = 36.0;  // Studently Title Size
+  static const signUpPageTitleLeftPadding = 65.0;
+  static const backButtonLeftPadding = 20.0;
+  static const backButtonBottomPadding = 20.0;
+  static const double signUpPageHeadingFontSize = 30.0; // Headings
   //Small Helper Text
   static const double smallFontSize = 18.0;
   static const FontWeight smallFontWeight = FontWeight.w500;

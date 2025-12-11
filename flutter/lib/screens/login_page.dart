@@ -147,24 +147,27 @@ class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     // ===== Logo + Title =====
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        SvgPicture.asset(
-                          'assets/images/logo.svg',
-                          height: 50,
-                        ),
-                        Text(
-                          'Studently',
-                          style: GoogleFonts.poppins(
-                            color: blue,
-                            fontSize: 36,
-                            fontWeight: FontWeight.w700,
-                            fontStyle: FontStyle.italic,
-                            letterSpacing: 0.5,
+                    Padding(
+                      padding: const EdgeInsets.only(right: AppStyle.logoSize - AppStyle.titleFontSize), // Visual Enhancement
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          SvgPicture.asset(
+                            'assets/images/logo.svg',
+                            height: AppStyle.logoSize,
                           ),
-                        ),
-                      ],
+                          Text(
+                            'Studently',
+                            style: GoogleFonts.poppins(
+                              color: blue,
+                              fontSize: AppStyle.titleFontSize,
+                              fontWeight: FontWeight.w700,
+                              fontStyle: FontStyle.italic,
+                              letterSpacing: 0.5,
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                     const SizedBox(height: 50),
 

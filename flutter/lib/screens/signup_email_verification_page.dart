@@ -1,14 +1,10 @@
-import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
-import 'package:http/http.dart' as http;
-import 'community_feed_page.dart';
 import 'package:email_otp/email_otp.dart';
-import 'package:studently/auth_service.dart';
 import 'package:studently/logger.dart';
 import 'package:studently/models.dart';
 import 'package:pinput/pinput.dart';
 import 'dart:async';
+import 'signup_additional_page.dart';
 
 class SignupEmailVerificationPage extends StatefulWidget {
   final User user;
@@ -21,7 +17,7 @@ class _SignupEmailVerificationPageState extends State<SignupEmailVerificationPag
   final TextEditingController _otpController = TextEditingController();
   final FocusNode _otpFocusNode = FocusNode();
   
-  String? _otpError;
+  String? _completionError;
   //Timer code
   Timer? _resendTimer;
   int _secondsRemaining = 0;
@@ -54,18 +50,6 @@ class _SignupEmailVerificationPageState extends State<SignupEmailVerificationPag
       }
     });
   }
-  //Signup Logic
-  Future<void> register() async {
-    logger.i("[$runtimeType] Firebase Registration Started");
-    try {
-      await authService.value.createAccount(
-        email: widget.user.email, password: widget.user.password,
-      );
-      logger.i("[$runtimeType] Firebase Registration Successful");
-    } catch (e) {
-      logger.e("[$runtimeType] Firebase Registration Failed" , error: e);
-    }
-  }
 
   @override
   void dispose() {
@@ -75,56 +59,16 @@ class _SignupEmailVerificationPageState extends State<SignupEmailVerificationPag
     super.dispose();
   }
   
-  Future<bool> _sendUserToBackend() async {
-    final url = Uri.parse('http://127.0.0.1:8000/users/register');
-
-    final Map<String, dynamic> payload = {
-      "Name": widget.user.name,
-      "email": widget.user.email,
-      "password": widget.user.password,
-      "birthday": widget.user.birthday, // already in MM/DD/YYYY format
-      "department": widget.user.department,
-      "batch": widget.user.batch,
-      "interests": widget.user.interests,
-      "university": widget.user.university ?? "FAST",
-      "profile_picture": widget.user.profilePicture,
-      "bio": widget.user.bio,
-    };
-    logger.d("[$runtimeType] Sending User data to backend: $payload");
-    try {
-      final response = await http.post(
-        url,
-        headers: {"Content-Type": "application/json"},
-        body: jsonEncode(payload),
-      );
-
-      if (response.statusCode == 201 || response.statusCode == 200) {
-        logger.i("[$runtimeType] User registered successfully");
-        return true;
-      } else {
-        logger.e("[$runtimeType] Backend registration failed: ${response.body}");
-        setState(() {
-          _otpError = 'Registration failed. Please try again.';
-        });
-        return false;
-      }
-    } catch (e) {
-      logger.e("[$runtimeType] Error sending user to backend", error: e);
-      setState(() {
-        _otpError = 'An error occurred. Please try again.';
-      });
-      return false;
-    }
-  }
-
-  Future<void> _verifyCode() async {
+  Future<void> _handleCompletion() async {
     final code = _otpController.text.trim();
-    
+    logger.i('OTP Verification Started for email: ${widget.user.email}.');
+    logger.d('Entered code: $code');
     // 1. Check Length
     if (code.length != 6) {
       setState(() {
-        _otpError = 'Enter all 6 digits';
+        _completionError = 'Enter all 6 digits';
       });
+      logger.w('OTP Verification Failed: Entered code length is not 6 digits.');
       return;
     }
 
@@ -139,27 +83,22 @@ class _SignupEmailVerificationPageState extends State<SignupEmailVerificationPag
     }
     if (!isValid) {
       setState(() {
-        _otpError = 'Invalid code. Please try again.';
+        _completionError = 'Invalid code. Please try again.';
       });
+      logger.w('OTP Verification Failed: Invalid code entered for email: ${widget.user.email}.');
       // Clear the field so they can type again easily
       return;
     }
-
-    // 3. Success
-    setState(() {
-      _otpError = null; // Clear any previous errors
-    });
-    bool backendSuccess = await _sendUserToBackend();
-    if (!backendSuccess) return;
-
-    await register();
-
-    if (!mounted) return;
-    Navigator.pushAndRemoveUntil(
-      context,
-      MaterialPageRoute(builder: (_) => const CommunityFeedPage()),
-      (route) => false,
-    );
+    else{
+      logger.i('OTP Verification Succeeded for email: ${widget.user.email}.');
+      // Proceed to the next signup step
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => SignupAdditionalPage(user: widget.user),
+        ),
+      );
+    }
   }
 
   void _resendCode() {
@@ -234,15 +173,15 @@ class _SignupEmailVerificationPageState extends State<SignupEmailVerificationPag
                     showCursor: true,
                     
                     // THE KEY LOGIC:
-                    forceErrorState: _otpError != null, // Turn boxes red if error exists
-                    errorText: _otpError,               // Show this text below boxes
+                    forceErrorState: _completionError != null, // Turn boxes red if error exists
+                    errorText: _completionError,               // Show this text below boxes
                     
-                    onCompleted: (pin) => _verifyCode(),
+                    onCompleted: (pin) => _handleCompletion(),
                     
                     onChanged: (value) {
                       // UX Improvement: Clear the error immediately when they start typing
-                      if (_otpError != null) {
-                        setState(() => _otpError = null);
+                      if (_completionError != null) {
+                        setState(() => _completionError = null);
                       }
                     },
                   ),
@@ -264,7 +203,7 @@ class _SignupEmailVerificationPageState extends State<SignupEmailVerificationPag
                   SizedBox(
                     width: contentWidth,
                     child: ElevatedButton(
-                      onPressed: _verifyCode,
+                      onPressed: _handleCompletion,
                       style: ElevatedButton.styleFrom(
                         backgroundColor: blue,
                         padding: const EdgeInsets.symmetric(vertical: 16),
