@@ -6,6 +6,7 @@ import 'package:studently/utils/constants.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'firebase_options.dart';
 import 'package:email_otp/email_otp.dart';
+//import 'screens/community_feed_page.dart';
 
 void main() async {
     EmailOTP.config(
@@ -42,6 +43,7 @@ class MyApp extends StatelessWidget {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
       home: LoginPage(), // directly show the login page
+      //home: CommunityFeedPage(),
 
       // Global theme settings
       theme : ThemeData(

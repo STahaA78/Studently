@@ -47,67 +47,68 @@ class _RepositoryUserPageState extends State<RepositoryUserPage>
 
   @override
   Widget build(BuildContext context) {
-    const blue = Color(0xFF1976D2);
-
-    return Scaffold(
-      backgroundColor: Colors.white,
-      appBar: AppBar(
+    final Color blue = const Color(0xFF1976D2);
+    return DefaultTabController(
+      length: 4, // number of tabs
+      child: Scaffold(
         backgroundColor: Colors.white,
-        elevation: 0.8,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios, color: Colors.black),
-          onPressed: () => Navigator.pop(context),
-        ),
-        title: Column(
-          children: [
-            Text(
-              widget.courseName,
-              style: const TextStyle(
-                color: Colors.black,
-                fontWeight: FontWeight.w600,
-                fontSize: 18,
+        appBar: AppBar(
+          backgroundColor: Colors.white,
+          shadowColor: Colors.transparent,
+          surfaceTintColor: Colors.transparent,
+          elevation: 0,
+          leading: IconButton(
+            icon: const Icon(Icons.arrow_back_ios, color: Colors.black),
+            onPressed: () => Navigator.pop(context),
+          ),
+          title: Column(
+            children: [
+              Text(
+                widget.courseName,
+                style: const TextStyle(
+                  color: Colors.black,
+                  fontWeight: FontWeight.w600,
+                  fontSize: 18,
+                ),
               ),
-            ),
-            Text(
-              widget.courseCode,
-              style: const TextStyle(color: Colors.grey, fontSize: 13),
-            ),
-          ],
-        ),
-        centerTitle: true,
-        bottom: PreferredSize(
-          preferredSize: const Size.fromHeight(48),
-          child: Container(
-            color: Colors.grey.shade100,
+              Text(
+                widget.courseCode,
+                style: const TextStyle(color: Colors.grey, fontSize: 13),
+              ),
+            ],
+          ),
+          centerTitle: true,
+          bottom: PreferredSize(
+            preferredSize: const Size.fromHeight(48),
             child: TabBar(
-              controller: _tabController,
-              indicatorColor: blue,
+              controller: _tabController, // optional if using DefaultTabController
               labelColor: blue,
               unselectedLabelColor: Colors.grey,
+              indicatorColor: blue,
               tabs: const [
                 Tab(text: "Quizzes"),
-                Tab(text: "Past Papers"),
+                Tab(text: "Papers"),
                 Tab(text: "Lectures"),
                 Tab(text: "Books"),
               ],
             ),
           ),
         ),
-      ),
 
-      body: TabBarView(
-        controller: _tabController,
-        children: [
-          _buildFileList("Quizzes"),
-          _buildFileList("Past Papers"),
-          _buildFileList("Lectures"),
-          _buildFileList("Books"),
-        ],
-      ),
+        body: TabBarView(
+          controller: _tabController, // optional
+          children: [
+            _buildFileList("Quizzes"),
+            _buildFileList("Past Papers"),
+            _buildFileList("Lectures"),
+            _buildFileList("Books"),
+          ],
+        ),
 
-      // ✅ Integrated CustomNavBar (Hub highlighted)
-      bottomNavigationBar: const CustomNavBar(currentIndex: 3),
+        bottomNavigationBar: const CustomNavBar(currentIndex: 3),
+      ),
     );
+
   }
 
   Widget _buildFileList(String category) {

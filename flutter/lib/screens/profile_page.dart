@@ -69,8 +69,10 @@ class _ProfilePageState extends State<ProfilePage> {
     return Scaffold(
       backgroundColor: Colors.white,
       appBar: AppBar(
-        elevation: 0.8,
+        elevation: 0,
         backgroundColor: Colors.white,
+        shadowColor: Colors.transparent,
+        surfaceTintColor: Colors.transparent,
         centerTitle: true,
         title: const Text(
           "Profile",
@@ -79,6 +81,10 @@ class _ProfilePageState extends State<ProfilePage> {
             fontWeight: FontWeight.w600,
             fontSize: 20,
           ),
+        ),
+        bottom: PreferredSize(
+          preferredSize: const Size.fromHeight(8), // distance below AppBar
+          child: SizedBox(),
         ),
       ),
       body: SingleChildScrollView(

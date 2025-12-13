@@ -73,8 +73,10 @@ class _DirectMessagesPageState extends State<DirectMessagesPage> {
     return Scaffold(
       backgroundColor: Colors.white,
       appBar: AppBar(
-        elevation: 0.5,
         backgroundColor: Colors.white,
+        shadowColor: Colors.transparent,
+        surfaceTintColor: Colors.transparent,
+        elevation: 0,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back_ios_new_rounded,
               color: Colors.black87),
@@ -89,6 +91,10 @@ class _DirectMessagesPageState extends State<DirectMessagesPage> {
           ),
         ),
         centerTitle: true,
+        bottom: PreferredSize(
+          preferredSize: const Size.fromHeight(8), // distance below AppBar
+          child: SizedBox(),
+        ),
       ),
       body: Column(
         children: [
