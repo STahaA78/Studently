@@ -1,14 +1,21 @@
+import 'dart:async'; // For Timer
 import 'package:flutter/material.dart';
-import 'dart:math';
+import 'package:studently/models/chat_model.dart';
+import 'package:studently/services/chat_service.dart';
+import 'package:studently/utils/colors.dart'; // Ensure you have this or use the hardcoded Color(0xFF1976D2)
 
 class ChatPage extends StatefulWidget {
-  final String chatName;
-  final bool isGroup;
+  final String conversationId;
+  final String currentUserId;
+  final String otherUserId;
+  final String otherUserName; // Added to display name in AppBar
 
   const ChatPage({
     super.key,
-    required this.chatName,
-    required this.isGroup,
+    required this.conversationId,
+    required this.currentUserId,
+    required this.otherUserId,
+    this.otherUserName = "Chat", // Default fallback
   });
 
   @override
@@ -16,90 +23,109 @@ class ChatPage extends StatefulWidget {
 }
 
 class _ChatPageState extends State<ChatPage> {
+  // Backend Service
+  final ChatService _chatService = ChatService();
+  
+  // UI Controllers
   final TextEditingController _messageController = TextEditingController();
-  final Color blue = const Color(0xFF1976D2);
-  final Random random = Random();
+  final ScrollController _scrollController = ScrollController();
+  
+  // Styles
+  final Color blue = const Color(0xFF1976D2); // Keeping your blue color
 
-  // Group members (for sample use)
-  final List<String> groupMembers = ["Moiz", "Taha", "Sara", "Ali", "Fatima"];
-
-  // Generate random color for each member
-  late final Map<String, Color> memberColors = {
-    for (var member in groupMembers)
-      member: Colors.primaries[random.nextInt(Colors.primaries.length)].shade700
-  };
-
-  // Sample messages
-  final List<Map<String, dynamic>> messages = [];
+  // State Variables
+  List<ChatMessage> _messages = [];
+  Timer? _timer;
+  bool _isLoading = true;
 
   @override
   void initState() {
     super.initState();
+    _fetchMessages();
+    
+    // --- NEW: Mark as read immediately on open ---
+    _chatService.markChatAsRead(widget.conversationId, widget.currentUserId);
 
-    if (widget.isGroup) {
-      messages.addAll([
-        {
-          "text": "Hey everyone, meeting at 3 PM today?",
-          "sender": "Sara",
-          "isMe": false,
-          "time": "9:45 AM"
-        },
-        {
-          "text": "Yes, that works for me!",
-          "sender": "Moiz",
-          "isMe": false,
-          "time": "9:46 AM"
-        },
-        {
-          "text": "I might be 5 mins late 😅",
-          "sender": "Ali",
-          "isMe": false,
-          "time": "9:47 AM"
-        },
-        {
-          "text": "No problem! I’ll join right on time.",
-          "sender": "You",
-          "isMe": true,
-          "time": "9:48 AM"
-        },
-      ]);
-    } else {
-      messages.addAll([
-        {
-          "text":
-              "Hi, just wanted to confirm if you're coming to the football match on Thursday.",
-          "isMe": true,
-          "time": "10:00 AM"
-        },
-        {
-          "text": "Yes, I am! Let’s grab food after.",
-          "isMe": false,
-          "time": "10:05 AM"
-        },
-        {
-          "text":
-              "Perfect, see you there! Let’s discuss our project too if we get time.",
-          "isMe": true,
-          "time": "10:07 AM"
-        },
-      ]);
+    // Poll for new messages every 3 seconds
+    _timer = Timer.periodic(Duration(seconds: 3), (timer) {
+      _fetchMessages(isBackgroundRefresh: true);
+      // --- NEW: Keep marking as read while page is open ---
+      _chatService.markChatAsRead(widget.conversationId, widget.currentUserId);
+    });
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    _messageController.dispose();
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _fetchMessages({bool isBackgroundRefresh = false}) async {
+    try {
+      final messages = await _chatService.getMessages(widget.conversationId);
+      
+      if (mounted) {
+        setState(() {
+          _messages = messages;
+          if (!isBackgroundRefresh) _isLoading = false;
+        });
+        
+        // Scroll to bottom on initial load
+        if (!isBackgroundRefresh) _scrollToBottom();
+      }
+    } catch (e) {
+      print("Error loading messages: $e");
     }
   }
 
-  void _sendMessage() {
+  void _scrollToBottom() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (_scrollController.hasClients) {
+        _scrollController.animateTo(
+          _scrollController.position.maxScrollExtent,
+          duration: const Duration(milliseconds: 300),
+          curve: Curves.easeOut,
+        );
+      }
+    });
+  }
+
+  Future<void> _sendMessage() async {
     final text = _messageController.text.trim();
     if (text.isEmpty) return;
 
-    setState(() {
-      messages.add({
-        "text": text,
-        "sender": widget.isGroup ? "You" : null,
-        "isMe": true,
-        "time": "Now",
-      });
-    });
+    _messageController.clear(); // Clear immediately for better UX
 
-    _messageController.clear();
+    try {
+      await _chatService.sendMessage(
+        senderId: widget.currentUserId,
+        receiverId: widget.otherUserId,
+        text: text,
+      );
+      // Refresh immediately
+      _fetchMessages(isBackgroundRefresh: true);
+      _scrollToBottom();
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("Failed to send: $e")),
+      );
+    }
+  }
+
+  // Helper to format timestamps (e.g. "10:30 AM")
+  String _formatTime(String timestamp) {
+    try {
+       // Assuming timestamp is ISO string from backend
+       final DateTime dt = DateTime.parse(timestamp).toLocal(); 
+       final hour = dt.hour > 12 ? dt.hour - 12 : dt.hour;
+       final period = dt.hour >= 12 ? "PM" : "AM";
+       final minute = dt.minute.toString().padLeft(2, '0');
+       return "$hour:$minute $period";
+    } catch (e) {
+       return "";
+    }
   }
 
   @override
@@ -116,7 +142,7 @@ class _ChatPageState extends State<ChatPage> {
           onPressed: () => Navigator.pop(context),
         ),
         title: Text(
-          widget.chatName,
+          widget.otherUserName, // Display the friend's name (or ID)
           style: const TextStyle(
             color: Colors.black,
             fontWeight: FontWeight.w700,
@@ -125,14 +151,14 @@ class _ChatPageState extends State<ChatPage> {
         ),
         centerTitle: true,
         actions: [
-          Icon(
-            widget.isGroup ? Icons.groups_2_rounded : Icons.info_outline,
+          const Icon(
+            Icons.info_outline,
             color: Colors.black54,
           ),
           const SizedBox(width: 10),
         ],
-        bottom: PreferredSize(
-          preferredSize: const Size.fromHeight(8), // distance below AppBar
+        bottom: const PreferredSize(
+          preferredSize: Size.fromHeight(8), 
           child: SizedBox(),
         ),
       ),
@@ -140,79 +166,69 @@ class _ChatPageState extends State<ChatPage> {
         children: [
           // Chat messages
           Expanded(
-            child: ListView.builder(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-              itemCount: messages.length,
-              itemBuilder: (context, index) {
-                final msg = messages[index];
-                final bool isMe = msg["isMe"];
-                final bool showSender = widget.isGroup && !isMe;
-                final String? sender = msg["sender"];
+            child: _isLoading 
+              ? const Center(child: CircularProgressIndicator()) 
+              : _messages.isEmpty 
+                  ? const Center(child: Text("No messages yet. Say Hi!"))
+                  : ListView.builder(
+                      controller: _scrollController,
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                      itemCount: _messages.length,
+                      itemBuilder: (context, index) {
+                        final msg = _messages[index];
+                        final bool isMe = msg.senderId == widget.currentUserId;
 
-                return Align(
-                  alignment: isMe ? Alignment.centerRight : Alignment.centerLeft,
-                  child: Container(
-                    margin: const EdgeInsets.symmetric(vertical: 5),
-                    constraints: BoxConstraints(
-                      maxWidth: MediaQuery.of(context).size.width * 0.75,
-                    ),
-                    child: Column(
-                      crossAxisAlignment:
-                          isMe ? CrossAxisAlignment.end : CrossAxisAlignment.start,
-                      children: [
-                        // Sender name for group chats
-                        if (showSender && sender != null)
-                          Padding(
-                            padding: const EdgeInsets.only(left: 6, bottom: 2),
-                            child: Text(
-                              sender,
-                              style: TextStyle(
-                                color: memberColors[sender],
-                                fontWeight: FontWeight.bold,
-                                fontSize: 13,
-                              ),
+                        return Align(
+                          alignment: isMe ? Alignment.centerRight : Alignment.centerLeft,
+                          child: Container(
+                            margin: const EdgeInsets.symmetric(vertical: 5),
+                            constraints: BoxConstraints(
+                              maxWidth: MediaQuery.of(context).size.width * 0.75,
+                            ),
+                            child: Column(
+                              crossAxisAlignment:
+                                  isMe ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+                              children: [
+                                // Message bubble
+                                Container(
+                                  padding: const EdgeInsets.all(12),
+                                  decoration: BoxDecoration(
+                                    color: isMe ? blue : Colors.grey.shade200,
+                                    borderRadius: BorderRadius.only(
+                                      topLeft: const Radius.circular(12),
+                                      topRight: const Radius.circular(12),
+                                      bottomLeft: Radius.circular(isMe ? 12 : 0),
+                                      bottomRight: Radius.circular(isMe ? 0 : 12),
+                                    ),
+                                  ),
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.end,
+                                    children: [
+                                      Text(
+                                        msg.text,
+                                        style: TextStyle(
+                                          color: isMe ? Colors.white : Colors.black87,
+                                          fontSize: 15,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 4),
+                                      Text(
+                                        _formatTime(msg.timestamp),
+                                        style: TextStyle(
+                                          color:
+                                              isMe ? Colors.white70 : Colors.grey.shade600,
+                                          fontSize: 11,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
                             ),
                           ),
-                        // Message bubble
-                        Container(
-                          padding: const EdgeInsets.all(12),
-                          decoration: BoxDecoration(
-                            color: isMe ? blue : Colors.grey.shade200,
-                            borderRadius: BorderRadius.only(
-                              topLeft: const Radius.circular(12),
-                              topRight: const Radius.circular(12),
-                              bottomLeft: Radius.circular(isMe ? 12 : 0),
-                              bottomRight: Radius.circular(isMe ? 0 : 12),
-                            ),
-                          ),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.end,
-                            children: [
-                              Text(
-                                msg["text"],
-                                style: TextStyle(
-                                  color: isMe ? Colors.white : Colors.black87,
-                                  fontSize: 15,
-                                ),
-                              ),
-                              const SizedBox(height: 4),
-                              Text(
-                                msg["time"],
-                                style: TextStyle(
-                                  color:
-                                      isMe ? Colors.white70 : Colors.grey.shade600,
-                                  fontSize: 11,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
+                        );
+                      },
                     ),
-                  ),
-                );
-              },
-            ),
           ),
 
           // Message input area

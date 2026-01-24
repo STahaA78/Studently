@@ -14,6 +14,11 @@ class _KnowledgeHubPageState extends State<KnowledgeHubPage> {
   final TextEditingController _searchController = TextEditingController();
   final Color blue = const Color(0xFF1976D2);
 
+  // ---------------------------------------------------
+  // MVP: Hardcoded User ID (Matches your requested ID)
+  // ---------------------------------------------------
+  final String currentUserId = "6974b9e5ceb466b7c81432aa"; 
+
   // Example repository data
   final List<Map<String, dynamic>> repositories = [
     {
@@ -90,9 +95,9 @@ class _KnowledgeHubPageState extends State<KnowledgeHubPage> {
               shadowColor: Colors.transparent,
               surfaceTintColor: Colors.transparent,
               elevation: 0,
-              floating: true,   // app bar reappears when scrolling up
-              snap: true,       // snaps into view immediately
-              pinned: false,    // scrolls away when scrolling down
+              floating: true,
+              snap: true,
+              pinned: false,
               centerTitle: true,
               title: const Text(
                 "Knowledge Hub",
@@ -178,12 +183,24 @@ class _KnowledgeHubPageState extends State<KnowledgeHubPage> {
                             ),
                             OutlinedButton.icon(
                               onPressed: () {
+                                // ---------------------------------------------------------
+                                // FIX: Updated to use new ChatPage parameters
+                                // ---------------------------------------------------------
                                 Navigator.push(
                                   context,
                                   MaterialPageRoute(
                                     builder: (_) => ChatPage(
-                                      chatName: repo["groupChat"],
-                                      isGroup: true,
+                                      // Generate a unique ID for this group based on course code
+                                      conversationId: "group_${repo["code"]}", 
+                                      
+                                      // Pass the hardcoded User ID
+                                      currentUserId: currentUserId, 
+                                      
+                                      // Placeholder for group logic
+                                      otherUserId: "group", 
+                                      
+                                      // This ensures the AppBar title is the Group Name
+                                      otherUserName: repo["groupChat"], 
                                     ),
                                   ),
                                 );
@@ -208,13 +225,12 @@ class _KnowledgeHubPageState extends State<KnowledgeHubPage> {
                 childCount: filteredRepositories.length,
               ),
             ),
-            // Add bottom spacing if needed
-            SliverToBoxAdapter(child: SizedBox(height: 16)),
+            // Add bottom spacing
+            const SliverToBoxAdapter(child: SizedBox(height: 16)),
           ],
         ),
       ),
       bottomNavigationBar: const CustomNavBar(currentIndex: 3),
     );
-
   }
 }
