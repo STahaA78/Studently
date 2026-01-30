@@ -62,3 +62,7 @@ GoogleService-Info.plist
 *.iml
 
 *.cmake
+
+# Knowledge Hub Material Folder
+misc/
+resources/

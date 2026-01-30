@@ -10,8 +10,10 @@ from routes.chat_routes import router as chat_router
 from routes.profile_routes import router as profile_router
 from routes.knowledge_hub_routes import router as hub_router # NEW IMPORT
 
+logging.basicConfig(level=logging.DEBUG)
+logging.getLogger("pymongo").setLevel(logging.WARNING)
+logging.getLogger("motor").setLevel(logging.WARNING)
 LOGGER = logging.getLogger(__name__)
-LOGGER.setLevel(logging.DEBUG)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
