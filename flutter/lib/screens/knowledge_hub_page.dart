@@ -39,7 +39,6 @@ class _KnowledgeHubPageState extends State<KnowledgeHubPage> {
     });
   }
   void _scrollToLetter(String letter) {
-    // FIXED: Better safety checks that don't prevent scrolling
     if (!mounted) return;
     
     // Wait a frame if controller isn't ready yet
@@ -237,8 +236,7 @@ class _KnowledgeHubPageState extends State<KnowledgeHubPage> {
                                             context,
                                             MaterialPageRoute(
                                               builder: (_) => RepositoryUserPage(
-                                                courseName: course.name,
-                                                courseCode: course.code,
+                                                course: course,
                                               ),
                                             ),
                                           );

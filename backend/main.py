@@ -10,9 +10,25 @@ from routes.chat_routes import router as chat_router
 from routes.profile_routes import router as profile_router
 from routes.knowledge_hub_routes import router as hub_router # NEW IMPORT
 
-logging.basicConfig(level=logging.DEBUG)
+# Suppress noisy loggers
 logging.getLogger("pymongo").setLevel(logging.WARNING)
 logging.getLogger("motor").setLevel(logging.WARNING)
+
+# Root logger
+root_logger = logging.getLogger()
+root_logger.setLevel(logging.DEBUG)
+
+# Add a console handler if none exists
+if not root_logger.handlers:
+    ch = logging.StreamHandler()
+    ch.setLevel(logging.DEBUG)
+    formatter = logging.Formatter(
+        "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+    )
+    ch.setFormatter(formatter)
+    root_logger.addHandler(ch)
+
+# Module-level logger example
 LOGGER = logging.getLogger(__name__)
 
 @asynccontextmanager

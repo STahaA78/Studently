@@ -19,13 +19,13 @@ class CourseRepository {
       logger.i("[$runtimeType] Fetch All Courses Completed Successfully");
       // 3. Map the JSON list into a List of Course objects
       return jsonData.where((item) {
-        bool hasCode = item['course_code'] != null;
-        bool hasName = item['course_name'] != null;
+        bool hasCode = item['code'] != null;
+        bool hasName = item['name'] != null;
         if (!hasCode) {
-          logger.w("Discarding course with missing code: ${item['course_name']}");
+          logger.w("Discarding course with missing code: ${item['name']}");
         }
         if (!hasName) {
-            logger.w("Discarding course with missing name: ${item['course_code']}");
+            logger.w("Discarding course with missing name: ${item['code']}");
           }
         return hasCode && hasName;
       }).map((item) => Course.fromJson(item)).toList();

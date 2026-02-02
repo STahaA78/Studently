@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:studently/screens/knowledge_hub_page.dart';
 import 'package:device_preview/device_preview.dart';
 import 'package:studently/utils/constants.dart';
 // Firebase imports
@@ -7,8 +6,10 @@ import 'package:firebase_core/firebase_core.dart';
 import 'firebase_options.dart';
 import 'package:email_otp/email_otp.dart';
 //import 'screens/community_feed_page.dart';
-import 'screens/knowledge_hub_page.dart';
+//import 'screens/knowledge_hub_page.dart';
+import 'screens/repository_user_page.dart';
 //import 'screens/login_page.dart';  // Make sure this path matches your file location
+import 'package:studently/models/course.dart';
 
 void main() async {
     EmailOTP.config(
@@ -46,7 +47,12 @@ class MyApp extends StatelessWidget {
       debugShowCheckedModeBanner: false,
       //home: LoginPage(), // directly show the login page
       //home: CommunityFeedPage(),
-      home: KnowledgeHubPage(),
+      home: RepositoryUserPage(
+        course: Course(
+        name: "Artificial Intelligence",
+        code: "AI2002"
+        )
+      ),
       
       // Global theme settings
       theme : ThemeData(
