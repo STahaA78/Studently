@@ -1,3 +1,4 @@
+import 'package:studently/auth_service.dart'; 
 class ChatMessage {
   String id;
   String conversationId;
@@ -48,6 +49,7 @@ class ChatMessage {
         'status': status,
         'is_deleted': isDeleted,
       };
+  bool get isMe => senderId == authService.value.currentUser?.uid;
 }
 
 class ChatConversation {

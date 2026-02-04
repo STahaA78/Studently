@@ -14,12 +14,6 @@ class _KnowledgeHubPageState extends State<KnowledgeHubPage> {
   final TextEditingController _searchController = TextEditingController();
   final Color blue = const Color(0xFF1976D2);
 
-  // ---------------------------------------------------
-  // MVP: Hardcoded User ID (Matches your requested ID)
-  // ---------------------------------------------------
-  final String currentUserId = "6974b9e5ceb466b7c81432aa"; 
-
-  // Example repository data
   final List<Map<String, dynamic>> repositories = [
     {
       "course": "Database Systems",
@@ -89,15 +83,11 @@ class _KnowledgeHubPageState extends State<KnowledgeHubPage> {
       body: SafeArea(
         child: CustomScrollView(
           slivers: [
-            // Collapsible AppBar
             SliverAppBar(
               backgroundColor: Colors.white,
-              shadowColor: Colors.transparent,
-              surfaceTintColor: Colors.transparent,
               elevation: 0,
               floating: true,
               snap: true,
-              pinned: false,
               centerTitle: true,
               title: const Text(
                 "Knowledge Hub",
@@ -106,10 +96,6 @@ class _KnowledgeHubPageState extends State<KnowledgeHubPage> {
                   fontWeight: FontWeight.w700,
                   fontSize: 20,
                 ),
-              ),
-              bottom: PreferredSize(
-                preferredSize: const Size.fromHeight(8),
-                child: const SizedBox(),
               ),
             ),
 
@@ -135,9 +121,7 @@ class _KnowledgeHubPageState extends State<KnowledgeHubPage> {
                   return Container(
                     margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 7),
                     padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                    ),
+                    decoration: const BoxDecoration(color: Colors.white),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
@@ -169,12 +153,9 @@ class _KnowledgeHubPageState extends State<KnowledgeHubPage> {
                                   ),
                                 );
                               },
-                              icon: const Icon(
-                                Icons.folder_open, size: 18
-                              ),
+                              icon: const Icon(Icons.folder_open, size: 18),
                               label: const Text("Repository"),
                               style: ElevatedButton.styleFrom(
-                                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                                 backgroundColor: blue,
                                 shape: RoundedRectangleBorder(
                                   borderRadius: BorderRadius.circular(30),
@@ -184,22 +165,14 @@ class _KnowledgeHubPageState extends State<KnowledgeHubPage> {
                             OutlinedButton.icon(
                               onPressed: () {
                                 // ---------------------------------------------------------
-                                // FIX: Updated to use new ChatPage parameters
+                                // FIXED: currentUserId removed to match new ChatPage constructor
                                 // ---------------------------------------------------------
                                 Navigator.push(
                                   context,
                                   MaterialPageRoute(
                                     builder: (_) => ChatPage(
-                                      // Generate a unique ID for this group based on course code
                                       conversationId: "group_${repo["code"]}", 
-                                      
-                                      // Pass the hardcoded User ID
-                                      currentUserId: currentUserId, 
-                                      
-                                      // Placeholder for group logic
                                       otherUserId: "group", 
-                                      
-                                      // This ensures the AppBar title is the Group Name
                                       otherUserName: repo["groupChat"], 
                                     ),
                                   ),
@@ -208,7 +181,6 @@ class _KnowledgeHubPageState extends State<KnowledgeHubPage> {
                               icon: const Icon(Icons.forum_outlined, size: 18),
                               label: const Text("Group Chat"),
                               style: OutlinedButton.styleFrom(
-                                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                                 foregroundColor: blue,
                                 side: BorderSide(color: blue),
                                 shape: RoundedRectangleBorder(
@@ -225,7 +197,6 @@ class _KnowledgeHubPageState extends State<KnowledgeHubPage> {
                 childCount: filteredRepositories.length,
               ),
             ),
-            // Add bottom spacing
             const SliverToBoxAdapter(child: SizedBox(height: 16)),
           ],
         ),

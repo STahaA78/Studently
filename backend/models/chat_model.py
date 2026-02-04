@@ -3,7 +3,6 @@ from datetime import datetime
 from typing import List, Optional
 
 class MessageCreate(BaseModel):
-    sender_id: str
     receiver_id: str
     text: str
     attachments: List[str] = []
