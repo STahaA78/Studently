@@ -19,7 +19,6 @@ class _DirectMessagesPageState extends State<DirectMessagesPage> {
   List<ChatConversation> _filteredConversations = [];
   bool _isLoading = true;
 
-  // --- NEW: Local cache for usernames to prevent constant API spam ---
   final Map<String, String> _userNameCache = {};
 
   @override
@@ -35,14 +34,12 @@ class _DirectMessagesPageState extends State<DirectMessagesPage> {
     super.dispose();
   }
 
-  // --- NEW: Helper to get name from cache or trigger fetch ---
   String _getDisplayName(String id) {
     if (_userNameCache.containsKey(id)) {
       return _userNameCache[id]!;
     }
-    // Trigger background fetch
     _fetchAndCacheName(id);
-    return "Loading..."; 
+    return "Loading...";
   }
 
   Future<void> _fetchAndCacheName(String id) async {
@@ -69,7 +66,7 @@ class _DirectMessagesPageState extends State<DirectMessagesPage> {
         final period = date.hour >= 12 ? "PM" : "AM";
         final minute = date.minute.toString().padLeft(2, '0');
         return "$hour:$minute $period";
-      } else if (now.difference(date).inDays < 1) {
+      } else if (now.difference(date).inDays < 2 && date.day != now.day) {
         return "Yesterday";
       } else {
         return "${date.month}/${date.day}";
@@ -146,7 +143,6 @@ class _DirectMessagesPageState extends State<DirectMessagesPage> {
                             orElse: () => "Unknown",
                           );
 
-                          // --- DYNAMIC NAME RESOLUTION ---
                           final displayName = _getDisplayName(otherUserId);
                           final int unreadCount = chat.unreadCounts[myId] ?? 0;
                           final String lastMsgTime = _formatTimestamp(chat.lastMessage?['timestamp']);
@@ -156,6 +152,13 @@ class _DirectMessagesPageState extends State<DirectMessagesPage> {
                       ),
           ),
         ],
+      ),
+      floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
+      floatingActionButton: FloatingActionButton(
+        onPressed: () => _showNewChatModel(context),
+        backgroundColor: const Color(0xFF1976D2),
+        elevation: 4,
+        child: const Icon(Icons.add_comment_outlined, color: Colors.white),
       ),
     );
   }
@@ -191,12 +194,12 @@ class _DirectMessagesPageState extends State<DirectMessagesPage> {
             ),
           ),
         );
-        _fetchChats(); 
+        _fetchChats();
       },
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
+          crossAxisAlignment: CrossAxisAlignment.center,
           children: [
             CircleAvatar(
               radius: 28,
@@ -210,6 +213,7 @@ class _DirectMessagesPageState extends State<DirectMessagesPage> {
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
                 children: [
                   Text(displayName, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 16, color: Colors.black87)),
                   const SizedBox(height: 4),
@@ -228,24 +232,154 @@ class _DirectMessagesPageState extends State<DirectMessagesPage> {
             ),
             const SizedBox(width: 8),
             Column(
-              crossAxisAlignment: CrossAxisAlignment.end,
+              mainAxisAlignment: MainAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.center, // Center the text and badge horizontally
               children: [
-                Text(lastMsgTime, style: TextStyle(color: unreadCount > 0 ? const Color(0xFF1976D2) : Colors.grey, fontSize: 12, fontWeight: unreadCount > 0 ? FontWeight.bold : FontWeight.normal)),
-                const SizedBox(height: 6),
-                if (unreadCount > 0)
+                Text(
+                  lastMsgTime,
+                  style: TextStyle(
+                    color: unreadCount > 0 ? const Color(0xFF1976D2) : Colors.grey,
+                    fontSize: 11,
+                    fontWeight: unreadCount > 0 ? FontWeight.bold : FontWeight.normal,
+                  ),
+                ),
+                if (unreadCount > 0) ...[
+                  const SizedBox(height: 6),
                   Container(
-                    padding: const EdgeInsets.all(6),
+                    width: 22,
+                    height: 22,
                     decoration: const BoxDecoration(color: Color(0xFF1976D2), shape: BoxShape.circle),
-                    constraints: const BoxConstraints(minWidth: 20, minHeight: 20),
                     child: Center(
-                      child: Text(unreadCount.toString(), style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold)),
+                      child: Text(
+                        unreadCount.toString(),
+                        style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold),
+                      ),
                     ),
                   ),
+                ] else
+                  const SizedBox(height: 28),
               ],
             ),
           ],
         ),
       ),
+    );
+  }
+
+  void _showNewChatModel(BuildContext context) {
+    List<Map<String, String>> allFriends = [];
+    List<Map<String, String>> displayList = [];
+    bool isFirstLoad = true;
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(25)),
+      ),
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (BuildContext context, StateSetter setModalState) {
+            return Container(
+              height: MediaQuery.of(context).size.height * 0.75,
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              child: Column(
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.only(top: 20, bottom: 10),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Text("Start New Chat", style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
+                        IconButton(
+                          icon: const Icon(Icons.close, color: Colors.black),
+                          onPressed: () => Navigator.pop(context),
+                        ),
+                      ],
+                    ),
+                  ),
+                  // Search Bar
+                  Container(
+                    margin: const EdgeInsets.symmetric(vertical: 10),
+                    decoration: BoxDecoration(color: Colors.grey.shade100, borderRadius: BorderRadius.circular(15)),
+                    child: TextField(
+                      onChanged: (value) {
+                        setModalState(() {
+                          displayList = allFriends
+                              .where((f) => f['Name']!.toLowerCase().contains(value.toLowerCase()))
+                              .toList();
+                        });
+                      },
+                      decoration: const InputDecoration(
+                        hintText: "Search friends...",
+                        prefixIcon: Icon(Icons.search),
+                        border: InputBorder.none,
+                        contentPadding: EdgeInsets.symmetric(vertical: 15),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  // Dynamic Friend List using FutureBuilder
+                  Expanded(
+                    child: FutureBuilder<List<Map<String, String>>>(
+                      future: isFirstLoad ? _chatService.getFriendsList() : null,
+                      builder: (context, snapshot) {
+                        if (snapshot.connectionState == ConnectionState.waiting && isFirstLoad) {
+                          return const Center(child: CircularProgressIndicator());
+                        }
+
+                        if (isFirstLoad && snapshot.hasData) {
+                          allFriends = snapshot.data!;
+                          displayList = List.from(allFriends);
+                          isFirstLoad = false;
+                        }
+
+                        if (displayList.isEmpty && !isFirstLoad) {
+                          return const Center(child: Text("No results found"));
+                        }
+
+                        return ListView.builder(
+                          itemCount: displayList.length,
+                          itemBuilder: (context, index) {
+                            final friend = displayList[index];
+                            return ListTile(
+                              contentPadding: const EdgeInsets.symmetric(vertical: 5),
+                              leading: CircleAvatar(
+                                backgroundColor: Colors.blue.shade50,
+                                child: Text(friend['Name']![0].toUpperCase()),
+                              ),
+                              title: Text(friend['Name']!, style: const TextStyle(fontWeight: FontWeight.w500)),
+                              onTap: () async {
+                                // Create or Get Conversation
+                                final convId = await _chatService.createOrGetConversation(friend['id']!);
+                                
+                                if (convId != null && context.mounted) {
+                                  Navigator.pop(context); // Close modal
+                                  Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (_) => ChatPage(
+                                        conversationId: convId,
+                                        otherUserId: friend['id']!,
+                                        otherUserName: friend['Name']!,
+                                      ),
+                                    ),
+                                  ).then((_) => _fetchChats());
+                                }
+                              },
+                            );
+                          },
+                        );
+                      },
+                    ),
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
     );
   }
 }

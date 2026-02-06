@@ -129,3 +129,26 @@ def mark_conversation_as_read(conversation_id: str, current_user_id: str = Depen
     except Exception as e:
         LOGGER.error(f"Error marking read: {e}")
         raise HTTPException(status_code=500, detail="Internal Server Error")
+@router.post("/{receiver_id}/create_chat")
+def create_chat(receiver_id: str, current_user_id: str = Depends(get_current_user)):
+    try:
+        participants = sorted([current_user_id, receiver_id])
+        
+        conversation = conversations_collection.find_one({
+            "participants": {"$all": participants, "$size": 2}
+        })
+        
+        if conversation:
+            return {"success": True, "conversation_id": str(conversation["_id"])}
+        
+        new_conv = {
+            "participants": participants,
+            "created_at": datetime.utcnow(),
+            "unread_counts": {p: 0 for p in participants},
+            "last_message": None
+        }
+        res = conversations_collection.insert_one(new_conv)
+        return {"success": True, "conversation_id": str(res.inserted_id)}
+    except Exception as e:
+        LOGGER.error(f"Error creating chat: {e}")
+        raise HTTPException(status_code=500, detail="Internal Server Error")

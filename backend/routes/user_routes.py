@@ -50,7 +50,7 @@ def login(user: UserLogin):
 @router.get("/{user_id}/info")
 def get_user_info(user_id: str, current_user: str = Depends(get_current_user)):
     try:
-        query_id = ObjectId(user_id)
+        query_id = user_id
     except Exception:
         raise HTTPException(status_code=400, detail="Invalid User ID format")
     user = users_collection.find_one({"_id": query_id}, {"full_name": 1, "Name": 1, "email": 1})
@@ -62,6 +62,18 @@ def get_user_info(user_id: str, current_user: str = Depends(get_current_user)):
         "full_name": user.get("Name") ,
         "email": user.get("email")
     }
+@router.get("/friends_list")
+def get_friends_list(current_user: str = Depends(get_current_user)):
+    try:
+        user = users_collection.find_one({"_id": current_user}, {"friends": 1})
+        if not user:
+            raise HTTPException(status_code=404, detail="User not found")
+        friend_ids = user.get("friends", [])
+        friends = list(users_collection.find({"_id": {"$in": friend_ids}}, {"Name": 1}))
+        return [{"id": str(friend["_id"]), "Name": friend["Name"]} for friend in friends]
+    except Exception as e:
+        LOGGER.error(f"Error fetching friends list: {e}")
+        raise HTTPException(status_code=500, detail="Internal Server Error")
 @router.get("/health")
 async def health_check():
     return {"status": "healthy"}

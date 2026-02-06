@@ -130,4 +130,45 @@ class ChatService {
       return "Student User";
     }
   }
+  Future<List<Map<String, String>>> getFriendsList() async {
+    try {
+      final headers = await _getAuthHeaders();
+      // Assuming user routes are on port 8000
+      final response = await http.get(
+        Uri.parse("http://127.0.0.1:8000/users/friends_list"), 
+        headers: headers,
+      );
+
+      if (response.statusCode == 200) {
+        List<dynamic> data = jsonDecode(response.body);
+        return data.map((f) => {
+          "id": f['id'].toString(),
+          "Name": f['Name'].toString()
+        }).toList();
+      }
+      return [];
+    } catch (e) {
+      logger.e("Error fetching friends list", error: e);
+      return [];
+    }
+  }
+
+  Future<String?> createOrGetConversation(String receiverId) async {
+    try {
+      final headers = await _getAuthHeaders();
+      final response = await http.post(
+        Uri.parse("$baseUrl/$receiverId/create_chat"),
+        headers: headers,
+      );
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        return data['conversation_id'];
+      }
+      return null;
+    } catch (e) {
+      logger.e("Error creating conversation", error: e);
+      return null;
+    }
+  }
 }
