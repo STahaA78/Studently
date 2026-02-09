@@ -40,3 +40,5 @@ app.include_router(hub_router, prefix="/hub", tags=["Knowledge Hub"]) # NEW ROUT
 @app.get("/")
 def read_root():
     return {"message": "Welcome to Studently API"}
+
+    
