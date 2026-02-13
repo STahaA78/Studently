@@ -1,4 +1,5 @@
 from fastapi import APIRouter, HTTPException, Query, Depends, UploadFile, File, Form
+from fastapi.responses import FileResponse
 from database import users_collection, courses_collection, resources_collection
 from models.knowledge_hub_model import *
 from bson import ObjectId
@@ -177,6 +178,50 @@ def get_all_resources():
     except Exception as e:
         LOGGER.error(f"Error fetching resources: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Internal Server Error")
+    
+
+@router.get("/resources/{resource_id}/download")
+def download_resource(resource_id: str):
+    """
+    Endpoint to download a resource file by its ID.
+    Increments the download count on each successful download.
+    """
+    LOGGER.info(f"Download request for resource {resource_id} initiated")
+
+    if not ObjectId.is_valid(resource_id):
+        raise HTTPException(status_code=400, detail="Invalid ID")
+        
+    try:
+        resource = resources_collection.find_one({"_id": ObjectId(resource_id), "approved": True})
+        if not resource:
+            raise HTTPException(status_code=404, detail="Resource not found")
+
+        file_path = resource.get("filePath")
+        if not file_path or not os.path.isfile(file_path):
+            raise HTTPException(status_code=404, detail="File not found on server")
+
+        # Increment download count
+        resources_collection.update_one(
+            {"_id": ObjectId(resource_id)},
+            {"$inc": {"downloadCount": 1}}
+        )
+
+        LOGGER.info(f"Resource {resource_id} Downloaded Request Successfull")
+        return FileResponse(
+                path=file_path,
+                media_type="application/pdf",   # IMPORTANT
+                headers={
+                    "Content-Disposition": f'inline; filename="{os.path.basename(file_path)}"',
+                    "Accept-Ranges": "bytes",
+                },
+            )
+        
+    except HTTPException as he:
+        LOGGER.error(f"Error downloading resource: {he.detail}")
+        raise he
+    except Exception as e:
+        LOGGER.error(f"Error downloading resource: {e}")
+        raise HTTPException(status_code=500, detail="Internal Server Error")
 
 @router.get("/resources/{course_id}",
             response_model=ResourceGroup,response_model_exclude_none=True
@@ -247,7 +292,6 @@ def get_resources_by_course(course_id: str):
         LOGGER.error(f"Error fetching resources for course {course_id}: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Internal Server Error")
     
-
 @router.put("/resources/{resource_id}")
 def update_resource(resource_id: str, user_id: str, update_data: ResourceUpdate):
     """

@@ -73,4 +73,26 @@ class ApiService {
     }
   }
 
+  String getCompleteUrl(String endpoint) {
+    logger.i("[$runtimeType] Constructing complete URL for endpoint: $endpoint");
+    final completeUrl = "http://$_baseUrl$endpoint";
+    logger.d("[$runtimeType] Complete URL: $completeUrl");
+    return completeUrl;
+  }
+
+  Future<http.Response> downloadFile(String endpoint) async {
+    logger.i("[$runtimeType] Download file request to $endpoint Initiated");
+    final url = Uri.http(_baseUrl, endpoint);
+    try {
+      final response = await http.get(url);
+      logger.i("[$runtimeType] Download file request to $endpoint Completed with status code ${response.statusCode}");
+      return _handleResponse(response);
+    } on SocketException {
+      logger.e("[$runtimeType] Download file request to $endpoint Failed: No Internet connection");
+      throw Exception('No Internet connection');
+    } catch (e) {
+      logger.e("[$runtimeType] Download file request to $endpoint Failed with error: $e");
+      throw Exception('Error occurred: $e');
+    }
+  }
 }
