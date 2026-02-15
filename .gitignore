@@ -62,3 +62,5 @@ GoogleService-Info.plist
 *.iml
 
 *.cmake
+
+backend/serviceAccountKey.json

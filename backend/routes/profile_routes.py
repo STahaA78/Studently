@@ -15,10 +15,8 @@ def fix_id(doc):
 # 1. Get User Profile
 @router.get("/{user_id}", response_model=UserOut)
 def get_profile(user_id: str):
-    if not ObjectId.is_valid(user_id):
-        raise HTTPException(status_code=400, detail="Invalid ID")
         
-    user = users_collection.find_one({"_id": ObjectId(user_id)})
+    user = users_collection.find_one({"_id": user_id})
     if not user:
         LOGGER.error(f"Profile not found for id: {user_id}")
         raise HTTPException(status_code=404, detail="User not found")
@@ -29,14 +27,11 @@ def get_profile(user_id: str):
 @router.put("/{user_id}")
 def update_profile(user_id: str, update_data: UserUpdate):
     LOGGER.info(f"Updating profile: {user_id}")
-    if not ObjectId.is_valid(user_id):
-        raise HTTPException(status_code=400, detail="Invalid ID")
-    
     try:
         data = {k: v for k, v in update_data.model_dump().items() if v is not None}
         
         result = users_collection.update_one(
-            {"_id": ObjectId(user_id)},
+            {"_id": user_id},
             {"$set": data}
         )
         
@@ -76,13 +71,13 @@ def send_friend_request(user_id: str, target_id: str):
     
     try:
         # Check if already friends
-        user = users_collection.find_one({"_id": ObjectId(user_id)})
+        user = users_collection.find_one({"_id": user_id})
         if target_id in user.get("friends", []):
             return {"success": False, "message": "Already friends"}
 
         # Add user_id to target's 'friend_requests' list
         result = users_collection.update_one(
-            {"_id": ObjectId(target_id)},
+            {"_id": target_id},
             {"$addToSet": {"friend_requests": user_id}}
         )
         
@@ -99,11 +94,9 @@ def send_friend_request(user_id: str, target_id: str):
 # 5. Get Pending Friend Requests
 @router.get("/{user_id}/requests", response_model=list[UserOut])
 def get_pending_requests(user_id: str):
-    if not ObjectId.is_valid(user_id):
-        raise HTTPException(status_code=400, detail="Invalid ID")
     
     try:
-        user = users_collection.find_one({"_id": ObjectId(user_id)})
+        user = users_collection.find_one({"_id": user_id})
         if not user:
             raise HTTPException(status_code=404, detail="User not found")
             
@@ -114,7 +107,7 @@ def get_pending_requests(user_id: str):
             
         # Fetch full profiles of requesters
         requesters = list(users_collection.find(
-            {"_id": {"$in": [ObjectId(rid) for rid in request_ids]}}
+            {"_id": {"$in": [rid for rid in request_ids]}}
         ))
         
         return [fix_id(req) for req in requesters]
@@ -126,15 +119,13 @@ def get_pending_requests(user_id: str):
 # 6. Respond to Friend Request (Accept/Reject) - UPDATED
 @router.post("/{user_id}/respond")
 def respond_to_friend_request(user_id: str, action_data: FriendRequestAction):
-    if not ObjectId.is_valid(user_id) or not ObjectId.is_valid(action_data.requester_id):
-        raise HTTPException(status_code=400, detail="Invalid ID")
     
     requester_id = action_data.requester_id
     action = action_data.action.lower()
     
     try:
         # Check if the user exists and actually has a friend request from this requester
-        user = users_collection.find_one({"_id": ObjectId(user_id)})
+        user = users_collection.find_one({"_id": user_id})
         if not user:
             raise HTTPException(status_code=404, detail="User not found")
             
@@ -143,18 +134,18 @@ def respond_to_friend_request(user_id: str, action_data: FriendRequestAction):
 
         # 1. Remove from friend_requests
         users_collection.update_one(
-            {"_id": ObjectId(user_id)},
+            {"_id": user_id},
             {"$pull": {"friend_requests": requester_id}}
         )
         
         if action == "accept":
             # 2. Add to friends list for BOTH users
             users_collection.update_one(
-                {"_id": ObjectId(user_id)},
+                {"_id": user_id},
                 {"$addToSet": {"friends": requester_id}}
             )
             users_collection.update_one(
-                {"_id": ObjectId(requester_id)},
+                {"_id": requester_id},
                 {"$addToSet": {"friends": user_id}}
             )
             LOGGER.info(f"User {user_id} accepted request from {requester_id}")
@@ -176,21 +167,20 @@ def respond_to_friend_request(user_id: str, action_data: FriendRequestAction):
 # 7. Remove Friend (Unfriend) - NEW
 @router.post("/{user_id}/unfriend")
 def remove_friend(user_id: str, action_data: FriendRemoveAction):
-    if not ObjectId.is_valid(user_id) or not ObjectId.is_valid(action_data.friend_id):
-        raise HTTPException(status_code=400, detail="Invalid ID")
+
         
     friend_id = action_data.friend_id
     
     try:
         # Remove friend_id from user's friend list
         res1 = users_collection.update_one(
-            {"_id": ObjectId(user_id)},
+            {"_id": user_id},
             {"$pull": {"friends": friend_id}}
         )
         
         # Remove user_id from friend's friend list
         res2 = users_collection.update_one(
-            {"_id": ObjectId(friend_id)},
+            {"_id": friend_id},
             {"$pull": {"friends": user_id}}
         )
         

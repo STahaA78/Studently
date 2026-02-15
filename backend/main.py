@@ -1,14 +1,18 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from contextlib import asynccontextmanager
 import logging
 from fastapi.middleware.cors import CORSMiddleware
+from firebase_admin import auth
+
+# NEW: Import the WebSocket connection manager
+from utils.websocket_manager import manager 
 
 # Import Routes
 from routes.user_routes import router as user_router
 from routes.post_routes import router as post_router
 from routes.chat_routes import router as chat_router
 from routes.profile_routes import router as profile_router
-from routes.knowledge_hub_routes import router as hub_router # NEW IMPORT
+from routes.knowledge_hub_routes import router as hub_router
 
 LOGGER = logging.getLogger(__name__)
 LOGGER.setLevel(logging.DEBUG)
@@ -35,7 +39,34 @@ app.include_router(user_router, prefix="/users", tags=["Authentication"])
 app.include_router(profile_router, prefix="/profile", tags=["Profile & Connect"])
 app.include_router(post_router, prefix="/feed", tags=["Community Feed"])
 app.include_router(chat_router, prefix="/chat", tags=["Direct Messages"])
-app.include_router(hub_router, prefix="/hub", tags=["Knowledge Hub"]) # NEW ROUTER
+app.include_router(hub_router, prefix="/hub", tags=["Knowledge Hub"])
+
+# WEBSOCKET ENDPOINT
+@app.websocket("/ws/{token}")
+async def websocket_endpoint(websocket: WebSocket, token: str):
+    # 1. Validate Token & Get User ID
+    try:
+        payload = auth.verify_id_token(token)
+        user_id = payload.get("user_id")
+        
+        if not user_id:
+            LOGGER.warning("WebSocket auth failed: No user_id found in token.")
+            await websocket.close(code=1008)
+            return
+    except Exception as e:
+        LOGGER.error(f"WebSocket auth failed: {e}")
+        await websocket.close(code=1008)
+        return
+
+    # 2. Add to Manager
+    await manager.connect(websocket, user_id)
+    try:
+        while True:
+            # Keep connection alive
+            await websocket.receive_text()
+    except WebSocketDisconnect:
+        # Note: Must pass BOTH websocket and user_id to remove the exact connection
+        manager.disconnect(websocket, user_id)
 
 @app.get("/")
 def read_root():
