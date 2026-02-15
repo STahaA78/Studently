@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:io';
 import 'package:studently/models/resource.dart';
 import 'package:studently/services/api.dart';
 import 'package:studently/logger.dart';
@@ -65,6 +66,23 @@ class ResourceRepository {
       }
     } catch (e) {
       logger.e("[$runtimeType] Download Resource File for Resource $resourceId Failed with error: $e");
+      rethrow;
+    }
+  }
+
+  Future<void> uploadResource({
+    required ResourceItemRequest resourceItemRequest,
+    required String filePath,
+  }) async {
+    logger.i("[$runtimeType] Upload Resource Initiated for Course ${resourceItemRequest.course.code}");
+    try {
+      await _apiService.multiPart(
+        file: File(filePath),
+        metadata: resourceItemRequest.toJson(),
+      );
+      logger.i("[$runtimeType] Upload Resource Completed Successfully for Course ${resourceItemRequest.course.code}");
+    } catch (e) {
+      logger.e("[$runtimeType] Upload Resource Failed for Course ${resourceItemRequest.course.code} with error: $e");
       rethrow;
     }
   }

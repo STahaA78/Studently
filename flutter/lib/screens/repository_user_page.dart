@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:studently/screens/add_resource_page.dart';
 import 'package:studently/screens/view_resource_page.dart';
 import '../widgets/custom_nav_bar.dart';
 import 'package:studently/repositories/resource.dart';
@@ -64,6 +65,23 @@ class _RepositoryUserPageState extends State<RepositoryUserPage>
               ),
             ],
           ),
+          actions: [
+            IconButton(
+              icon: const Icon(Icons.add, color: Colors.black, size: 28),
+              onPressed: () {
+                // Navigate to your Add Resource Page
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    // Replace 'AddResourcePage' with your actual widget name
+                    // Passing the course object so the new page knows what course it's for
+                    builder: (context) => AddResourcePage(course: widget.course), 
+                  ),
+                );
+              },
+            ),
+            const SizedBox(width: 8), // Gives a little breathing room on the right edge
+          ],
           centerTitle: true,
           bottom: PreferredSize(
             preferredSize: const Size.fromHeight(48),
@@ -173,7 +191,6 @@ class _RepositoryUserPageState extends State<RepositoryUserPage>
             style: const TextStyle(color: Colors.grey, fontSize: 16)),
       );
     }
-
     return ListView.builder(
       padding: const EdgeInsets.all(16),
       itemCount: entries.length,
@@ -228,11 +245,25 @@ class _RepositoryUserPageState extends State<RepositoryUserPage>
                         "Year ${item.year} - ${item.semester}",
                         style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 15),
                       ),
-                      if (item.instructorName != null && item.instructorName!.isNotEmpty)
+
+                      if (resourceType != 'book')
                         Text(
-                          item.instructorName!,
+                          item.isSolved == true ? "Solved" : "Unsolved",
+                          style: TextStyle(
+                            color: item.isSolved == true ? Colors.green : Colors.red,
+                            fontSize: 13,
+                          ),
+                        ),
+
+                      if (resourceType == 'quiz')
+                        Text(
+                          "Quiz ${item.quizNumber}",
                           style: const TextStyle(color: Colors.grey, fontSize: 13),
                         ),
+                        Text(
+                          "Instructor: ${item.instructorName ?? "Unknown"}",
+                          style: const TextStyle(color: Colors.grey, fontSize: 13),
+                        )
                     ],
                   ),
                 ),

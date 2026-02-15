@@ -39,28 +39,25 @@ class ApiService {
   }
 
   // POST
-  Future<http.Response> post(String endpoint, Map<String, dynamic> data) async {
-    logger.i("[$runtimeType] POST request to $endpoint Initiated");
-    final url = Uri.http(_baseUrl, endpoint);
+  Future<http.Response> multiPart({ required File file, required Map<String, dynamic> metadata }) async {
+    logger.i("[$runtimeType] Multipart POST request Initiated");
+    final url = Uri.http(_baseUrl, '/hub/resources/upload');
     try {
-      final response = await http.post(
-        url,
-        headers: {
-          'Content-Type': 'application/json',
-          'Accept': 'application/json',
-        },
-        body: jsonEncode(data),
-      );
-      logger.i("[$runtimeType] POST request to $endpoint Completed with status code ${response.statusCode}");
-      return _handleResponse(response);
+      var request = http.MultipartRequest('POST', url)
+        ..fields['data'] = jsonEncode(metadata)
+        ..files.add(await http.MultipartFile.fromPath('file', file.path));
+      final response = await request.send();
+    
+      return _handleResponse(await http.Response.fromStream(response));
     } on SocketException {
-      logger.e("[$runtimeType] POST request to $endpoint Failed: No Internet connection");
+      logger.e("[$runtimeType] Multipart POST request Failed: No Internet connection");
       throw Exception('No Internet connection');
     } catch (e) {
-      logger.e("[$runtimeType] POST request to $endpoint Failed with error: $e");
+      logger.e("[$runtimeType] Multipart POST request Failed with error: $e");
       throw Exception('Error occurred: $e');
     }
   }
+
 
   http.Response _handleResponse(http.Response response) {
     logger.i("[$runtimeType] Handling response with status code ${response.statusCode}");

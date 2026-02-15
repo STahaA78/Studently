@@ -1,11 +1,41 @@
 import 'package:studently/models/course.dart';
 
+class ResourceItemRequest {
+  final Course course;
+  final int year;
+  final String semester;
+  final String? instructorName;
+  final int? quizNumber;
+  final bool? isSolved;
+
+  ResourceItemRequest({
+    required this.course,
+    required this.year,
+    required this.semester,
+    this.instructorName,
+    this.quizNumber,
+    this.isSolved,
+  });
+
+  Map<String, dynamic> toJson() {
+    return {
+      'course': course.toJson(),
+      'year': year,
+      'semester': semester,
+      'instructorName': instructorName,
+      'quizNumber': quizNumber,
+      'isSolved': isSolved,
+    };
+  }
+}
+
 class ResourceItem {
   final String id;
   final int year;
   final String semester;
   final String? instructorName;
   final int? quizNumber;
+  final bool? isSolved;
   final String filePath;
   final DateTime uploadedAt;
 
@@ -15,6 +45,7 @@ class ResourceItem {
     required this.semester,
     this.instructorName,
     this.quizNumber,
+    this.isSolved,
     required this.filePath,
     required this.uploadedAt,
   });
@@ -27,6 +58,7 @@ class ResourceItem {
       instructorName: json['instructorName'],
       quizNumber: json['quizNumber'],
       filePath: json['filePath'],
+      isSolved: json['isSolved'],
       uploadedAt: DateTime.parse(json['uploadedAt']),
     );
   }

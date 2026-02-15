@@ -7,8 +7,16 @@ class Course {
   // Factory to convert JSON Map into a Course Object
   factory Course.fromJson(Map<String, dynamic> json) {
     return Course(
-      code: json['course_code'] ?? json['code'] ?? '', 
-      name: json['course_name'] ?? json['name'] ?? '',
+      code: json['code'] ?? '', 
+      name: json['name'] ?? '',
     );
+  }
+
+  // Method to convert Course Object into JSON Map
+  Map<String, dynamic> toJson() {
+    return {
+      'code': code,
+      'name': name,
+    };
   }
 }

@@ -15,13 +15,13 @@ class Course(BaseModel):
 # Model for resource metadata
 class ResourceInMetadata(BaseModel):
     course: Course
-
     uploadedBy: str
     instructorName: Optional[str] = None
     type: Literal['final', 'midterm', 'quiz', 'book']
     quizNumber: Optional[int] = None  # Only for quizzes
     year: int = Field(..., ge=2000, le=datetime.now().year)
     semester: Literal['Fall', 'Spring', 'Summer']
+    isSolved: Optional[bool] = None  
 
     @model_validator(mode='after')
     def validation(self):
@@ -57,6 +57,7 @@ class ResourceItem(BaseModel):
     semester: Literal['Fall', 'Spring', 'Summer']
     instructorName: Optional[str] = None
     quizNumber: Optional[int] = None
+    isSolved: Optional[bool] = None
     filePath: str
     uploadedAt: datetime
 
