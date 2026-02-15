@@ -25,7 +25,8 @@ try:
     messages_collection = db["messages"]
     
     # NEW: Knowledge Hub Collection
-    knowledge_hub_collection = db["knowledge_hub"]
+    courses_collection = db["courses"]
+    resources_collection = db["resources"]
 
     print("MongoDB connection established!")
 

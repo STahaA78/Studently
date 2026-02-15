@@ -21,6 +21,13 @@ dependencies:
   flutter_svg: ^2.2.3
   google_fonts: ^6.3.2
   web_socket_channel: ^3.0.0
+  syncfusion_flutter_pdfviewer: ^32.1.25
+  file_picker: ^10.3.10
+  image_picker: ^1.2.1
+  pdf: ^3.11.3
+  path_provider: ^2.1.5
+  flutter_image_compress: ^2.4.0
+  mime: ^2.0.0
 
 dev_dependencies:
   flutter_test:

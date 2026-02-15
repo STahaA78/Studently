@@ -1,41 +1,61 @@
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 from datetime import datetime
-from typing import List, Optional
+from typing import List, Optional, Literal, Dict
 
-class ResourceCreate(BaseModel):
-    uploaded_by: str
-    course_code: str
-    course_name: str
-    file_type: str 
-    file_name: str
-    file_url: str
-    tags: List[str] = []
+# Course
+class Course(BaseModel):
+    code: str
+    name: str
+
+# Request Models
+
+# Model for resource metadata
+class ResourceInMetadata(BaseModel):
+    course: Course
+    uploadedBy: str
+    instructorName: Optional[str] = None
+    type: Literal['final', 'midterm', 'quiz', 'book']
+    quizNumber: Optional[int] = None  # Only for quizzes
+    year: int = Field(..., ge=2000, le=datetime.now().year)
+    semester: Literal['Fall', 'Spring', 'Summer']
+    isSolved: Optional[bool] = None  
+
+    @model_validator(mode='after')
+    def validation(self):
+        quizNumber = self.quizNumber
+        instructorName = self.instructorName
+        if self.type == 'quiz':
+            if instructorName is None:
+                raise ValueError('Instructor name must be provided for quiz resources')    
+            if  (quizNumber is None or quizNumber <= 0):
+                raise ValueError('Quiz number must be provided and greater than 0 for quiz resources')
+        return self
 
 # NEW: Model for updating a resource
 class ResourceUpdate(BaseModel):
-    course_code: Optional[str] = None
-    course_name: Optional[str] = None
-    file_type: Optional[str] = None
-    file_name: Optional[str] = None
+    course: Optional[Course] = None
+    fileType: Optional[str] = None
+    fileName: Optional[str] = None
     tags: Optional[List[str]] = None
 
-class ResourceOut(BaseModel):
-    id: str = Field(alias="_id")
-    uploaded_by: str
-    course_code: str
-    course_name: str
-    file_type: str
-    file_name: str
-    file_url: str
-    tags: List[str] = []
-    uploaded_at: datetime
-    approved: bool
-    download_count: int = 0
 
-    class Config:
-        populate_by_name = True
+# Response Models
+class ResourceItem(BaseModel):
+    id: str
+    year: int = Field(..., ge=2000, le=datetime.now().year)
+    semester: Literal['Fall', 'Spring', 'Summer']
+    instructorName: Optional[str] = None
+    quizNumber: Optional[int] = None
+    isSolved: Optional[bool] = None
+    filePath: str
+    uploadedAt: datetime
 
-class CourseSummary(BaseModel):
-    course_code: str
-    course_name: str
-    resource_count: int
+# List all Resources
+class ResourceGroup(BaseModel):
+    course: Course
+    resources: Dict[Literal['final', 'midterm', 'quiz', 'book'], List[ResourceItem]]
+
+# Upload Response
+class UploadResponse(BaseModel):
+    message: str
+    resourceId: str
