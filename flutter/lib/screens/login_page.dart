@@ -1,11 +1,12 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
+import 'package:firebase_auth/firebase_auth.dart'; // Added for exception handling
 import 'signup_basic_page.dart';
 import 'community_feed_page.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:studently/utils/constants.dart';
+import 'package:studently/auth_service.dart'; // Import your AuthService
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -66,6 +67,7 @@ class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
     super.dispose();
   }
 
+  /// UPDATED: Now uses authService.value.signIn (Firebase)
   void _login(BuildContext context) async {
     String email = _emailController.text.trim();
     String password = _passwordController.text.trim();
@@ -76,38 +78,43 @@ class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
     }
 
     try {
-      final response = await http.post(
-        Uri.parse("http://127.0.0.1:8000/users/login"), 
-        headers: {"Content-Type": "application/json"},
-        body: jsonEncode({
-          "email": email,
-          "password": password,
-        }),
+      // 1. Call your central AuthService
+      final user = await authService.value.signIn(
+        email: email,
+        password: password,
       );
 
-      final data = jsonDecode(response.body);
-
-      if (data["success"] == true) {
-        // ✅ Success Notification
+      if (user != null) {
+        // 2. ✅ Success UI Feedback
         setState(() => _showSuccess = true);
         _successController.forward();
 
         Future.delayed(const Duration(seconds: 2), () {
           _successController.reverse().then((_) {
-            setState(() => _showSuccess = false);
-            Navigator.pushAndRemoveUntil(
-              context,
-              MaterialPageRoute(builder: (context) => const CommunityFeedPage()),
-              (route) => false,
-            );
+            if (mounted) {
+              setState(() => _showSuccess = false);
+              Navigator.pushAndRemoveUntil(
+                context,
+                MaterialPageRoute(builder: (context) => const CommunityFeedPage()),
+                (route) => false,
+              );
+            }
           });
         });
-      } else {
-        // 🔴 Error Notification
-        _showErrorNotification(data["detail"] ?? "Invalid email or password");
       }
+    } on FirebaseAuthException catch (e) {
+      // 3. 🔴 Handle specific Firebase errors
+      String message = "Login Failed";
+      if (e.code == 'user-not-found') {
+        message = "No account exists for this email.";
+      } else if (e.code == 'wrong-password') {
+        message = "Incorrect password.";
+      } else if (e.code == 'invalid-email') {
+        message = "Badly formatted email.";
+      }
+      _showErrorNotification(message);
     } catch (e) {
-      _showErrorNotification("Server error. Please try again.");
+      _showErrorNotification("An unexpected error occurred.");
     }
   }
 
@@ -131,8 +138,7 @@ class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
     final Color blue = const Color(0xFF1976D2);
     final Size screenSize = MediaQuery.of(context).size;
     final bool isLandscape = screenSize.width > screenSize.height;
-    final double formWidth =
-        isLandscape ? screenSize.width * 0.6 : screenSize.width * 0.85;
+    final double formWidth = isLandscape ? screenSize.width * 0.6 : screenSize.width * 0.85;
 
     return Scaffold(
       backgroundColor: Colors.white,
@@ -146,9 +152,9 @@ class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    // ===== Logo + Title =====
+                    // Logo + Title
                     Padding(
-                      padding: const EdgeInsets.only(right: AppStyle.logoSize - AppStyle.titleFontSize), // Visual Enhancement
+                      padding: const EdgeInsets.only(right: AppStyle.logoSize - AppStyle.titleFontSize),
                       child: Row(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
@@ -171,38 +177,32 @@ class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
                     ),
                     const SizedBox(height: 50),
 
-                    // ===== Login Form =====
+                    // Login Form
                     SizedBox(
                       width: formWidth,
                       child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.center,
                         children: [
                           TextField(
                             controller: _emailController,
                             keyboardType: TextInputType.emailAddress,
-                            decoration: const InputDecoration(
-                              hintText: 'Email',
-                            ),
+                            decoration: const InputDecoration(hintText: 'Email'),
                           ),
                           const SizedBox(height: AppStyle.verticalSpacingNormal),
                           TextField(
                             controller: _passwordController,
                             obscureText: true,
-                            decoration: const InputDecoration(
-                              hintText: 'Password',
-                            ),
+                            decoration: const InputDecoration(hintText: 'Password'),
                           ),
                           Align(
                             alignment: Alignment.centerRight,
                             child: TextButton(
-                              onPressed: () {},
-                              style: TextButton.styleFrom(
-                                padding: AppStyle.normalVerticalHorizontalPadding,
-                              ),
-                              child: Text('Forgot Password?',
-                                  style: TextStyle(color: AppStyle.blue)),
+                              onPressed: () {
+                                // Add forgot password logic here
+                              },
+                              child: Text('Forgot Password?', style: TextStyle(color: blue)),
                             ),
                           ),
+                          const SizedBox(height: 10),
                           SizedBox(
                             width: double.infinity,
                             child: ElevatedButton(
@@ -211,23 +211,21 @@ class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
                                 'Login',
                                 style: TextStyle(
                                   fontSize: AppStyle.smallFontSize,
-                                  color: AppStyle.white,
+                                  color: Colors.white,
                                   fontWeight: AppStyle.smallFontWeight,
                                 ),
                               ),
                             ),
                           ),
                           const SizedBox(height: AppStyle.verticalSpacingLarge),
-                          Row(
+                          const Row(
                             children: [
-                              const Expanded(child: Divider(thickness: 1)),
+                              Expanded(child: Divider(thickness: 1)),
                               Padding(
-                                padding:
-                                    const EdgeInsets.symmetric(horizontal: 8),
-                                child: Text('OR',
-                                    style: TextStyle(color: Colors.grey[700])),
+                                padding: EdgeInsets.symmetric(horizontal: 8),
+                                child: Text('OR', style: TextStyle(color: Colors.grey)),
                               ),
-                              const Expanded(child: Divider(thickness: 1)),
+                              Expanded(child: Divider(thickness: 1)),
                             ],
                           ),
                           const SizedBox(height: AppStyle.verticalSpacingLarge),
@@ -237,17 +235,14 @@ class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
                               onPressed: () {
                                 Navigator.push(
                                   context,
-                                  MaterialPageRoute(
-                                    builder: (context) =>
-                                      SignupBasicPage(),
-                                  ),
+                                  MaterialPageRoute(builder: (context) => const SignupBasicPage()),
                                 );
                               },
-                              child: const Text(
+                              child: Text(
                                 'Sign Up',
                                 style: TextStyle(
                                   fontSize: AppStyle.smallFontSize,
-                                  color: AppStyle.blue,
+                                  color: blue,
                                   fontWeight: AppStyle.smallFontWeight,
                                 ),
                               ),
@@ -262,57 +257,52 @@ class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
             ),
           ),
 
-          // ✅ SUCCESS NOTIFICATION
+          // Notification Widgets
           if (_showSuccess)
             SlideTransition(
               position: _successOffset,
-              child: Container(
-                margin: const EdgeInsets.only(top: 60),
-                padding: const EdgeInsets.all(18),
-                decoration: BoxDecoration(
-                  color: blue,
-                  shape: BoxShape.circle,
-                  boxShadow: [
-                    BoxShadow(
-                      color: blue.withOpacity(0.4),
-                      blurRadius: 12,
-                      spreadRadius: 2,
-                    ),
-                  ],
-                ),
-                child: const Icon(Icons.check, color: Colors.white, size: 40),
-              ),
+              child: _buildSuccessNotification(blue),
             ),
 
-          // 🔴 ERROR NOTIFICATION
           if (_showError)
             SlideTransition(
               position: _errorOffset,
-              child: Container(
-                margin: const EdgeInsets.only(top: 60),
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
-                decoration: BoxDecoration(
-                  color: Colors.red.shade600,
-                  borderRadius: BorderRadius.circular(40),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.red.withOpacity(0.4),
-                      blurRadius: 10,
-                      spreadRadius: 2,
-                    ),
-                  ],
-                ),
-                child: Text(
-                  _errorText,
-                  style: const TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.w600,
-                      fontSize: 15),
-                ),
-              ),
+              child: _buildErrorNotification(),
             ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildSuccessNotification(Color color) {
+    return Container(
+      margin: const EdgeInsets.only(top: 60),
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: color,
+        shape: BoxShape.circle,
+        boxShadow: [
+          BoxShadow(color: color.withOpacity(0.4), blurRadius: 12, spreadRadius: 2),
+        ],
+      ),
+      child: const Icon(Icons.check, color: Colors.white, size: 40),
+    );
+  }
+
+  Widget _buildErrorNotification() {
+    return Container(
+      margin: const EdgeInsets.only(top: 60),
+      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
+      decoration: BoxDecoration(
+        color: Colors.red.shade600,
+        borderRadius: BorderRadius.circular(40),
+        boxShadow: [
+          BoxShadow(color: Colors.red.withOpacity(0.4), blurRadius: 10, spreadRadius: 2),
+        ],
+      ),
+      child: Text(
+        _errorText,
+        style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600, fontSize: 15),
       ),
     );
   }

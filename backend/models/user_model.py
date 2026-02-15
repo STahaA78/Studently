@@ -1,8 +1,10 @@
 from pydantic import BaseModel, EmailStr, field_validator
 from datetime import date, datetime
 from typing import Optional, List
+import uuid
 
 class UserCreate(BaseModel):
+    uid: str = ""  # New: Field for custom or generated UID
     Name: str
     email: EmailStr
     password: str
@@ -13,7 +15,7 @@ class UserCreate(BaseModel):
     university: str = "FAST"
     profile_picture: Optional[str] = None
     bio: Optional[str] = None
-    isAdmin: bool = False  # Added isAdmin field (Default False)
+    isAdmin: bool = False
 
     @field_validator("birthday", mode="before")
     def validate_birthday(cls, v):
@@ -39,7 +41,7 @@ class UserUpdate(BaseModel):
     bio: Optional[str] = None
 
 class UserOut(BaseModel):
-    id: str
+    id: str  # This maps to the internal MongoDB _id (which is now our uid)
     Name: str
     email: EmailStr
     birthday: date
@@ -51,13 +53,11 @@ class UserOut(BaseModel):
     bio: Optional[str] = None
     friends: List[str] = []
     created_at: Optional[datetime] = None
-    isAdmin: bool = False  # Return isAdmin status in profile
+    isAdmin: bool = False
 
-# Model for handling Accept/Reject actions
 class FriendRequestAction(BaseModel):
     requester_id: str
-    action: str  # Must be "accept" or "reject"
+    action: str
 
-# NEW: Model for removing a friend
 class FriendRemoveAction(BaseModel):
     friend_id: str

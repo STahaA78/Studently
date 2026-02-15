@@ -114,4 +114,35 @@ class AuthService {
       rethrow;
     }
   }
+
+  Future<String?> getIdToken({bool forceRefresh = false}) async {
+    logger.i("[$runtimeType] GetIdToken Started");
+    logger.d("[$runtimeType] Force Refresh: $forceRefresh");
+    
+    try {
+      final user = firebaseAuth.currentUser;
+      
+      if (user == null) {
+        logger.w("[$runtimeType] GetIdToken Failed: No user currently signed in");
+        return null;
+      }
+
+      final String? token = await user.getIdToken(forceRefresh);
+      
+      if (token != null) {
+        // Logging only the first few characters for security
+        logger.i("[$runtimeType] GetIdToken Successful");
+        logger.d("[$runtimeType] Token (Partial): ${token.substring(0, 10)}...");
+      } else {
+        logger.w("[$runtimeType] GetIdToken Successful but token was null");
+      }
+
+      return token;
+    } catch (e) {
+      logger.e("[$runtimeType] GetIdToken Failed", error: e);
+      // We don't necessarily want to crash the app if token fetch fails, 
+      // so we return null, but you could also rethrow if preferred.
+      return null;
+    }
+  }
 }
