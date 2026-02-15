@@ -1,7 +1,9 @@
 import 'dart:async';
+import 'dart:convert'; // Added for jsonDecode
 import 'package:flutter/material.dart';
 import 'package:studently/models/chat_model.dart';
 import 'package:studently/services/chat_service.dart';
+import 'package:studently/services/socket_service.dart'; // Added SocketService import
 import 'package:studently/auth_service.dart'; // Ensure this is imported for UID check
 
 class ChatPage extends StatefulWidget {
@@ -27,7 +29,7 @@ class _ChatPageState extends State<ChatPage> {
   final Color blue = const Color(0xFF1976D2);
 
   List<ChatMessage> _messages = [];
-  Timer? _timer;
+  StreamSubscription? _socketSubscription; // Replaced Timer with StreamSubscription
   bool _isLoading = true;
 
   @override
@@ -38,16 +40,23 @@ class _ChatPageState extends State<ChatPage> {
     // Initial mark as read
     _chatService.markChatAsRead(widget.conversationId);
 
-    // Poll for new messages every 3 seconds
-    _timer = Timer.periodic(const Duration(seconds: 3), (timer) {
-      _fetchMessages(isBackgroundRefresh: true);
-      _chatService.markChatAsRead(widget.conversationId);
+    // REAL-TIME: Listen for new messages via WebSocket instead of polling
+    _socketSubscription = socketService.stream?.listen((event) {
+      final payload = jsonDecode(event);
+      
+      // Only refresh if the incoming message belongs to THIS specific chat room
+      if (payload['type'] == 'NEW_MESSAGE' && 
+          payload['data']['conversation_id'] == widget.conversationId) {
+        
+        _fetchMessages(isBackgroundRefresh: true);
+        _chatService.markChatAsRead(widget.conversationId);
+      }
     });
   }
 
   @override
   void dispose() {
-    _timer?.cancel();
+    _socketSubscription?.cancel(); // Important: cancel subscription to avoid memory leaks
     _messageController.dispose();
     _scrollController.dispose();
     super.dispose();
@@ -89,7 +98,7 @@ class _ChatPageState extends State<ChatPage> {
 
     try {
       await _chatService.sendMessage(
-        receiverId: widget.otherUserId,
+        conversationId: widget.conversationId,
         text: text,
       );
       

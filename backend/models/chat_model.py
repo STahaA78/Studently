@@ -3,7 +3,7 @@ from datetime import datetime
 from typing import List, Optional
 
 class MessageCreate(BaseModel):
-    receiver_id: str
+    conversation_id: str
     text: str
     attachments: List[str] = []
 
@@ -11,7 +11,6 @@ class MessageOut(BaseModel):
     id: str = Field(alias="_id")
     conversation_id: str
     sender_id: str
-    receiver_id: str
     text: str
     attachments: List[str] = []
     timestamp: datetime

@@ -65,27 +65,27 @@ class ChatService {
     }
   }
 
-  /// UPDATE: senderId is removed from parameters as the backend knows who is sending
   Future<void> sendMessage({
-    required String receiverId,
+    required String conversationId,
     required String text,
   }) async {
-    logger.d("[$runtimeType] Sending message to $receiverId");
+    logger.d("[$runtimeType] Sending message to conversation: $conversationId");
     try {
       final headers = await _getAuthHeaders();
+      
       final response = await http.post(
         Uri.parse('$baseUrl/send'),
         headers: headers,
         body: jsonEncode({
-          // sender_id is extracted from the JWT on the backend
-          "receiver_id": receiverId,
+          // The backend now identifies all recipients via the conversation_id
+          "conversation_id": conversationId, 
           "text": text,
           "attachments": [], 
         }),
       );
 
       if (response.statusCode == 200) {
-        logger.i("[$runtimeType] Message sent successfully");
+        logger.i("[$runtimeType] Message sent successfully to $conversationId");
       } else {
         logger.e("[$runtimeType] Failed to send message: ${response.body}");
         throw Exception("Failed to send message: ${response.body}");

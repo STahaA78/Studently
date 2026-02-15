@@ -6,7 +6,7 @@ from datetime import datetime
 from pydantic import BaseModel
 from utils.auth import get_current_user # Import your Security Guard
 import logging
-
+from utils.websocket_manager import manager
 router = APIRouter()
 LOGGER = logging.getLogger(__name__)
 
@@ -52,56 +52,66 @@ def get_messages(conversation_id: str, current_user_id: str = Depends(get_curren
 
 # 3. SEND MESSAGE (Sender ID comes from Token)
 @router.post("/send", response_model=dict)
-def send_message(msg: MessageCreate, current_user_id: str = Depends(get_current_user)):
+async def send_message(msg: MessageCreate, current_user_id: str = Depends(get_current_user)):
     try:
-        # SECURE: Use current_user_id from token as the sender_id
-        sender_id = current_user_id
-        participants = sorted([sender_id, msg.receiver_id])
+        # 1. Validate Conversation and get participants
+        if not ObjectId.is_valid(msg.conversation_id):
+            raise HTTPException(status_code=400, detail="Invalid conversation ID")
+            
+        conv = conversations_collection.find_one({"_id": ObjectId(msg.conversation_id)})
+        if not conv:
+            raise HTTPException(status_code=404, detail="Conversation not found")
         
-        conversation = conversations_collection.find_one({
-            "participants": {"$all": participants, "$size": 2}
-        })
-        
-        conversation_id = None
-        if not conversation:
-            new_conv = {
-                "participants": participants,
-                "created_at": datetime.utcnow(),
-                "unread_counts": {p: 0 for p in participants},
-                "last_message": None
-            }
-            res = conversations_collection.insert_one(new_conv)
-            conversation_id = str(res.inserted_id)
-        else:
-            conversation_id = str(conversation["_id"])
-        
+        # Security: Ensure sender is a participant
+        if current_user_id not in conv["participants"]:
+            raise HTTPException(status_code=403, detail="Not a member of this chat")
+
+        # 2. Save Message
         message_dict = msg.model_dump()
-        message_dict["sender_id"] = sender_id # Forced from Token
-        message_dict["conversation_id"] = conversation_id
-        message_dict["timestamp"] = datetime.utcnow()
-        message_dict["status"] = "sent"
-        message_dict["is_deleted"] = False
-        
+        message_dict.update({
+            "sender_id": current_user_id,
+            "timestamp": datetime.utcnow(),
+            "status": "sent",
+            "is_deleted": False
+        })
         messages_collection.insert_one(message_dict)
+
+        # 3. Update Conversation Meta & Unread Counts for all OTHER participants
+        other_participants = [p for p in conv["participants"] if p != current_user_id]
         
-        conversations_collection.update_one(
-            {"_id": ObjectId(conversation_id)},
-            {
-                "$set": {
-                    "last_message": {
-                        "text": msg.text,
-                        "sender_id": sender_id,
-                        "timestamp": message_dict["timestamp"]
-                    }
-                },
-                "$inc": {f"unread_counts.{msg.receiver_id}": 1}
+        update_query = {
+            "$set": {
+                "last_message": {
+                    "text": msg.text,
+                    "sender_id": current_user_id,
+                    "timestamp": message_dict["timestamp"]
+                }
             }
-        )
+        }
         
-        return {"success": True, "conversation_id": conversation_id}
+        # Increment unread counts for everyone else in the group/chat
+        for p_id in other_participants:
+            update_query.setdefault("$inc", {})[f"unread_counts.{p_id}"] = 1
+
+        conversations_collection.update_one({"_id": ObjectId(msg.conversation_id)}, update_query)
+
+        # 4. REAL-TIME: Broadcast to ALL participants
+        ws_payload = {
+            "type": "NEW_MESSAGE",
+            "data": {
+                "conversation_id": msg.conversation_id,
+                "sender_id": current_user_id,
+                "text": msg.text,
+                "timestamp": message_dict["timestamp"].isoformat()
+            }
+        }
+
+        for p_id in conv["participants"]:
+            await manager.send_to_user(ws_payload, p_id)
+
+        return {"success": True}
     except Exception as e:
-        LOGGER.error(f"Error sending message: {e}")
-        raise HTTPException(status_code=500, detail="Internal Server Error")
+        raise HTTPException(status_code=500, detail=str(e))
 
 # 4. MARK AS READ (User ID comes from Token)
 @router.post("/{conversation_id}/read")

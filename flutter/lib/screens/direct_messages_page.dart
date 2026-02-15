@@ -1,8 +1,11 @@
+import 'dart:async';
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:studently/models/chat_model.dart';
 import 'package:studently/services/chat_service.dart';
 import 'package:studently/screens/chat_page.dart';
 import 'package:studently/auth_service.dart';
+import 'package:studently/services/socket_service.dart'; // Ensure this is imported
 
 class DirectMessagesPage extends StatefulWidget {
   const DirectMessagesPage({Key? key}) : super(key: key);
@@ -20,16 +23,31 @@ class _DirectMessagesPageState extends State<DirectMessagesPage> {
   bool _isLoading = true;
 
   final Map<String, String> _userNameCache = {};
+  StreamSubscription? _socketSubscription; // Added for WebSocket
 
   @override
   void initState() {
     super.initState();
     _fetchChats();
     _searchController.addListener(_onSearchChanged);
+    _initWebSocket(); // Initialize real-time updates
+  }
+
+  Future<void> _initWebSocket() async {
+    await socketService.connect();
+    
+    // REAL-TIME: Refresh list (unread counts/last message) on any incoming message
+    _socketSubscription = socketService.stream?.listen((event) {
+      final payload = jsonDecode(event);
+      if (payload['type'] == 'NEW_MESSAGE') {
+        _fetchChats(); // Triggers a full list refresh
+      }
+    });
   }
 
   @override
   void dispose() {
+    _socketSubscription?.cancel(); // Important to prevent memory leaks
     _searchController.dispose();
     super.dispose();
   }
