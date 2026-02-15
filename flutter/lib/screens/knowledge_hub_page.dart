@@ -255,15 +255,15 @@ class _KnowledgeHubPageState extends State<KnowledgeHubPage> {
                                       ),
                                       OutlinedButton.icon(
                                         onPressed: () {
-                                          Navigator.push(
-                                            context,
-                                            MaterialPageRoute(
-                                              builder: (_) => ChatPage(
-                                                chatName: "${course.name} ${course.code} Group",
-                                                isGroup: true,
-                                              ),
-                                            ),
-                                          );
+                                          // Navigator.push(
+                                          //   context,
+                                          //   MaterialPageRoute(
+                                          //     builder: (_) => ChatPage(
+                                          //       chatName: "${course.name} ${course.code} Group",
+                                          //       isGroup: true,
+                                          //     ),
+                                          //   ),
+                                          // );
                                         },
                                         icon: const Icon(Icons.forum_outlined, size: 18),
                                         label: const Text("Group Chat"),
