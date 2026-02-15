@@ -1,3 +1,4 @@
+import json
 from fastapi import APIRouter, HTTPException, UploadFile, File, Form
 from fastapi.responses import FileResponse
 from database import users_collection, courses_collection, resources_collection
