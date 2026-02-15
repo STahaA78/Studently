@@ -1,10 +1,10 @@
-from fastapi import APIRouter, HTTPException, Query, Depends, UploadFile, File, Form
+from fastapi import APIRouter, HTTPException, UploadFile, File, Form
 from fastapi.responses import FileResponse
 from database import users_collection, courses_collection, resources_collection
 from models.knowledge_hub_model import *
 from bson import ObjectId
 from datetime import datetime, timezone
-from typing import Optional, List
+from typing import List
 import logging
 import os
 import uuid
@@ -12,10 +12,6 @@ from jsonschema import ValidationError
 
 router = APIRouter()
 LOGGER = logging.getLogger(__name__)
-
-def fix_id(doc):
-    doc["_id"] = str(doc["_id"])
-    return doc
 
 # Helper to check if user is admin
 def is_admin(user_id: str) -> bool:
@@ -353,91 +349,4 @@ def delete_resource(resource_id: str, user_id: str):
         raise
     except Exception as e:
         LOGGER.error(f"Error deleting resource: {e}")
-        raise HTTPException(status_code=500, detail="Internal Server Error")
-    
-
-# ---------------------------------------------------------
-# Management APIs (Approve, Reject, Update, Delete)
-# ---------------------------------------------------------
-
-# @router.get("/admin/pending", response_model=ListResources)
-# def get_pending_resources(user_id: str):
-#     """
-#     Fetches pending resources. Requires Admin Access.
-#     """
-#     if not is_admin(user_id):
-#         raise HTTPException(status_code=403, detail="Access Forbidden: Admins only")
-
-#     LOGGER.info("Fetching pending resources for admin")
-#     try:
-#         resources = list(resources_collection.find({"approved": False}).sort("uploaded_at", 1))
-#         return ListResources(resources=[fix_id(res) for res in resources])
-#     except Exception as e:
-#         LOGGER.error(f"Error fetching pending resources: {e}")
-#         raise HTTPException(status_code=500, detail="Internal Server Error")
-
-@router.post("/admin/{resource_id}/approve")
-def approve_resource(resource_id: str, user_id: str):
-    """
-    Approves a resource. Checks if the logged-in user is an Admin.
-    """
-    if not ObjectId.is_valid(resource_id):
-        raise HTTPException(status_code=400, detail="Invalid ID")
-
-    # 1. Check Admin Status
-    if not is_admin(user_id):
-        LOGGER.warning(f"User {user_id} attempted to approve resource without admin privileges")
-        raise HTTPException(status_code=403, detail="Access Forbidden: Admins only")
-        
-    try:
-        resource = resources_collection.find_one({"_id": ObjectId(resource_id)})
-        if not resource:
-            raise HTTPException(status_code=404, detail="Resource not found")
-            
-        if resource.get("approved") is True:
-            return {"success": False, "message": "Resource is already approved"}
-
-        result = resources_collection.update_one(
-            {"_id": ObjectId(resource_id)},
-            {"$set": {"approved": True}}
-        )
-        
-        LOGGER.info(f"Resource {resource_id} approved by admin {user_id}")
-        return {"success": True, "message": "Resource approved"}
-        
-    except HTTPException:
-        raise
-    except Exception as e:
-        LOGGER.error(f"Error approving resource: {e}")
-        raise HTTPException(status_code=500, detail="Internal Server Error")
-
-@router.delete("/admin/{resource_id}/reject")
-def reject_resource(resource_id: str, user_id: str):
-    """
-    Rejects (deletes) a pending resource. Checks if the logged-in user is an Admin.
-    """
-    if not ObjectId.is_valid(resource_id):
-        raise HTTPException(status_code=400, detail="Invalid ID")
-
-    # 1. Check Admin Status
-    if not is_admin(user_id):
-        LOGGER.warning(f"User {user_id} attempted to reject resource without admin privileges")
-        raise HTTPException(status_code=403, detail="Access Forbidden: Admins only")
-        
-    try:
-        resource = resources_collection.find_one({"_id": ObjectId(resource_id)})
-        if not resource:
-            raise HTTPException(status_code=404, detail="Resource not found")
-            
-        if resource.get("approved") is True:
-            raise HTTPException(status_code=400, detail="Cannot reject an already approved resource. Use delete.")
-
-        resources_collection.delete_one({"_id": ObjectId(resource_id)})
-        LOGGER.info(f"Resource {resource_id} rejected by admin {user_id}")
-        return {"success": True, "message": "Resource rejected and removed"}
-        
-    except HTTPException:
-        raise
-    except Exception as e:
-        LOGGER.error(f"Error rejecting resource: {e}")
         raise HTTPException(status_code=500, detail="Internal Server Error")

@@ -2,9 +2,6 @@ from pydantic import BaseModel, Field, model_validator
 from datetime import datetime
 from typing import List, Optional, Literal, Dict
 
-from streamlit import json
-
-
 # Course
 class Course(BaseModel):
     code: str
@@ -33,14 +30,6 @@ class ResourceInMetadata(BaseModel):
             if  (quizNumber is None or quizNumber <= 0):
                 raise ValueError('Quiz number must be provided and greater than 0 for quiz resources')
         return self
-
-class ResourceCreate(BaseModel):
-    uploadedBy: str
-    course: Course
-    fileType: str 
-    fileName: str
-    fileUrl: str
-    tags: List[str] = []
 
 # NEW: Model for updating a resource
 class ResourceUpdate(BaseModel):
