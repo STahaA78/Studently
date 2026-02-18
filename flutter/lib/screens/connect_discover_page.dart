@@ -10,15 +10,18 @@ class ConnectDiscoverPage extends StatefulWidget {
   const ConnectDiscoverPage({super.key});
 
   @override
-  State<ConnectDiscoverPage> createState() => _ConnectDiscoverPageState();
+  State<ConnectDiscoverPage> createState() =>
+      _ConnectDiscoverPageState();
 }
 
-class _ConnectDiscoverPageState extends State<ConnectDiscoverPage> {
-  final TextEditingController _searchController = TextEditingController();
+class _ConnectDiscoverPageState
+    extends State<ConnectDiscoverPage> {
+  final TextEditingController _searchController =
+      TextEditingController();
   final Color primaryBlue = const Color(0xFF0F74C5);
 
-  /// TEMP logged-in user id
-  final String currentUserId = "6989b03caf678f41033614ea";
+  final String currentUserId =
+      "69832e61af678f41033614e9";
 
   List<Map<String, dynamic>> filteredStudents = [];
   Map<String, String> connectionStatus = {};
@@ -133,9 +136,7 @@ class _ConnectDiscoverPageState extends State<ConnectDiscoverPage> {
         await fetchConnectionStatus(user["id"]);
       }
 
-      setState(() {
-        filteredStudents = fetched;
-      });
+      setState(() => filteredStudents = fetched);
     }
 
     setState(() => isLoading = false);
@@ -145,7 +146,8 @@ class _ConnectDiscoverPageState extends State<ConnectDiscoverPage> {
   Future<void> loadDiscoverUsers() async {
     setState(() => isLoading = true);
 
-    final uri = Uri.parse("http://localhost:8000/profile/discover");
+    final uri =
+        Uri.parse("http://localhost:8000/profile/discover");
     final response = await http.get(uri);
 
     if (response.statusCode == 200) {
@@ -161,9 +163,7 @@ class _ConnectDiscoverPageState extends State<ConnectDiscoverPage> {
         await fetchConnectionStatus(user["id"]);
       }
 
-      setState(() {
-        filteredStudents = fetched;
-      });
+      setState(() => filteredStudents = fetched);
     }
 
     setState(() => isLoading = false);
@@ -196,15 +196,15 @@ class _ConnectDiscoverPageState extends State<ConnectDiscoverPage> {
         title: const Text(
           "Connect",
           style: TextStyle(
-            color: Colors.black,
-            fontWeight: FontWeight.w600,
-          ),
+              color: Colors.black,
+              fontWeight: FontWeight.w600),
         ),
         actions: [
           IconButton(
             icon: Stack(
               children: [
-                const Icon(Icons.person_add, color: Colors.black),
+                const Icon(Icons.person_add,
+                    color: Colors.black),
                 if (pendingRequestsCount > 0)
                   Positioned(
                     right: 0,
@@ -251,7 +251,8 @@ class _ConnectDiscoverPageState extends State<ConnectDiscoverPage> {
                 filled: true,
                 fillColor: const Color(0xFFF1F1F1),
                 border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(20),
+                  borderRadius:
+                      BorderRadius.circular(20),
                   borderSide: BorderSide.none,
                 ),
               ),
@@ -259,46 +260,89 @@ class _ConnectDiscoverPageState extends State<ConnectDiscoverPage> {
           ),
           Expanded(
             child: isLoading
-                ? const Center(child: CircularProgressIndicator())
+                ? const Center(
+                    child: CircularProgressIndicator())
                 : filteredStudents.isEmpty
-                    ? const Center(child: Text("No students found"))
+                    ? const Center(
+                        child: Text("No students found"))
                     : ListView.builder(
                         padding:
-                            const EdgeInsets.symmetric(horizontal: 16),
-                        itemCount: filteredStudents.length,
+                            const EdgeInsets.symmetric(
+                                horizontal: 16),
+                        itemCount:
+                            filteredStudents.length,
                         itemBuilder: (context, index) =>
-                            _buildStudentCard(filteredStudents[index]),
+                            _buildStudentCard(
+                                filteredStudents[index]),
                       ),
           ),
         ],
       ),
-      bottomNavigationBar: const CustomNavBar(currentIndex: 1),
+      bottomNavigationBar:
+          const CustomNavBar(currentIndex: 1),
     );
   }
 
   // ---------------- STUDENT CARD ----------------
-  Widget _buildStudentCard(Map<String, dynamic> student) {
-    final status = connectionStatus[student["id"]] ?? "none";
+  Widget _buildStudentCard(
+      Map<String, dynamic> student) {
+    final status =
+        connectionStatus[student["id"]] ?? "none";
 
-    String buttonText = "Connect";
-    VoidCallback? onPressed =
-        () => sendConnectionRequest(student["id"]);
+    Widget actionWidget;
 
-    if (status == "outgoing_request") {
-      buttonText = "Pending";
-      onPressed = () => cancelConnectionRequest(student["id"]);
-    } else if (status == "friends") {
-      buttonText = "Connected";
-      onPressed = null;
+    if (status == "none") {
+      actionWidget = GestureDetector(
+        onTap: () =>
+            sendConnectionRequest(student["id"]),
+        child: Container(
+          height: 40,
+          width: 40,
+          decoration: BoxDecoration(
+            color: primaryBlue,
+            shape: BoxShape.circle,
+          ),
+          child:
+              const Icon(Icons.add, color: Colors.white),
+        ),
+      );
+    } else if (status == "outgoing_request") {
+      actionWidget = GestureDetector(
+        onTap: () =>
+            cancelConnectionRequest(student["id"]),
+        child: Container(
+          height: 40,
+          width: 40,
+          decoration: BoxDecoration(
+            color: Colors.orange.shade100,
+            shape: BoxShape.circle,
+          ),
+          child: const Icon(Icons.access_time,
+              color: Colors.orange),
+        ),
+      );
+    } else {
+      actionWidget = Container(
+        height: 40,
+        width: 40,
+        decoration: BoxDecoration(
+          color: Colors.grey.shade300,
+          shape: BoxShape.circle,
+        ),
+        child: const Icon(Icons.check,
+            color: Colors.grey),
+      );
     }
 
     return GestureDetector(
       onTap: () async {
-        final changed = await Navigator.push(
+        final changed =
+            await Navigator.push(
           context,
           MaterialPageRoute(
             builder: (_) =>
-                UserProfilePage(userId: student["id"]),
+                UserProfilePage(
+                    userId: student["id"]),
           ),
         );
 
@@ -308,49 +352,47 @@ class _ConnectDiscoverPageState extends State<ConnectDiscoverPage> {
         }
       },
       child: Container(
-        margin: const EdgeInsets.only(bottom: 12),
+        margin:
+            const EdgeInsets.only(bottom: 12),
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
           color: Colors.white,
-          borderRadius: BorderRadius.circular(20),
+          borderRadius:
+              BorderRadius.circular(20),
         ),
         child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          mainAxisAlignment:
+              MainAxisAlignment.spaceBetween,
           children: [
             Row(
               children: [
                 CircleAvatar(
                   radius: 28,
-                  child: Text(getInitials(student["name"])),
+                  child: Text(
+                      getInitials(student["name"])),
                 ),
                 const SizedBox(width: 12),
                 Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+                  crossAxisAlignment:
+                      CrossAxisAlignment.start,
                   children: [
                     Text(
                       student["name"],
-                      style:
-                          const TextStyle(fontWeight: FontWeight.w600),
+                      style: const TextStyle(
+                          fontWeight:
+                              FontWeight.w600),
                     ),
                     Text(student["department"]),
                     Text(
                       "Batch ${student["batch"]}",
-                      style: const TextStyle(fontSize: 12),
+                      style:
+                          const TextStyle(fontSize: 12),
                     ),
                   ],
                 ),
               ],
             ),
-            ElevatedButton(
-              onPressed: onPressed,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: primaryBlue,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(14),
-                ),
-              ),
-              child: Text(buttonText),
-            ),
+            actionWidget,
           ],
         ),
       ),
