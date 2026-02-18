@@ -3,7 +3,7 @@ import '../widgets/custom_nav_bar.dart';
 import 'package:studently/models/course.dart';
 import 'package:studently/repositories/course.dart';
 import 'knowledge_hub_courses.dart';
-import 'chat_page.dart';
+//import 'chat_page.dart';
 
 class KnowledgeHubPage extends StatefulWidget {
   const KnowledgeHubPage({super.key});
