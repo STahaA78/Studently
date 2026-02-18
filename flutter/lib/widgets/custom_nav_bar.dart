@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import '../screens/community_feed_page.dart';
 import '../screens/connect_discover_page.dart';
 import '../screens/profile_page.dart';
-import '../screens/knowledge_hub_page.dart';
+import '../screens/knowledge_hub_main.dart';
 
 class CustomNavBar extends StatelessWidget {
   final int currentIndex;

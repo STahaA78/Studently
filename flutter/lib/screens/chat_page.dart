@@ -3,7 +3,7 @@ import 'dart:convert'; // Added for jsonDecode
 import 'package:flutter/material.dart';
 import 'package:studently/models/chat_model.dart';
 import 'package:studently/services/chat_service.dart';
-import 'package:studently/services/socket_service.dart'; // Added SocketService import
+import 'package:studently/services/socket.dart'; // Added SocketService import
 import 'package:studently/auth_service.dart'; // Ensure this is imported for UID check
 
 class ChatPage extends StatefulWidget {

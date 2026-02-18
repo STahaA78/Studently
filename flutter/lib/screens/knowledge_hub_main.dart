@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import '../widgets/custom_nav_bar.dart';
 import 'package:studently/models/course.dart';
 import 'package:studently/repositories/course.dart';
-import 'repository_user_page.dart';
+import 'knowledge_hub_courses.dart';
 import 'chat_page.dart';
 
 class KnowledgeHubPage extends StatefulWidget {

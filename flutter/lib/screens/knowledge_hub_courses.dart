@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:studently/screens/add_resource_page.dart';
-import 'package:studently/screens/view_resource_page.dart';
+import 'package:studently/screens/knowledge_hub_upload.dart';
+import 'package:studently/screens/knowledge_hub_resource.dart';
 import '../widgets/custom_nav_bar.dart';
 import 'package:studently/repositories/resource.dart';
 import 'package:studently/models/resource.dart';
@@ -197,7 +197,7 @@ class _RepositoryUserPageState extends State<RepositoryUserPage>
       itemBuilder: (context, index) {
         final item = entries[index];
         
-        return InkWell(
+        return GestureDetector(
           onTap: () {
             // Handle file tap, e.g., open or download the file
             logger.i("Tapped on resource: Year ${item.year} - ${item.semester} - ID: ${item.id}");
@@ -211,8 +211,7 @@ class _RepositoryUserPageState extends State<RepositoryUserPage>
               ),
             );
           },
-          child:
-          Container(
+          child: Container(
             margin: const EdgeInsets.only(bottom: 12),
             padding: const EdgeInsets.all(14),
             decoration: BoxDecoration(
@@ -245,7 +244,6 @@ class _RepositoryUserPageState extends State<RepositoryUserPage>
                         "Year ${item.year} - ${item.semester}",
                         style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 15),
                       ),
-
                       if (resourceType != 'book')
                         Text(
                           item.isSolved == true ? "Solved" : "Unsolved",
@@ -254,22 +252,21 @@ class _RepositoryUserPageState extends State<RepositoryUserPage>
                             fontSize: 13,
                           ),
                         ),
-
                       if (resourceType == 'quiz')
                         Text(
                           "Quiz ${item.quizNumber}",
                           style: const TextStyle(color: Colors.grey, fontSize: 13),
                         ),
-                        Text(
-                          "Instructor: ${item.instructorName ?? "Unknown"}",
-                          style: const TextStyle(color: Colors.grey, fontSize: 13),
-                        )
+                      Text(
+                        "Instructor: ${item.instructorName ?? "Unknown"}",
+                        style: const TextStyle(color: Colors.grey, fontSize: 13),
+                      )
                     ],
                   ),
                 ),
               ],
             ),
-          )
+          ),
         );
       },
     );

@@ -37,7 +37,6 @@ async def get_current_user(res: HTTPAuthorizationCredentials = Depends(security)
     token = res.credentials
     try:
         decoded_token = auth.verify_id_token(token)
-        uid = decoded_token.get("uid")
-        return uid
+        return decoded_token.get("uid")
     except Exception as e:
         raise HTTPException(status_code=401, detail="Invalid Authentication")

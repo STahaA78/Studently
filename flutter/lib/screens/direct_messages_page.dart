@@ -5,7 +5,7 @@ import 'package:studently/models/chat_model.dart';
 import 'package:studently/services/chat_service.dart';
 import 'package:studently/screens/chat_page.dart';
 import 'package:studently/auth_service.dart';
-import 'package:studently/services/socket_service.dart'; // Ensure this is imported
+import 'package:studently/services/socket.dart'; // Ensure this is imported
 
 class DirectMessagesPage extends StatefulWidget {
   const DirectMessagesPage({Key? key}) : super(key: key);

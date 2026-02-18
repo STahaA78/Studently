@@ -56,6 +56,6 @@ class ResourceGroup(BaseModel):
     resources: Dict[Literal['final', 'midterm', 'quiz', 'book'], List[ResourceItem]]
 
 # Upload Response
-class UploadResponse(BaseModel):
-    message: str
-    resourceId: str
+class GenericResponse(BaseModel):
+    success: bool
+    message: Optional[str] = None
