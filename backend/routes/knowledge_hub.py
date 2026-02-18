@@ -2,9 +2,9 @@ import json
 import sys
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form
 from fastapi.responses import FileResponse
-from backend.utils.auth import get_current_user
+from utils.auth import get_current_user
 from database import users_collection, courses_collection, resources_collection
-from backend.models.knowledge_hub import *
+from models.knowledge_hub import *
 from bson import ObjectId
 from datetime import datetime, timezone
 from typing import List

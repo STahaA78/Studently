@@ -6,9 +6,9 @@ import os
 from passlib.context import CryptContext
 import json
 
-# Get the JSON string from the environment variable
 firebase_creds_json = os.environ.get("FIREBASE_CONFIG")
 security = HTTPBearer()
+
 
 if firebase_creds_json:
     try:
