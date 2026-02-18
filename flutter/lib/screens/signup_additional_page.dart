@@ -4,7 +4,7 @@ import 'package:studently/models.dart';
 import 'package:studently/logger.dart';
 import 'package:http/http.dart' as http;
 import 'community_feed_page.dart';
-import 'package:studently/auth_service.dart';
+import 'package:studently/services/firebase_auth.dart';
 import 'dart:convert';
 
 class SignupAdditionalPage extends StatefulWidget {

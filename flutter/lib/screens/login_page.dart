@@ -1,4 +1,3 @@
-import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart'; // Added for exception handling
 import 'signup_basic_page.dart';
@@ -6,7 +5,7 @@ import 'community_feed_page.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:studently/utils/constants.dart';
-import 'package:studently/auth_service.dart'; // Import your AuthService
+import 'package:studently/services/firebase_auth.dart'; // Import your AuthService
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});

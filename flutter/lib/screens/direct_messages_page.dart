@@ -4,14 +4,14 @@ import 'package:flutter/material.dart';
 import 'package:studently/models/chat.dart';
 import 'package:studently/repositories/chat.dart';
 import 'package:studently/screens/chat_page.dart';
-import 'package:studently/auth_service.dart';
+import 'package:studently/services/firebase_auth.dart';
 import 'package:studently/services/socket.dart'; // Ensure this is imported
 
 class DirectMessagesPage extends StatefulWidget {
   const DirectMessagesPage({super.key});
 
   @override
-  _DirectMessagesPageState createState() => _DirectMessagesPageState();
+  State<DirectMessagesPage> createState() => _DirectMessagesPageState();
 }
 
 class _DirectMessagesPageState extends State<DirectMessagesPage> {

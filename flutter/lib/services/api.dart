@@ -1,10 +1,14 @@
 import 'dart:io';
 import 'dart:convert';
-import 'package:studently/auth_service.dart';
+import 'package:studently/config.dart';
+import 'package:studently/services/firebase_auth.dart';
 import 'package:studently/logger.dart';
 import 'package:http/http.dart' as http;
 
 class ApiService {
+  //Configuration
+  static const String _baseUrl = AppConfig.apiBaseUrl;
+
   //Singleton
   static final ApiService _instance = ApiService._internal();
 
@@ -12,8 +16,6 @@ class ApiService {
   ApiService._internal() {
     logger.i("[$runtimeType] ApiService initialized");
   }
-  //Configuration
-  static const String _baseUrl = "localhost:8000";
 
   //Headers
   Future<Map<String, String>> _getAuthHeaders() async {
@@ -28,7 +30,7 @@ class ApiService {
   // GET
   Future<http.Response> get(String endpoint) async {
     logger.i("[$runtimeType] GET request to $endpoint Initiated");
-    final url = Uri.http(_baseUrl, endpoint);
+    final url = Uri.parse("$_baseUrl$endpoint");
     try {
       final response = await http.get(
         url,
@@ -49,7 +51,7 @@ class ApiService {
   // Multipart POST for file uploads
   Future<http.Response> multiPart({ required File file, required Map<String, dynamic> metadata }) async {
     logger.i("[$runtimeType] Multipart POST request Initiated");
-    final url = Uri.http(_baseUrl, '/hub/resources/upload');
+    final url = Uri.parse("$_baseUrl/hub/resources/upload");
     try {
       var request = http.MultipartRequest('POST', url)
         ..fields['data'] = jsonEncode(metadata)
@@ -69,7 +71,7 @@ class ApiService {
   // Generic POST method
   Future<http.Response> post(String endpoint, {Map<String, dynamic>? body}) async {
     logger.i("[$runtimeType] POST request to $endpoint Initiated");
-    final url = Uri.http(_baseUrl, endpoint);
+    final url = Uri.parse("$_baseUrl$endpoint");
     try {
       final response = await http.post(
         url,
@@ -108,7 +110,7 @@ class ApiService {
 
   Future<http.Response> downloadFile(String endpoint) async {
     logger.i("[$runtimeType] Download file request to $endpoint Initiated");
-    final url = Uri.http(_baseUrl, endpoint);
+    final url = Uri.parse("$_baseUrl$endpoint");
     try {
       final response = await http.get(url);
       logger.i("[$runtimeType] Download file request to $endpoint Completed with status code ${response.statusCode}");

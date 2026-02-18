@@ -4,7 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:studently/models/chat.dart';
 import 'package:studently/repositories/chat.dart';
 import 'package:studently/services/socket.dart'; // Added SocketService import
-import 'package:studently/auth_service.dart'; // Ensure this is imported for UID check
+import 'package:studently/services/firebase_auth.dart'; // Ensure this is imported for UID check
 
 class ChatPage extends StatefulWidget {
   final String conversationId;
