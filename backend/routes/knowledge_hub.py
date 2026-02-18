@@ -43,9 +43,9 @@ def add_course(course: List[Course], user: dict = Depends(get_current_user)):
     """
     Adds a new course to the system. Only Admins can add courses.
     """
-    LOGGER.info(f"Course Add Started", extra={"uid": user['uid']})
-    if not is_admin(user['uid']):
-        LOGGER.warning(f"Unauthorized course addition attempt by user {user['uid']}")
+    LOGGER.info(f"Course Add Started", extra={"uid": user})
+    if not is_admin(user):
+        LOGGER.warning(f"Unauthorized course addition attempt by user {user}")
         raise HTTPException(status_code=403, detail="Only admins can add courses")
     try:
         # Check if course code already exists
@@ -54,11 +54,11 @@ def add_course(course: List[Course], user: dict = Depends(get_current_user)):
                 raise HTTPException(status_code=400, detail=f"Course code {c.code} already exists")
 
         result = courses_collection.insert_many([c.model_dump() for c in course])
-        LOGGER.info(f"Course(s) added successfully Count: {len(result.inserted_ids)}", extra={"uid": user['uid']})
+        LOGGER.info(f"Course(s) added successfully Count: {len(result.inserted_ids)}", extra={"uid": user})
 
         return GenericResponse(success=True, message="Course(s) added successfully")
     except Exception as e:
-        LOGGER.error(f"Course Add Failed. Error: {e}", exc_info=True, extra={"uid": user['uid']})
+        LOGGER.error(f"Course Add Failed. Error: {e}", exc_info=True, extra={"uid": user})
         raise HTTPException(status_code=500, detail="Internal Server Error")
 
 @router.delete("/courses/{course_code}", response_model=GenericResponse)
@@ -66,18 +66,18 @@ def delete_course(course_code: str, user: dict = Depends(get_current_user)):
     """
     Deletes a course by its code. Only Admins can delete courses.
     """
-    LOGGER.info(f"Delete Course Started for{course_code} by user {user['uid']}", extra={"uid": user['uid']})
-    if not is_admin(user['uid']):
-        LOGGER.warning(f"Unauthorized course deletion attempt by user {user['uid']}", extra={"uid": user['uid']})
+    LOGGER.info(f"Delete Course Started for{course_code} by user {user}", extra={"uid": user})
+    if not is_admin(user):
+        LOGGER.warning(f"Unauthorized course deletion attempt by user {user}", extra={"uid": user})
         raise HTTPException(status_code=403, detail="Only admins can delete courses")
     try:
         result = courses_collection.delete_one({"code": course_code})
         if result.deleted_count == 0:
             raise HTTPException(status_code=404, detail="Course not found")
-        LOGGER.info(f"Delete Course Ended successfully for code {course_code} by user {user['uid']}", extra={"uid": user['uid']})
+        LOGGER.info(f"Delete Course Ended successfully for code {course_code} by user {user}", extra={"uid": user})
         return GenericResponse(success=True, message="Course deleted successfully")
     except Exception as e:
-        LOGGER.error(f"Course Delete Failed. Error: {e}", exc_info=True, extra={"uid": user['uid']})
+        LOGGER.error(f"Course Delete Failed. Error: {e}", exc_info=True, extra={"uid": user})
         raise HTTPException(status_code=500, detail="Internal Server Error")
 
 @router.get("/courses", response_model=List[Course])
@@ -86,14 +86,14 @@ def get_all_courses(user: dict = Depends(get_current_user)):
     Returns a list of all courses in the system, sorted by name.
     """
 
-    LOGGER.info(f"Get All Courses Initiated ", extra={"uid": user['uid']})
+    LOGGER.info(f"Get All Courses Initiated ", extra={"uid": user})
     try:
         results = list(courses_collection.find({},{"_id": 0}).sort("name", 1))
-        LOGGER.info(f"Get All Courses Ended Successfully. {len(results)} courses", extra={"uid": user['uid']})
+        LOGGER.info(f"Get All Courses Ended Successfully. {len(results)} courses", extra={"uid": user})
         return results
     except Exception as e:
-        LOGGER.info("Get All Courses Failed", extra={"uid": user['uid']})
-        LOGGER.error(f"Error fetching courses: {e}", extra={"uid": user['uid']}, exc_info=True)
+        LOGGER.info("Get All Courses Failed", extra={"uid": user})
+        LOGGER.error(f"Error fetching courses: {e}", extra={"uid": user}, exc_info=True)
         raise HTTPException(status_code=500, detail="Internal Server Error")
 
 ##########################
@@ -108,21 +108,21 @@ async def upload_resource(
     """
     Uploads a resource to the Knowledge Hub.
     """
-    LOGGER.info(f"Resource Upload Initiated by user {user['uid']}", extra={"uid": user['uid']})
+    LOGGER.info(f"Resource Upload Initiated by user {user}", extra={"uid": user})
     try:
         meta_model = ResourceInMetadata.model_validate_json(metadata)
     except ValidationError as ve:
-        LOGGER.warning(f"Resource Upload Failed. Validation error: {ve.errors()}", extra={"uid": user['uid']})
+        LOGGER.warning(f"Resource Upload Failed. Validation error: {ve.errors()}", extra={"uid": user})
         raise HTTPException(status_code=422, detail=ve.errors())
     except json.JSONDecodeError:
-        LOGGER.warning(f"Resource Upload Failed. Invalid JSON in metadata", extra={"uid": user['uid']})
+        LOGGER.warning(f"Resource Upload Failed. Invalid JSON in metadata", extra={"uid": user})
         raise HTTPException(status_code=400, detail="Invalid JSON in meta")
     except Exception as e:
-        LOGGER.error(f"Resource Upload Failed. Error parsing metadata: {e}", exc_info=True, extra={"uid": user['uid']})
+        LOGGER.error(f"Resource Upload Failed. Error parsing metadata: {e}", exc_info=True, extra={"uid": user})
         raise HTTPException(status_code=500, detail="Internal Server Error")
     meta_dict = meta_model.model_dump(exclude_none=True, exclude_unset=True)
 
-    LOGGER.debug(f"Upload Metadata: {meta_dict}", extra={"uid": user['uid']})
+    LOGGER.debug(f"Upload Metadata: {meta_dict}", extra={"uid": user})
     try:
         # Write File Upload Logic Here (e.g., to S3, local storage, etc.)
         base_folder = 'resources'
@@ -155,12 +155,12 @@ async def upload_resource(
         meta_dict['downloadCount'] = 0
         result = resources_collection.insert_one(meta_dict)
 
-        LOGGER.info(f"Resource Upload Ended successfully: {result.inserted_id}", extra={"uid": user['uid']})
+        LOGGER.info(f"Resource Upload Ended successfully: {result.inserted_id}", extra={"uid": user})
         return GenericResponse(
             success=True, message="Upload Successful"
         )
     except Exception as e:
-        LOGGER.error(f"Resource Upload Failed. Error uploading resource: {e}", exc_info=True, extra={"uid": user['uid']})
+        LOGGER.error(f"Resource Upload Failed. Error uploading resource: {e}", exc_info=True, extra={"uid": user})
         raise HTTPException(status_code=500, detail="Internal Server Error")
 
 
@@ -169,7 +169,7 @@ def get_all_resources(user: dict = Depends(get_current_user)):
     """
     Fetches all approved resources grouped by course.
     """
-    LOGGER.info("Fetching All Approved resources", extra={"uid": user['uid']})
+    LOGGER.info("Fetching All Approved resources", extra={"uid": user})
     try:
         pipeline = [
             # 1. Match only approved resources
@@ -219,12 +219,12 @@ def get_all_resources(user: dict = Depends(get_current_user)):
         ]
 
         results = list(resources_collection.aggregate(pipeline))
-        LOGGER.debug(f"Resource Data: {results}", extra={"uid": user['uid']})
-        LOGGER.info(f"Ended fetching all resources successfully.Fetched {len(results)} resource groups", extra={"uid": user['uid']})
+        LOGGER.debug(f"Resource Data: {results}", extra={"uid": user})
+        LOGGER.info(f"Ended fetching all resources successfully.Fetched {len(results)} resource groups", extra={"uid": user})
         return results
 
     except Exception as e:
-        LOGGER.error(f"Error fetching resources: {e}", exc_info=True, extra={"uid": user['uid']})
+        LOGGER.error(f"Error fetching resources: {e}", exc_info=True, extra={"uid": user})
         raise HTTPException(status_code=500, detail="Internal Server Error")
     
 
@@ -234,7 +234,7 @@ def download_resource(resource_id: str, user: dict = Depends(get_current_user)):
     Endpoint to download a resource file by its ID.
     Increments the download count on each successful download.
     """
-    LOGGER.info(f"Download request for resource {resource_id} initiated", extra={"uid": user['uid']})
+    LOGGER.info(f"Download request for resource {resource_id} initiated", extra={"uid": user})
 
     if not ObjectId.is_valid(resource_id):
         raise HTTPException(status_code=400, detail="Invalid ID")
@@ -254,7 +254,7 @@ def download_resource(resource_id: str, user: dict = Depends(get_current_user)):
             {"$inc": {"downloadCount": 1}}
         )
 
-        LOGGER.info(f"Resource {resource_id} Downloaded Request Successfull", extra={"uid": user['uid']})
+        LOGGER.info(f"Resource {resource_id} Downloaded Request Successfull", extra={"uid": user})
         return FileResponse(
                 path=file_path,
                 media_type="application/pdf",   # IMPORTANT
@@ -264,7 +264,7 @@ def download_resource(resource_id: str, user: dict = Depends(get_current_user)):
                 },
             )
     except Exception as e:
-        LOGGER.error(f"Error downloading resource: {e}", extra={"uid": user['uid']})
+        LOGGER.error(f"Error downloading resource: {e}", extra={"uid": user})
         raise HTTPException(status_code=500, detail="Internal Server Error")
 
 @router.get("/resources/{course_id}",
@@ -274,7 +274,7 @@ def get_resources_by_course(course_id: str, user: dict = Depends(get_current_use
     """
     Fetches all approved resources for a specific course, grouped by type.
     """
-    LOGGER.info(f"Fetching resources for course {course_id}", extra={"uid": user['uid']})
+    LOGGER.info(f"Fetching resources for course {course_id}", extra={"uid": user})
     try:
         pipeline = [
             # 1. Match approved resources for this specific course
@@ -327,12 +327,12 @@ def get_resources_by_course(course_id: str, user: dict = Depends(get_current_use
         
         LOGGER.debug(f"Resource Data: {results[0]}")
         if not results:
-            LOGGER.info(f"No resources found for course {course_id}", extra={"uid": user['uid']})
+            LOGGER.info(f"No resources found for course {course_id}", extra={"uid": user})
             raise HTTPException(status_code=404, detail="Course not found or no approved resources")
-        LOGGER.info(f"Ended fetching resources for course {course_id} successfully", extra={"uid": user['uid']})
+        LOGGER.info(f"Ended fetching resources for course {course_id} successfully", extra={"uid": user})
         return results[0]
     except Exception as e:
-        LOGGER.error(f"Error fetching resources for course {course_id}: {e}", exc_info=True, extra={"uid": user['uid']})
+        LOGGER.error(f"Error fetching resources for course {course_id}: {e}", exc_info=True, extra={"uid": user})
         raise HTTPException(status_code=500, detail="Internal Server Error")
 
 @router.delete("/resource/{resource_id}")
@@ -350,16 +350,16 @@ def delete_resource(resource_id: str, user: dict = Depends(get_current_user)):
             raise HTTPException(status_code=404, detail="Resource not found")
 
         # Check permission: Must be Uploader or Admin
-        if resource.get("uploaded_by") != user['uid'] and not is_admin(user['uid']):
+        if resource.get("uploaded_by") != user and not is_admin(user):
             raise HTTPException(status_code=403, detail="Permission denied")
 
         result = resources_collection.delete_one({"_id": ObjectId(resource_id)})
         
-        LOGGER.info(f"Resource {resource_id} deleted by {user['uid']}", extra={"uid": user['uid']})
+        LOGGER.info(f"Resource {resource_id} deleted by {user}", extra={"uid": user})
         return {"success": True, "message": "Resource deleted successfully"}
         
     except HTTPException:
         raise
     except Exception as e:
-        LOGGER.error(f"Error deleting resource: {e}", extra={"uid": user['uid']})
+        LOGGER.error(f"Error deleting resource: {e}", extra={"uid": user})
         raise HTTPException(status_code=500, detail="Internal Server Error")
