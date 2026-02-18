@@ -219,7 +219,7 @@ class _RepositoryUserPageState extends State<RepositoryUserPage>
               borderRadius: BorderRadius.circular(12),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.grey.withOpacity(0.20),
+                  color: Colors.grey.withValues(alpha: 0.20),
                   blurRadius: 4,
                 ),
               ],

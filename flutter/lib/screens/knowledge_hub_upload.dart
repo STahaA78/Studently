@@ -359,7 +359,7 @@ class _AddResourcePageState extends State<AddResourcePage> {
                   const Text("Year", style: TextStyle(fontWeight: FontWeight.w600)),
                   const SizedBox(height: 8),
                   DropdownButtonFormField<int>(
-                    value: _selectedYear,
+                    initialValue: _selectedYear,
                     // Generate years from the Current Year down to 2010
                     items: List.generate(
                       DateTime.now().year - 2009, // Number of years to show
@@ -459,7 +459,7 @@ class _AddResourcePageState extends State<AddResourcePage> {
                         Positioned.fill(
                           child: Container(
                             decoration: BoxDecoration(
-                              color: Colors.black.withOpacity(0.4),
+                              color: Colors.black.withValues(alpha: 0.4),
                               borderRadius: BorderRadius.circular(8),
                             ),
                             child: const Center(
@@ -476,7 +476,7 @@ class _AddResourcePageState extends State<AddResourcePage> {
                         Positioned.fill(
                           child: Container(
                             decoration: BoxDecoration(
-                              color: Colors.red.withOpacity(0.6),
+                              color: Colors.red.withValues(alpha: 0.6),
                               borderRadius: BorderRadius.circular(8),
                             ),
                             child: Center(

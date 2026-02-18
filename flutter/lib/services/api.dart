@@ -78,8 +78,7 @@ class ApiService {
         headers: await _getAuthHeaders(),
         body: body != null ? jsonEncode(body) : null,
       );
-      logger.i("[$runtimeType] POST request to $endpoint Completed with status code "+
-          "${response.statusCode}");
+      logger.i("[$runtimeType] POST request to $endpoint Completed with status code ${response.statusCode}");
       return _handleResponse(response);
     } on SocketException {
       logger.e("[$runtimeType] POST request to $endpoint Failed: No Internet connection");

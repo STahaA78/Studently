@@ -281,7 +281,7 @@ class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
         color: color,
         shape: BoxShape.circle,
         boxShadow: [
-          BoxShadow(color: color.withOpacity(0.4), blurRadius: 12, spreadRadius: 2),
+          BoxShadow(color: color.withValues(alpha: 0.4), blurRadius: 12, spreadRadius: 2),
         ],
       ),
       child: const Icon(Icons.check, color: Colors.white, size: 40),
@@ -296,7 +296,7 @@ class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
         color: Colors.red.shade600,
         borderRadius: BorderRadius.circular(40),
         boxShadow: [
-          BoxShadow(color: Colors.red.withOpacity(0.4), blurRadius: 10, spreadRadius: 2),
+          BoxShadow(color: Colors.red.withValues(alpha: 0.4), blurRadius: 10, spreadRadius: 2),
         ],
       ),
       child: Text(

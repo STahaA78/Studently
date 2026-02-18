@@ -13,7 +13,7 @@ class CustomNavBar extends StatelessWidget {
   Widget build(BuildContext context) {
     const Color blue = Color(0xFF1976D2);
 
-    void _onItemTapped(int index) {
+    void onItemTapped(int index) {
       if (index == currentIndex) return; // stay on same page
 
       // ✅ Define the correct destination for each tab
@@ -55,7 +55,7 @@ class CustomNavBar extends StatelessWidget {
 
     return BottomNavigationBar(
       currentIndex: currentIndex,
-      onTap: _onItemTapped,
+      onTap: onItemTapped,
       type: BottomNavigationBarType.fixed,
       selectedItemColor: blue,
       unselectedItemColor: Colors.grey,
