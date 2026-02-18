@@ -1,12 +1,14 @@
 from pymongo import MongoClient
 from pymongo.errors import ConnectionFailure
-
+import os
 # MongoDB connection URL
 # For local MongoDB:
-MONGO_URL = "mongodb://localhost:27017"
 
 # If using MongoDB Atlas:
 # MONGO_URL = "mongodb+srv://username:password@cluster0.mongodb.net/studently_db?retryWrites=true&w=majority"
+MONGO_URL = os.getenv("MONGO_URL")
+if not MONGO_URL:
+    raise Exception("MONGO_URL environment variable not set. Please set it to your MongoDB connection string.")
 
 try:
     # Connect to MongoDB with a timeout
