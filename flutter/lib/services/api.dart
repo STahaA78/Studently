@@ -35,6 +35,12 @@ class ApiService {
       final response = await http.get(
         url,
         headers: await _getAuthHeaders(),
+      ).timeout(
+        const Duration(seconds: 10),
+        onTimeout: () {
+          logger.e("[$runtimeType] GET request to $endpoint timed out");
+          throw Exception('Request timed out');
+        },
       );
       logger.i("[$runtimeType] GET request to $endpoint Completed with status code ${response.statusCode}");
       return _handleResponse(response);
@@ -53,10 +59,11 @@ class ApiService {
     logger.i("[$runtimeType] Multipart POST request Initiated");
     final url = Uri.parse("$_baseUrl/hub/resources/upload");
     try {
-      var request = http.MultipartRequest('POST', url)
-        ..fields['data'] = jsonEncode(metadata)
-        ..files.add(await http.MultipartFile.fromPath('file', file.path));
-      final response = await request.send();
+        var request = http.MultipartRequest('POST', url,)
+          ..headers['Authorization'] = 'Bearer ${await authService.value.getIdToken()}'
+          ..fields['metadata'] = jsonEncode(metadata)
+          ..files.add(await http.MultipartFile.fromPath('file', file.path));
+        final response = await request.send();
     
       return _handleResponse(await http.Response.fromStream(response));
     } on SocketException {
@@ -102,7 +109,7 @@ class ApiService {
 
   String getCompleteUrl(String endpoint) {
     logger.i("[$runtimeType] Constructing complete URL for endpoint: $endpoint");
-    final completeUrl = "http://$_baseUrl$endpoint";
+    final completeUrl = "$_baseUrl$endpoint";
     logger.d("[$runtimeType] Complete URL: $completeUrl");
     return completeUrl;
   }

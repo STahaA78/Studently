@@ -1,3 +1,4 @@
+from importlib import resources
 import json
 import sys
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form
@@ -99,7 +100,7 @@ def get_all_courses(user: dict = Depends(get_current_user)):
 ##########################
 # Resource
 ###################################
-@router.post("/upload",response_model=GenericResponse)
+@router.post("/resources/upload",response_model=GenericResponse)
 async def upload_resource(
     metadata: str = Form(...),
     file: UploadFile = File(...),
@@ -150,8 +151,9 @@ async def upload_resource(
 
         meta_dict['filePath'] = file_path
         # ---
-        meta_dict['uploadedAt'] = datetime.now(timezone.utc)
-        meta_dict['approved'] = False  # New uploads require approval
+        meta_dict['uploadedAt'] = datetime.now(timezone.utc).replace(tzinfo=None)
+        meta_dict['uploaded_by'] = user
+        meta_dict['approved'] = True  # Trust Policy
         meta_dict['downloadCount'] = 0
         result = resources_collection.insert_one(meta_dict)
 
@@ -190,6 +192,7 @@ def get_all_resources(user: dict = Depends(get_current_user)):
                             "instructorName": "$instructorName",
                             "quizNumber": "$quizNumber",
                             "filePath": "$filePath",
+                            "isSolved": "$isSolved",
                             "uploadedAt": "$uploadedAt",
                         }
                     }
@@ -292,6 +295,7 @@ def get_resources_by_course(course_id: str, user: dict = Depends(get_current_use
                             "instructorName": "$instructorName",
                             "quizNumber": "$quizNumber",
                             "filePath": "$filePath",
+                            "isSolved": "$isSolved",
                             "uploadedAt": "$uploadedAt",
                         }
                     },
@@ -324,13 +328,12 @@ def get_resources_by_course(course_id: str, user: dict = Depends(get_current_use
         ]
 
         results = list(resources_collection.aggregate(pipeline))
-        
-        LOGGER.debug(f"Resource Data: {results[0]}")
         if not results:
             LOGGER.info(f"No resources found for course {course_id}", extra={"uid": user})
-            raise HTTPException(status_code=404, detail="Course not found or no approved resources")
+            return ResourceGroup(course=Course(code=course_id,name=""), resources={}) # Return empty name to same db
+        LOGGER.debug(f"Resource Data: {results[0]}", extra={"uid": user})
         LOGGER.info(f"Ended fetching resources for course {course_id} successfully", extra={"uid": user})
-        return results[0]
+        return ResourceGroup.model_validate(results[0])
     except Exception as e:
         LOGGER.error(f"Error fetching resources for course {course_id}: {e}", exc_info=True, extra={"uid": user})
         raise HTTPException(status_code=500, detail="Internal Server Error")

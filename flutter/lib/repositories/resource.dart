@@ -48,7 +48,7 @@ class ResourceRepository {
   String getDownloadUrl(String resourceId) {
     // Assuming your backend serves files from a specific base URL
     logger.i("[$runtimeType] Get Download URL for Resource $resourceId");
-    final completeUrl = _apiService.getCompleteUrl('/hub/resources/$resourceId/download?t=${DateTime.now().millisecondsSinceEpoch}');
+    final completeUrl = _apiService.getCompleteUrl('/hub/resources/$resourceId/download');
     logger.d("[$runtimeType] Download URL: $completeUrl");
     return completeUrl;
   }

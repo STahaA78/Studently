@@ -68,16 +68,25 @@ class _RepositoryUserPageState extends State<RepositoryUserPage>
           actions: [
             IconButton(
               icon: const Icon(Icons.add, color: Colors.black, size: 28),
-              onPressed: () {
-                // Navigate to your Add Resource Page
-                Navigator.push(
+              onPressed: () async {
+                final success = await Navigator.push(
                   context,
                   MaterialPageRoute(
-                    // Replace 'AddResourcePage' with your actual widget name
-                    // Passing the course object so the new page knows what course it's for
-                    builder: (context) => AddResourcePage(course: widget.course), 
+                    builder: (context) => AddResourcePage(course: widget.course),
                   ),
                 );
+                if (success == true ) {
+                  if (!context.mounted) return;
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text("Resource uploaded successfully!"),
+                      backgroundColor: Colors.green,
+                    ),
+                  );
+                setState(() {
+                  _resourceGroupFuture = ResourceRepository().fetchResourcesByCourse(widget.course.code);
+                });
+                }
               },
             ),
             const SizedBox(width: 8), // Gives a little breathing room on the right edge
@@ -257,10 +266,10 @@ class _RepositoryUserPageState extends State<RepositoryUserPage>
                           "Quiz ${item.quizNumber}",
                           style: const TextStyle(color: Colors.grey, fontSize: 13),
                         ),
-                      Text(
-                        "Instructor: ${item.instructorName ?? "Unknown"}",
-                        style: const TextStyle(color: Colors.grey, fontSize: 13),
-                      )
+                        Text(
+                          "Instructor: ${item.instructorName ?? "Unknown"}",
+                          style: const TextStyle(color: Colors.grey, fontSize: 13),
+                        )
                     ],
                   ),
                 ),
