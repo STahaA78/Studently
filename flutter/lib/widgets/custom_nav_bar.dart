@@ -13,11 +13,23 @@ class CustomNavBar extends StatelessWidget {
   Widget build(BuildContext context) {
     const Color blue = Color(0xFF1976D2);
 
-    void _onItemTapped(int index) {
-      if (index == currentIndex) return; // stay on same page
+    void _navigateTo(Widget destination) {
+      Navigator.pushAndRemoveUntil(
+        context,
+        PageRouteBuilder(
+          pageBuilder: (_, __, ___) => destination,
+          transitionDuration: const Duration(milliseconds: 200),
+          transitionsBuilder: (_, animation, __, child) {
+            return FadeTransition(opacity: animation, child: child);
+          },
+        ),
+        (route) => false,
+      );
+    }
 
-      // ✅ Define the correct destination for each tab
+    void _onItemTapped(int index) {
       Widget? destination;
+
       switch (index) {
         case 0:
           destination = const CommunityFeedPage();
@@ -31,26 +43,17 @@ class CustomNavBar extends StatelessWidget {
           );
           return;
         case 3:
-          destination = const KnowledgeHubPage(); // ✅ HUB FIX
+          destination = const KnowledgeHubPage();
           break;
         case 4:
           destination = const ProfilePage();
           break;
       }
 
-      if (destination != null) {
-        Navigator.pushAndRemoveUntil(
-          context,
-          PageRouteBuilder(
-            pageBuilder: (_, __, ___) => destination!,
-            transitionDuration: const Duration(milliseconds: 200),
-            transitionsBuilder: (_, animation, __, child) {
-              return FadeTransition(opacity: animation, child: child);
-            },
-          ),
-          (route) => false, // Remove all previous routes
-        );
-      }
+      if (destination == null) return;
+
+      // 🔥 IMPORTANT: Even if same tab → refresh it
+      _navigateTo(destination);
     }
 
     return BottomNavigationBar(
@@ -61,8 +64,14 @@ class CustomNavBar extends StatelessWidget {
       unselectedItemColor: Colors.grey,
       showUnselectedLabels: true,
       items: const [
-        BottomNavigationBarItem(icon: Icon(Icons.home_filled), label: "Feed"),
-        BottomNavigationBarItem(icon: Icon(Icons.people_alt), label: "Connect"),
+        BottomNavigationBarItem(
+          icon: Icon(Icons.home_filled),
+          label: "Feed",
+        ),
+        BottomNavigationBarItem(
+          icon: Icon(Icons.people_alt),
+          label: "Connect",
+        ),
         BottomNavigationBarItem(
           icon: CircleAvatar(
             radius: 15,
@@ -71,8 +80,14 @@ class CustomNavBar extends StatelessWidget {
           ),
           label: "Post",
         ),
-        BottomNavigationBarItem(icon: Icon(Icons.grid_view), label: "Hub"),
-        BottomNavigationBarItem(icon: Icon(Icons.person), label: "Profile"),
+        BottomNavigationBarItem(
+          icon: Icon(Icons.grid_view),
+          label: "Hub",
+        ),
+        BottomNavigationBarItem(
+          icon: Icon(Icons.person),
+          label: "Profile",
+        ),
       ],
     );
   }
