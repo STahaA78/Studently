@@ -1,69 +1,41 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
+
 import '../widgets/custom_nav_bar.dart';
+import 'requests_page.dart';
+import 'user_profile_page.dart';
 
 class ConnectDiscoverPage extends StatefulWidget {
   const ConnectDiscoverPage({super.key});
 
   @override
-  State<ConnectDiscoverPage> createState() => _ConnectDiscoverPageState();
+  State<ConnectDiscoverPage> createState() =>
+      _ConnectDiscoverPageState();
 }
 
-class _ConnectDiscoverPageState extends State<ConnectDiscoverPage> {
-  final Color blue = const Color(0xFF1976D2);
-  final TextEditingController _searchController = TextEditingController();
+class _ConnectDiscoverPageState
+    extends State<ConnectDiscoverPage> {
+  final TextEditingController _searchController =
+      TextEditingController();
+  final Color primaryBlue = const Color(0xFF0F74C5);
 
-  final List<Map<String, dynamic>> students = [
-    {
-      "name": "Taha Ahmed",
-      "gender": "Male",
-      "department": "Computer Science",
-      "batch": "2022",
-      "bio":
-          "Passionate about AI and machine learning. Looking for collaborators on a final year project focusing on neural networks.",
-      "interests": ["AI", "Machine Learning", "Data Science", "Python", "Web Dev"],
-    },
-    {
-      "name": "Sara Malik",
-      "gender": "Female",
-      "department": "Software Engineering",
-      "batch": "2021",
-      "bio": "UI/UX enthusiast and Flutter developer. Excited about product design and creative coding.",
-      "interests": ["UI/UX", "Flutter", "Design", "Art", "Frontend"],
-    },
-    {
-      "name": "Ali Khan",
-      "gender": "Male",
-      "department": "Information Technology",
-      "batch": "2023",
-      "bio": "Interested in cybersecurity and ethical hacking. Open to group research and Capture-the-Flag events.",
-      "interests": ["Cybersecurity", "Networking", "Linux", "Python"],
-    },
-    {
-      "name": "Fatima Noor",
-      "gender": "Female",
-      "department": "Artificial Intelligence",
-      "batch": "2022",
-      "bio": "Aspiring data scientist. I love working with datasets and visualizing insights using Python and Tableau.",
-      "interests": ["Data Science", "Python", "Visualization", "AI"],
-    },
-  ];
+  final String currentUserId =
+      "69832e61af678f41033614e9";
 
   List<Map<String, dynamic>> filteredStudents = [];
+  Map<String, String> connectionStatus = {};
 
+  bool isLoading = false;
+  int pendingRequestsCount = 0;
+
+  // ---------------- INIT ----------------
   @override
   void initState() {
     super.initState();
-    filteredStudents = List.from(students);
-    _searchController.addListener(_filterStudents);
-  }
-
-  void _filterStudents() {
-    final query = _searchController.text.toLowerCase();
-    setState(() {
-      filteredStudents = students
-          .where((s) => s["name"].toLowerCase().contains(query))
-          .toList();
-    });
+    loadDiscoverUsers();
+    loadPendingRequestsCount();
+    _searchController.addListener(_onSearchChanged);
   }
 
   @override
@@ -72,148 +44,357 @@ class _ConnectDiscoverPageState extends State<ConnectDiscoverPage> {
     super.dispose();
   }
 
+  // ---------------- SEARCH ----------------
+  void _onSearchChanged() {
+    final query = _searchController.text.trim();
+
+    if (query.isEmpty) {
+      loadDiscoverUsers();
+    } else if (query.length >= 2) {
+      searchStudents(query);
+    }
+  }
+
+  // ---------------- USER MAPPER ----------------
+  Map<String, dynamic> mapUser(dynamic user) {
+    return {
+      "id": user["id"],
+      "name": user["Name"] ?? "",
+      "department": user["department"] ?? "",
+      "batch": user["batch"]?.toString() ?? "",
+    };
+  }
+
+  // ---------------- INITIALS ----------------
+  String getInitials(String name) {
+    if (name.trim().isEmpty) return "?";
+    final parts = name.trim().split(RegExp(r"\s+"));
+    return parts.map((e) => e[0]).take(2).join().toUpperCase();
+  }
+
+  // ---------------- CONNECTION STATUS ----------------
+  Future<void> fetchConnectionStatus(String targetId) async {
+    final uri = Uri.parse(
+      "http://localhost:8000/profile/status"
+      "?user_id=$currentUserId&target_id=$targetId",
+    );
+
+    final response = await http.get(uri);
+    if (response.statusCode == 200) {
+      final data = json.decode(response.body);
+      connectionStatus[targetId] = data["status"];
+    }
+  }
+
+  // ---------------- SEND / CANCEL ----------------
+  Future<void> sendConnectionRequest(String targetId) async {
+    final uri = Uri.parse(
+      "http://localhost:8000/profile/$currentUserId/request"
+      "?target_id=$targetId",
+    );
+
+    final response = await http.post(uri);
+    if (response.statusCode == 200) {
+      setState(() {
+        connectionStatus[targetId] = "outgoing_request";
+      });
+    }
+  }
+
+  Future<void> cancelConnectionRequest(String targetId) async {
+    final uri = Uri.parse(
+      "http://localhost:8000/profile/$currentUserId/cancel-request"
+      "?target_id=$targetId",
+    );
+
+    final response = await http.post(uri);
+    if (response.statusCode == 200) {
+      setState(() {
+        connectionStatus[targetId] = "none";
+      });
+    }
+  }
+
+  // ---------------- SEARCH API ----------------
+  Future<void> searchStudents(String query) async {
+    setState(() => isLoading = true);
+
+    final uri =
+        Uri.parse("http://localhost:8000/profile/search/?query=$query");
+    final response = await http.get(uri);
+
+    if (response.statusCode == 200) {
+      final List data = json.decode(response.body);
+
+      final fetched = data
+          .map<Map<String, dynamic>>(mapUser)
+          .where((u) => u["id"] != currentUserId)
+          .toList();
+
+      connectionStatus.clear();
+      for (final user in fetched) {
+        await fetchConnectionStatus(user["id"]);
+      }
+
+      setState(() => filteredStudents = fetched);
+    }
+
+    setState(() => isLoading = false);
+  }
+
+  // ---------------- DISCOVER API ----------------
+  Future<void> loadDiscoverUsers() async {
+    setState(() => isLoading = true);
+
+    final uri =
+        Uri.parse("http://localhost:8000/profile/discover");
+    final response = await http.get(uri);
+
+    if (response.statusCode == 200) {
+      final List data = json.decode(response.body);
+
+      final fetched = data
+          .map<Map<String, dynamic>>(mapUser)
+          .where((u) => u["id"] != currentUserId)
+          .toList();
+
+      connectionStatus.clear();
+      for (final user in fetched) {
+        await fetchConnectionStatus(user["id"]);
+      }
+
+      setState(() => filteredStudents = fetched);
+    }
+
+    setState(() => isLoading = false);
+  }
+
+  // ---------------- PENDING COUNT ----------------
+  Future<void> loadPendingRequestsCount() async {
+    final uri = Uri.parse(
+      "http://localhost:8000/profile/$currentUserId/requests",
+    );
+
+    final response = await http.get(uri);
+    if (response.statusCode == 200) {
+      final List data = json.decode(response.body);
+      setState(() {
+        pendingRequestsCount = data.length;
+      });
+    }
+  }
+
+  // ---------------- UI ----------------
   @override
   Widget build(BuildContext context) {
-
     return Scaffold(
-      backgroundColor: Colors.white,
-      body: SafeArea(
-        child: CustomScrollView(
-          slivers : [
-            SliverAppBar(
-              backgroundColor: Colors.white,
-              shadowColor: Colors.transparent,
-              surfaceTintColor: Colors.transparent,
-              elevation: 0,
-              centerTitle: true,
-              title: const Text(
-                "Connect",
-                style: TextStyle(
-                  color: Colors.black,
-                  fontSize: 20,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-              bottom: PreferredSize(
-                preferredSize: const Size.fromHeight(8), // distance below AppBar
-                child: SizedBox(),
-              ),
-            ),
-            SliverToBoxAdapter(
-              child: Container(// Search bar
-                margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                child: TextField(
-                  controller: _searchController,
-                  decoration: const InputDecoration(
-                    prefixIcon: Icon(Icons.search, color: Colors.grey),
-                    hintText: "Search Students...",
-                  ),
-                ),
-              ),
-            ),
-        
-            SliverList(
-              delegate: SliverChildBuilderDelegate(
-                (context, index) {
-                  final student = filteredStudents[index];
-                  return Padding(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 16, vertical: 5),
-                    child: _buildStudentCard(student),
-                  );
-                },
-                childCount: filteredStudents.length,
-              ),
-            ),
-          ],
+      backgroundColor: const Color(0xFFF2F2F7),
+      appBar: AppBar(
+        backgroundColor: Colors.white,
+        elevation: 0,
+        centerTitle: true,
+        title: const Text(
+          "Connect",
+          style: TextStyle(
+              color: Colors.black,
+              fontWeight: FontWeight.w600),
         ),
+        actions: [
+          IconButton(
+            icon: Stack(
+              children: [
+                const Icon(Icons.person_add,
+                    color: Colors.black),
+                if (pendingRequestsCount > 0)
+                  Positioned(
+                    right: 0,
+                    top: 0,
+                    child: CircleAvatar(
+                      radius: 9,
+                      backgroundColor: Colors.red,
+                      child: Text(
+                        pendingRequestsCount.toString(),
+                        style: const TextStyle(
+                          fontSize: 10,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+            onPressed: () async {
+              final result = await Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => const RequestsPage(),
+                ),
+              );
+
+              if (result == true) {
+                await loadPendingRequestsCount();
+                await loadDiscoverUsers();
+              }
+            },
+          ),
+        ],
       ),
-      bottomNavigationBar: const CustomNavBar(currentIndex: 1),
+      body: Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.all(16),
+            child: TextField(
+              controller: _searchController,
+              decoration: InputDecoration(
+                hintText: "Search students...",
+                prefixIcon: const Icon(Icons.search),
+                filled: true,
+                fillColor: const Color(0xFFF1F1F1),
+                border: OutlineInputBorder(
+                  borderRadius:
+                      BorderRadius.circular(20),
+                  borderSide: BorderSide.none,
+                ),
+              ),
+            ),
+          ),
+          Expanded(
+            child: isLoading
+                ? const Center(
+                    child: CircularProgressIndicator())
+                : filteredStudents.isEmpty
+                    ? const Center(
+                        child: Text("No students found"))
+                    : ListView.builder(
+                        padding:
+                            const EdgeInsets.symmetric(
+                                horizontal: 16),
+                        itemCount:
+                            filteredStudents.length,
+                        itemBuilder: (context, index) =>
+                            _buildStudentCard(
+                                filteredStudents[index]),
+                      ),
+          ),
+        ],
+      ),
+      bottomNavigationBar:
+          const CustomNavBar(currentIndex: 1),
     );
   }
 
-  Widget _buildStudentCard(Map<String, dynamic> student) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 8),
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.grey.shade200),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Profile header
-          Row(
-            children: [
-              CircleAvatar(
-                radius: 28,
-                backgroundColor: Colors.grey.shade300,
-                child: Text(
-                  student["name"].split(' ').map((e) => e[0]).take(2).join(),
-                  style: const TextStyle(
-                    color: Colors.black,
-                    fontSize: 18,
-                    fontWeight: FontWeight.w600,
-                  ),
+  // ---------------- STUDENT CARD ----------------
+  Widget _buildStudentCard(
+      Map<String, dynamic> student) {
+    final status =
+        connectionStatus[student["id"]] ?? "none";
+
+    Widget actionWidget;
+
+    if (status == "none") {
+      actionWidget = GestureDetector(
+        onTap: () =>
+            sendConnectionRequest(student["id"]),
+        child: Container(
+          height: 40,
+          width: 40,
+          decoration: BoxDecoration(
+            color: primaryBlue,
+            shape: BoxShape.circle,
+          ),
+          child:
+              const Icon(Icons.add, color: Colors.white),
+        ),
+      );
+    } else if (status == "outgoing_request") {
+      actionWidget = GestureDetector(
+        onTap: () =>
+            cancelConnectionRequest(student["id"]),
+        child: Container(
+          height: 40,
+          width: 40,
+          decoration: BoxDecoration(
+            color: Colors.orange.shade100,
+            shape: BoxShape.circle,
+          ),
+          child: const Icon(Icons.access_time,
+              color: Colors.orange),
+        ),
+      );
+    } else {
+      actionWidget = Container(
+        height: 40,
+        width: 40,
+        decoration: BoxDecoration(
+          color: Colors.grey.shade300,
+          shape: BoxShape.circle,
+        ),
+        child: const Icon(Icons.check,
+            color: Colors.grey),
+      );
+    }
+
+    return GestureDetector(
+      onTap: () async {
+        final changed =
+            await Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) =>
+                UserProfilePage(
+                    userId: student["id"]),
+          ),
+        );
+
+        if (changed == true) {
+          await loadDiscoverUsers();
+          await loadPendingRequestsCount();
+        }
+      },
+      child: Container(
+        margin:
+            const EdgeInsets.only(bottom: 12),
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius:
+              BorderRadius.circular(20),
+        ),
+        child: Row(
+          mainAxisAlignment:
+              MainAxisAlignment.spaceBetween,
+          children: [
+            Row(
+              children: [
+                CircleAvatar(
+                  radius: 28,
+                  child: Text(
+                      getInitials(student["name"])),
                 ),
-              ),
-              const SizedBox(width: 12),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    student["name"],
-                    style: const TextStyle(
-                      fontSize: 17,
-                      fontWeight: FontWeight.w600,
+                const SizedBox(width: 12),
+                Column(
+                  crossAxisAlignment:
+                      CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      student["name"],
+                      style: const TextStyle(
+                          fontWeight:
+                              FontWeight.w600),
                     ),
-                  ),
-                  Text(
-                    student["gender"],
-                    style: const TextStyle(color: Colors.black54, fontSize: 14),
-                  ),
-                ],
-              ),
-            ],
-          ),
-          const SizedBox(height: 14),
-
-          const Text("Department", style: TextStyle(fontWeight: FontWeight.w700)),
-          Text(student["department"], style: const TextStyle(color: Colors.black87)),
-          const SizedBox(height: 8),
-
-          const Text("Batch", style: TextStyle(fontWeight: FontWeight.w700)),
-          Text(student["batch"], style: const TextStyle(color: Colors.black87)),
-          const SizedBox(height: 8),
-
-          const Text("Bio", style: TextStyle(fontWeight: FontWeight.w700)),
-          Text(student["bio"], style: const TextStyle(color: Colors.black87)),
-          const SizedBox(height: 10),
-
-          const Text("Interests", style: TextStyle(fontWeight: FontWeight.w700)),
-          const SizedBox(height: 6),
-          Wrap(
-            spacing: 3,
-            runSpacing: 4,
-            children: (student["interests"] as List<String>)
-                .map((interest) => Chip(
-                      label: Text(
-                        interest,
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                      backgroundColor: blue,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(30),
-                      ),
-                    ))
-                .toList(),
-          ),
-        ],
+                    Text(student["department"]),
+                    Text(
+                      "Batch ${student["batch"]}",
+                      style:
+                          const TextStyle(fontSize: 12),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+            actionWidget,
+          ],
+        ),
       ),
     );
   }

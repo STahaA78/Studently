@@ -90,3 +90,5 @@ async def websocket_endpoint(websocket: WebSocket, token: str):
 @app.get("/")
 def read_root():
     return {"message": "Welcome to Studently API"}
+
+    
