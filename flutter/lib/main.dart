@@ -8,7 +8,7 @@ import 'package:email_otp/email_otp.dart';
 //import 'screens/community_feed_page.dart';
 //import 'screens/knowledge_hub_page.dart';
 import 'screens/add_resource_page.dart';
-//import 'screens/login_page.dart';  // Make sure this path matches your file location
+import 'screens/login_page.dart';  // Make sure this path matches your file location
 import 'package:studently/models/course.dart';
 
 void main() async {
@@ -23,13 +23,13 @@ void main() async {
     await Firebase.initializeApp(
       options: DefaultFirebaseOptions.currentPlatform,
     );
-    // runApp(
-    //   DevicePreview(
-    //     enabled: true, // Set to false to disable Device Preview
-    //     builder: (context) => MyApp(), // Wrap your app
-    //   ),
-    // );
-    runApp(const MyApp());
+    runApp(
+      DevicePreview(
+        enabled: true, // Set to false to disable Device Preview
+        builder: (context) => MyApp(), // Wrap your app
+      ),
+    );
+    //runApp(const MyApp());
 }
 
 class MyApp extends StatelessWidget {
@@ -46,14 +46,14 @@ class MyApp extends StatelessWidget {
 
     return MaterialApp(
       debugShowCheckedModeBanner: false,
-      //home: LoginPage(), // directly show the login page
+      home: LoginPage(), // directly show the login page
       //home: CommunityFeedPage(),
-      home: AddResourcePage(
-        course: Course(
-          name: "Artificial Intelligence",
-          code: "AI2002"
-        )
-      ),
+      // home: AddResourcePage(
+      //   course: Course(
+      //     name: "Artificial Intelligence",
+      //     code: "AI2002"
+      //   )
+      // ),
       
       // Global theme settings
       theme : ThemeData(
