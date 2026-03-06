@@ -71,7 +71,7 @@ class _ChatPageState extends State<ChatPage> {
           _messages = messages;
           if (!isBackgroundRefresh) _isLoading = false;
         });
-        if (!isBackgroundRefresh) _scrollToBottom();
+        _scrollToBottom();
       }
     } catch (e) {
       debugPrint("Error loading messages: $e");
