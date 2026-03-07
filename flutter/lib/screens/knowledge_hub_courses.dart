@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:studently/screens/add_resource_page.dart';
-import 'package:studently/screens/view_resource_page.dart';
+import 'package:studently/screens/knowledge_hub_upload.dart';
+import 'package:studently/screens/knowledge_hub_resource.dart';
 import '../widgets/custom_nav_bar.dart';
 import 'package:studently/repositories/resource.dart';
 import 'package:studently/models/resource.dart';
@@ -68,16 +68,25 @@ class _RepositoryUserPageState extends State<RepositoryUserPage>
           actions: [
             IconButton(
               icon: const Icon(Icons.add, color: Colors.black, size: 28),
-              onPressed: () {
-                // Navigate to your Add Resource Page
-                Navigator.push(
+              onPressed: () async {
+                final success = await Navigator.push(
                   context,
                   MaterialPageRoute(
-                    // Replace 'AddResourcePage' with your actual widget name
-                    // Passing the course object so the new page knows what course it's for
-                    builder: (context) => AddResourcePage(course: widget.course), 
+                    builder: (context) => AddResourcePage(course: widget.course),
                   ),
                 );
+                if (success == true ) {
+                  if (!context.mounted) return;
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text("Resource uploaded successfully!"),
+                      backgroundColor: Colors.green,
+                    ),
+                  );
+                setState(() {
+                  _resourceGroupFuture = ResourceRepository().fetchResourcesByCourse(widget.course.code);
+                });
+                }
               },
             ),
             const SizedBox(width: 8), // Gives a little breathing room on the right edge
@@ -197,7 +206,7 @@ class _RepositoryUserPageState extends State<RepositoryUserPage>
       itemBuilder: (context, index) {
         final item = entries[index];
         
-        return InkWell(
+        return GestureDetector(
           onTap: () {
             // Handle file tap, e.g., open or download the file
             logger.i("Tapped on resource: Year ${item.year} - ${item.semester} - ID: ${item.id}");
@@ -211,8 +220,7 @@ class _RepositoryUserPageState extends State<RepositoryUserPage>
               ),
             );
           },
-          child:
-          Container(
+          child: Container(
             margin: const EdgeInsets.only(bottom: 12),
             padding: const EdgeInsets.all(14),
             decoration: BoxDecoration(
@@ -220,7 +228,7 @@ class _RepositoryUserPageState extends State<RepositoryUserPage>
               borderRadius: BorderRadius.circular(12),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.grey.withOpacity(0.20),
+                  color: Colors.grey.withValues(alpha: 0.20),
                   blurRadius: 4,
                 ),
               ],
@@ -245,7 +253,6 @@ class _RepositoryUserPageState extends State<RepositoryUserPage>
                         "Year ${item.year} - ${item.semester}",
                         style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 15),
                       ),
-
                       if (resourceType != 'book')
                         Text(
                           item.isSolved == true ? "Solved" : "Unsolved",
@@ -254,7 +261,6 @@ class _RepositoryUserPageState extends State<RepositoryUserPage>
                             fontSize: 13,
                           ),
                         ),
-
                       if (resourceType == 'quiz')
                         Text(
                           "Quiz ${item.quizNumber}",
@@ -269,7 +275,7 @@ class _RepositoryUserPageState extends State<RepositoryUserPage>
                 ),
               ],
             ),
-          )
+          ),
         );
       },
     );

@@ -1,21 +1,20 @@
 import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'package:studently/models/chat_model.dart';
-import 'package:studently/services/chat_service.dart';
+import 'package:studently/models/chat.dart';
+import 'package:studently/repositories/chat.dart';
 import 'package:studently/screens/chat_page.dart';
-import 'package:studently/auth_service.dart';
-import 'package:studently/services/socket_service.dart'; // Ensure this is imported
+import 'package:studently/services/firebase_auth.dart';
+import 'package:studently/services/socket.dart'; // Ensure this is imported
 
 class DirectMessagesPage extends StatefulWidget {
-  const DirectMessagesPage({Key? key}) : super(key: key);
+  const DirectMessagesPage({super.key});
 
   @override
-  _DirectMessagesPageState createState() => _DirectMessagesPageState();
+  State<DirectMessagesPage> createState() => _DirectMessagesPageState();
 }
 
 class _DirectMessagesPageState extends State<DirectMessagesPage> {
-  final ChatService _chatService = ChatService();
   final TextEditingController _searchController = TextEditingController();
 
   List<ChatConversation> _allConversations = [];
@@ -62,7 +61,7 @@ class _DirectMessagesPageState extends State<DirectMessagesPage> {
 
   Future<void> _fetchAndCacheName(String id) async {
     try {
-      final name = await _chatService.getUserName(id);
+      final name = await ChatRepository().getUserName(id);
       if (mounted) {
         setState(() {
           _userNameCache[id] = name;
@@ -96,7 +95,7 @@ class _DirectMessagesPageState extends State<DirectMessagesPage> {
 
   Future<void> _fetchChats() async {
     try {
-      final chats = await _chatService.getUserConversations();
+      final chats = await ChatRepository().getUserConversations();
       if (mounted) {
         setState(() {
           _allConversations = chats;
@@ -341,7 +340,7 @@ class _DirectMessagesPageState extends State<DirectMessagesPage> {
                   // Dynamic Friend List using FutureBuilder
                   Expanded(
                     child: FutureBuilder<List<Map<String, String>>>(
-                      future: isFirstLoad ? _chatService.getFriendsList() : null,
+                      future: isFirstLoad ? ChatRepository().getFriendsList() : null,
                       builder: (context, snapshot) {
                         if (snapshot.connectionState == ConnectionState.waiting && isFirstLoad) {
                           return const Center(child: CircularProgressIndicator());
@@ -370,7 +369,7 @@ class _DirectMessagesPageState extends State<DirectMessagesPage> {
                               title: Text(friend['Name']!, style: const TextStyle(fontWeight: FontWeight.w500)),
                               onTap: () async {
                                 // Create or Get Conversation
-                                final convId = await _chatService.createOrGetConversation(friend['id']!);
+                                final convId = await ChatRepository().createOrGetConversation(friend['id']!);
                                 
                                 if (convId != null && context.mounted) {
                                   Navigator.pop(context); // Close modal

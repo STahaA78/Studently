@@ -12,7 +12,6 @@ class Course(BaseModel):
 # Model for resource metadata
 class ResourceInMetadata(BaseModel):
     course: Course
-    uploadedBy: str
     instructorName: Optional[str] = None
     type: Literal['final', 'midterm', 'quiz', 'book']
     quizNumber: Optional[int] = None  # Only for quizzes
@@ -53,9 +52,9 @@ class ResourceItem(BaseModel):
 # List all Resources
 class ResourceGroup(BaseModel):
     course: Course
-    resources: Dict[Literal['final', 'midterm', 'quiz', 'book'], List[ResourceItem]]
+    resources: Optional[Dict[Literal['final', 'midterm', 'quiz', 'book'], List[ResourceItem]]] = None
 
 # Upload Response
-class UploadResponse(BaseModel):
-    message: str
-    resourceId: str
+class GenericResponse(BaseModel):
+    success: bool
+    message: Optional[str] = None

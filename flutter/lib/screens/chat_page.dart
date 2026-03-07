@@ -1,10 +1,10 @@
 import 'dart:async';
-import 'dart:convert'; // Added for jsonDecode
+import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'package:studently/models/chat_model.dart';
-import 'package:studently/services/chat_service.dart';
-import 'package:studently/services/socket_service.dart'; // Added SocketService import
-import 'package:studently/auth_service.dart'; // Ensure this is imported for UID check
+import 'package:studently/models/chat.dart';
+import 'package:studently/repositories/chat.dart';
+import 'package:studently/services/socket.dart'; // Added SocketService import
+import 'package:studently/services/firebase_auth.dart'; // Ensure this is imported for UID check
 
 class ChatPage extends StatefulWidget {
   final String conversationId;
@@ -23,7 +23,6 @@ class ChatPage extends StatefulWidget {
 }
 
 class _ChatPageState extends State<ChatPage> {
-  final ChatService _chatService = ChatService();
   final TextEditingController _messageController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
   final Color blue = const Color(0xFF1976D2);
@@ -38,7 +37,7 @@ class _ChatPageState extends State<ChatPage> {
     _fetchMessages();
     
     // Initial mark as read
-    _chatService.markChatAsRead(widget.conversationId);
+    ChatRepository().markChatAsRead(widget.conversationId);
 
     // REAL-TIME: Listen for new messages via WebSocket instead of polling
     _socketSubscription = socketService.stream?.listen((event) {
@@ -49,7 +48,7 @@ class _ChatPageState extends State<ChatPage> {
           payload['data']['conversation_id'] == widget.conversationId) {
         
         _fetchMessages(isBackgroundRefresh: true);
-        _chatService.markChatAsRead(widget.conversationId);
+        ChatRepository().markChatAsRead(widget.conversationId);
       }
     });
   }
@@ -64,7 +63,7 @@ class _ChatPageState extends State<ChatPage> {
 
   Future<void> _fetchMessages({bool isBackgroundRefresh = false}) async {
     try {
-      final messages = await _chatService.getMessages(widget.conversationId);
+      final messages = await ChatRepository().getMessages(widget.conversationId);
       
       if (mounted) {
         setState(() {
@@ -97,7 +96,7 @@ class _ChatPageState extends State<ChatPage> {
     _messageController.clear();
 
     try {
-      await _chatService.sendMessage(
+      await ChatRepository().sendMessage(
         conversationId: widget.conversationId,
         text: text,
       );
@@ -216,7 +215,7 @@ class _ChatPageState extends State<ChatPage> {
         color: Colors.white,
         boxShadow: [
           BoxShadow(
-            color: Colors.grey.withOpacity(0.1),
+            color: Colors.grey.withValues(alpha: 0.1),
             blurRadius: 4,
             offset: const Offset(0, -2),
           ),

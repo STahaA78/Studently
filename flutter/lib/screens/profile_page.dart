@@ -206,8 +206,9 @@ class _ProfilePageState extends State<ProfilePage> {
           color: Colors.white,
           boxShadow: [
             BoxShadow(
-              color: Colors.grey.withOpacity(0.15),
-              blurRadius: 6,
+              color: Colors.grey.withValues(alpha: 0.15),
+              blurRadius: 8,
+              offset: const Offset(0, 3),
             ),
           ],
         ),

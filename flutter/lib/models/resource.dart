@@ -2,6 +2,7 @@ import 'package:studently/models/course.dart';
 
 class ResourceItemRequest {
   final Course course;
+  final String type;
   final int year;
   final String semester;
   final String? instructorName;
@@ -10,6 +11,7 @@ class ResourceItemRequest {
 
   ResourceItemRequest({
     required this.course,
+    required this.type,
     required this.year,
     required this.semester,
     this.instructorName,
@@ -20,6 +22,7 @@ class ResourceItemRequest {
   Map<String, dynamic> toJson() {
     return {
       'course': course.toJson(),
+      'type': type,
       'year': year,
       'semester': semester,
       'instructorName': instructorName,

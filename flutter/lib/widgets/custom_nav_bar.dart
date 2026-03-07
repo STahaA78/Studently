@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import '../screens/community_feed_page.dart';
 import '../screens/connect_discover_page.dart';
 import '../screens/profile_page.dart';
-import '../screens/knowledge_hub_page.dart';
+import '../screens/knowledge_hub_main.dart';
 
 class CustomNavBar extends StatelessWidget {
   final int currentIndex;
@@ -27,7 +27,10 @@ class CustomNavBar extends StatelessWidget {
       );
     }
 
-    void _onItemTapped(int index) {
+    void onItemTapped(int index) {
+      if (index == currentIndex) return; // stay on same page
+
+      // ✅ Define the correct destination for each tab
       Widget? destination;
 
       switch (index) {
@@ -58,7 +61,7 @@ class CustomNavBar extends StatelessWidget {
 
     return BottomNavigationBar(
       currentIndex: currentIndex,
-      onTap: _onItemTapped,
+      onTap: onItemTapped,
       type: BottomNavigationBarType.fixed,
       selectedItemColor: blue,
       unselectedItemColor: Colors.grey,
