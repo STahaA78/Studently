@@ -3,7 +3,7 @@ import '../widgets/custom_nav_bar.dart';
 import 'post_details_page.dart';
 
 class ProfilePage extends StatefulWidget {
-  final String? userId; // null = my profile, not null = other user
+  final String? userId;
 
   const ProfilePage({super.key, this.userId});
 
@@ -33,7 +33,6 @@ class _ProfilePageState extends State<ProfilePage> {
 
   @override
   Widget build(BuildContext context) {
-    /// ✅ CORE LOGIC
     final bool isMyProfile = widget.userId == null;
 
     final List<String> interests = [

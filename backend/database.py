@@ -1,15 +1,9 @@
 from pymongo import MongoClient
 from pymongo.errors import ConnectionFailure
 import os
-
+from config import CONFIG
 # Get MongoDB URL from environment variable
-MONGO_URL = os.getenv("MONGO_URL")
-
-if not MONGO_URL:
-    raise Exception(
-        "MONGO_URL environment variable not set. "
-        "Please set it to your MongoDB connection string."
-    )
+MONGO_URL = CONFIG.MONGO_URL
 
 try:
     client = MongoClient(MONGO_URL)

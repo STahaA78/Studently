@@ -1,39 +1,37 @@
-import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
 
-import '../widgets/custom_nav_bar.dart';
+import 'package:studently/widgets/custom_nav_bar.dart';
 import 'requests_page.dart';
 import 'user_profile_page.dart';
+import 'package:studently/models/user.dart';
+import 'package:studently/repositories/user.dart';
+import 'package:studently/logger.dart';
 
 class ConnectDiscoverPage extends StatefulWidget {
   const ConnectDiscoverPage({super.key});
 
   @override
-  State<ConnectDiscoverPage> createState() =>
-      _ConnectDiscoverPageState();
+  State<ConnectDiscoverPage> createState() => _ConnectDiscoverPageState();
 }
 
-class _ConnectDiscoverPageState
-    extends State<ConnectDiscoverPage> {
-  final TextEditingController _searchController =
-      TextEditingController();
+class _ConnectDiscoverPageState extends State<ConnectDiscoverPage> {
+  final TextEditingController _searchController = TextEditingController();
   final Color primaryBlue = const Color(0xFF0F74C5);
 
-  final String currentUserId =
-      "69832e61af678f41033614e9";
+  final String currentUserId = "69832e61af678f41033614e9";
 
-  List<Map<String, dynamic>> filteredStudents = [];
+  final UserRepository _userRepository = UserRepository();
+  Future<List<User>>? _discoverFuture;
+  List<User> filteredStudents = [];
   Map<String, String> connectionStatus = {};
-
-  bool isLoading = false;
   int pendingRequestsCount = 0;
+  String searchQuery = '';
 
   // ---------------- INIT ----------------
   @override
   void initState() {
     super.initState();
-    loadDiscoverUsers();
+    _discoverFuture = _userRepository.discoverUsers(currentUserId);
     loadPendingRequestsCount();
     _searchController.addListener(_onSearchChanged);
   }
@@ -47,12 +45,14 @@ class _ConnectDiscoverPageState
   // ---------------- SEARCH ----------------
   void _onSearchChanged() {
     final query = _searchController.text.trim();
-
-    if (query.isEmpty) {
-      loadDiscoverUsers();
-    } else if (query.length >= 2) {
-      searchStudents(query);
-    }
+    setState(() {
+      searchQuery = query;
+      if (query.isEmpty) {
+        _discoverFuture = _userRepository.discoverUsers(currentUserId);
+      } else if (query.length >= 2) {
+        _discoverFuture = _userRepository.searchUsers(query, currentUserId);
+      }
+    });
   }
 
   // ---------------- USER MAPPER ----------------
@@ -74,113 +74,48 @@ class _ConnectDiscoverPageState
 
   // ---------------- CONNECTION STATUS ----------------
   Future<void> fetchConnectionStatus(String targetId) async {
-    final uri = Uri.parse(
-      "http://localhost:8000/profile/status"
-      "?user_id=$currentUserId&target_id=$targetId",
-    );
-
-    final response = await http.get(uri);
-    if (response.statusCode == 200) {
-      final data = json.decode(response.body);
-      connectionStatus[targetId] = data["status"];
+    try {
+      final status = await _userRepository.fetchConnectionStatus(currentUserId, targetId);
+      setState(() {
+        connectionStatus[targetId] = status;
+      });
+    } catch (e) {
+      logger.e("[ConnectDiscoverPage] fetchConnectionStatus failed: $e");
     }
   }
 
   // ---------------- SEND / CANCEL ----------------
   Future<void> sendConnectionRequest(String targetId) async {
-    final uri = Uri.parse(
-      "http://localhost:8000/profile/$currentUserId/request"
-      "?target_id=$targetId",
-    );
-
-    final response = await http.post(uri);
-    if (response.statusCode == 200) {
+    try {
+      await _userRepository.sendConnectionRequest(currentUserId, targetId);
       setState(() {
         connectionStatus[targetId] = "outgoing_request";
       });
+    } catch (e) {
+      logger.e("[ConnectDiscoverPage] sendConnectionRequest failed: $e");
     }
   }
 
   Future<void> cancelConnectionRequest(String targetId) async {
-    final uri = Uri.parse(
-      "http://localhost:8000/profile/$currentUserId/cancel-request"
-      "?target_id=$targetId",
-    );
-
-    final response = await http.post(uri);
-    if (response.statusCode == 200) {
+    try {
+      await _userRepository.cancelConnectionRequest(currentUserId, targetId);
       setState(() {
         connectionStatus[targetId] = "none";
       });
+    } catch (e) {
+      logger.e("[ConnectDiscoverPage] cancelConnectionRequest failed: $e");
     }
-  }
-
-  // ---------------- SEARCH API ----------------
-  Future<void> searchStudents(String query) async {
-    setState(() => isLoading = true);
-
-    final uri =
-        Uri.parse("http://localhost:8000/profile/search/?query=$query");
-    final response = await http.get(uri);
-
-    if (response.statusCode == 200) {
-      final List data = json.decode(response.body);
-
-      final fetched = data
-          .map<Map<String, dynamic>>(mapUser)
-          .where((u) => u["id"] != currentUserId)
-          .toList();
-
-      connectionStatus.clear();
-      for (final user in fetched) {
-        await fetchConnectionStatus(user["id"]);
-      }
-
-      setState(() => filteredStudents = fetched);
-    }
-
-    setState(() => isLoading = false);
-  }
-
-  // ---------------- DISCOVER API ----------------
-  Future<void> loadDiscoverUsers() async {
-    setState(() => isLoading = true);
-
-    final uri =
-        Uri.parse("http://localhost:8000/profile/discover");
-    final response = await http.get(uri);
-
-    if (response.statusCode == 200) {
-      final List data = json.decode(response.body);
-
-      final fetched = data
-          .map<Map<String, dynamic>>(mapUser)
-          .where((u) => u["id"] != currentUserId)
-          .toList();
-
-      connectionStatus.clear();
-      for (final user in fetched) {
-        await fetchConnectionStatus(user["id"]);
-      }
-
-      setState(() => filteredStudents = fetched);
-    }
-
-    setState(() => isLoading = false);
   }
 
   // ---------------- PENDING COUNT ----------------
   Future<void> loadPendingRequestsCount() async {
-    final uri = Uri.parse(
-      "http://localhost:8000/profile/$currentUserId/requests",
-    );
-
-    final response = await http.get(uri);
-    if (response.statusCode == 200) {
-      final List data = json.decode(response.body);
+    try {
+      final count = await _userRepository.fetchPendingRequestsCount(currentUserId);
       setState(() {
-        pendingRequestsCount = data.length;
+        pendingRequestsCount = count;
       });
+    } catch (e) {
+      logger.e("[ConnectDiscoverPage] loadPendingRequestsCount failed: $e");
     }
   }
 
@@ -233,7 +168,9 @@ class _ConnectDiscoverPageState
 
               if (result == true) {
                 await loadPendingRequestsCount();
-                await loadDiscoverUsers();
+                setState(() {
+                  _discoverFuture = _userRepository.discoverUsers(currentUserId);
+                });
               }
             },
           ),
@@ -259,42 +196,83 @@ class _ConnectDiscoverPageState
             ),
           ),
           Expanded(
-            child: isLoading
-                ? const Center(
-                    child: CircularProgressIndicator())
-                : filteredStudents.isEmpty
-                    ? const Center(
-                        child: Text("No students found"))
-                    : ListView.builder(
-                        padding:
-                            const EdgeInsets.symmetric(
-                                horizontal: 16),
-                        itemCount:
-                            filteredStudents.length,
-                        itemBuilder: (context, index) =>
-                            _buildStudentCard(
-                                filteredStudents[index]),
+            child: FutureBuilder<List<User>>(
+              future: _discoverFuture,
+              builder: (context, snapshot) {
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return const Center(child: CircularProgressIndicator());
+                }
+                if (snapshot.hasError) {
+                  return Center(
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 32),
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(Icons.cloud_off_rounded, size: 80, color: Colors.grey[400]),
+                          const SizedBox(height: 24),
+                          const Text(
+                            "Connection Issue",
+                            style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            "We couldn't reach our Backend. Please check your internet and try again.",
+                            textAlign: TextAlign.center,
+                            style: TextStyle(color: Colors.grey[600], fontSize: 14),
+                          ),
+                          const SizedBox(height: 32),
+                          SizedBox(
+                            width: double.infinity,
+                            child: ElevatedButton(
+                              onPressed: () {
+                                setState(() {
+                                  _discoverFuture = _userRepository.discoverUsers(currentUserId);
+                                });
+                              },
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: primaryBlue,
+                                foregroundColor: Colors.white,
+                                padding: const EdgeInsets.symmetric(vertical: 16),
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(25)),
+                              ),
+                              child: const Text("Try Again", style: TextStyle(fontSize: 18, color: Colors.white)),
+                            ),
+                          ),
+                        ],
                       ),
+                    ),
+                  );
+                }
+                final students = snapshot.data ?? [];
+                if (students.isEmpty) {
+                  return const Center(child: Text("No students found"));
+                }
+                return ListView.builder(
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  itemCount: students.length,
+                  itemBuilder: (context, index) => _buildStudentCard(students[index]),
+                );
+              },
+            ),
           ),
         ],
       ),
-      bottomNavigationBar:
-          const CustomNavBar(currentIndex: 1),
+      bottomNavigationBar: const CustomNavBar(currentIndex: 1),
     );
   }
 
   // ---------------- STUDENT CARD ----------------
   Widget _buildStudentCard(
-      Map<String, dynamic> student) {
+      User student) {
     final status =
-        connectionStatus[student["id"]] ?? "none";
+        connectionStatus[student.id] ?? "none";
 
     Widget actionWidget;
 
     if (status == "none") {
       actionWidget = GestureDetector(
-        onTap: () =>
-            sendConnectionRequest(student["id"]),
+        onTap: () => sendConnectionRequest(student.id),
         child: Container(
           height: 40,
           width: 40,
@@ -302,14 +280,12 @@ class _ConnectDiscoverPageState
             color: primaryBlue,
             shape: BoxShape.circle,
           ),
-          child:
-              const Icon(Icons.add, color: Colors.white),
+          child: const Icon(Icons.add, color: Colors.white),
         ),
       );
     } else if (status == "outgoing_request") {
       actionWidget = GestureDetector(
-        onTap: () =>
-            cancelConnectionRequest(student["id"]),
+        onTap: () => cancelConnectionRequest(student.id),
         child: Container(
           height: 40,
           width: 40,
@@ -336,57 +312,47 @@ class _ConnectDiscoverPageState
 
     return GestureDetector(
       onTap: () async {
-        final changed =
-            await Navigator.push(
+        final changed = await Navigator.push(
           context,
           MaterialPageRoute(
-            builder: (_) =>
-                UserProfilePage(
-                    userId: student["id"]),
+            builder: (_) => UserProfilePage(userId: student.id),
           ),
         );
-
         if (changed == true) {
-          await loadDiscoverUsers();
+          setState(() {
+            _discoverFuture = _userRepository.discoverUsers(currentUserId);
+          });
           await loadPendingRequestsCount();
         }
       },
       child: Container(
-        margin:
-            const EdgeInsets.only(bottom: 12),
+        margin: const EdgeInsets.only(bottom: 12),
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
           color: Colors.white,
-          borderRadius:
-              BorderRadius.circular(20),
+          borderRadius: BorderRadius.circular(20),
         ),
         child: Row(
-          mainAxisAlignment:
-              MainAxisAlignment.spaceBetween,
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
             Row(
               children: [
                 CircleAvatar(
                   radius: 28,
-                  child: Text(
-                      getInitials(student["name"])),
+                  child: Text(getInitials(student.name)),
                 ),
                 const SizedBox(width: 12),
                 Column(
-                  crossAxisAlignment:
-                      CrossAxisAlignment.start,
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      student["name"],
-                      style: const TextStyle(
-                          fontWeight:
-                              FontWeight.w600),
+                      student.name,
+                      style: const TextStyle(fontWeight: FontWeight.w600),
                     ),
-                    Text(student["department"]),
+                    Text(student.department),
                     Text(
-                      "Batch ${student["batch"]}",
-                      style:
-                          const TextStyle(fontSize: 12),
+                      "Batch ${student.batch}",
+                      style: const TextStyle(fontSize: 12),
                     ),
                   ],
                 ),

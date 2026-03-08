@@ -1,6 +1,7 @@
-import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
+import 'package:studently/models/user.dart';
+import 'package:studently/repositories/user.dart';
+import 'package:studently/logger.dart';
 
 class UserProfilePage extends StatefulWidget {
   final String userId;
@@ -17,12 +18,13 @@ class _UserProfilePageState extends State<UserProfilePage> {
   /// TEMP logged-in user id
   final String currentUserId = "6989b03caf678f41033614ea";
 
-  Map<String, dynamic>? user;
+  User? user;
   bool isLoading = true;
 
   /// none / outgoing_request / incoming_request / friends
   String connectionStatus = "none";
   bool isStatusLoading = true;
+  final UserRepository userRepository = UserRepository();
 
   // ---------------- INITIALS ----------------
   String getInitials(String name) {
@@ -34,20 +36,15 @@ class _UserProfilePageState extends State<UserProfilePage> {
   // ---------------- LOAD USER PROFILE ----------------
   Future<void> loadUserProfile() async {
     try {
-      final uri =
-          Uri.parse("http://localhost:8000/profile/${widget.userId}");
-      final response = await http.get(uri);
-
-      if (response.statusCode == 200) {
-        setState(() {
-          user = json.decode(response.body);
-          isLoading = false;
-        });
-      } else {
-        setState(() => isLoading = false);
-      }
+      logger.i("[$runtimeType] Loading user profile");
+      final fetchedUser = await userRepository.fetchUserProfile(widget.userId);
+      setState(() {
+        user = fetchedUser;
+        isLoading = false;
+      });
+      logger.i("[$runtimeType] User profile loaded successfully");
     } catch (e) {
-      debugPrint("User profile error: $e");
+      logger.e("[$runtimeType] User profile error: $e");
       setState(() => isLoading = false);
     }
   }
@@ -55,106 +52,75 @@ class _UserProfilePageState extends State<UserProfilePage> {
   // ---------------- LOAD CONNECTION STATUS ----------------
   Future<void> loadConnectionStatus() async {
     try {
-      final uri = Uri.parse(
-        "http://localhost:8000/profile/status"
-        "?user_id=$currentUserId&target_id=${widget.userId}",
-      );
-
-      final response = await http.get(uri);
-      if (response.statusCode == 200) {
-        final data = json.decode(response.body);
-        setState(() {
-          connectionStatus = data["status"];
-          isStatusLoading = false;
-        });
-      }
+      logger.i("[$runtimeType] Loading connection status.");
+      final status = await userRepository.fetchConnectionStatus(currentUserId, widget.userId);
+      setState(() {
+        connectionStatus = status;
+        isStatusLoading = false;
+      });
+      logger.i("[$runtimeType] Connection status loaded successfully: $status");
     } catch (e) {
+      logger.e("[$runtimeType] Connection status error: $e");
       setState(() => isStatusLoading = false);
     }
   }
 
   // ---------------- SEND REQUEST ----------------
   Future<void> sendConnectionRequest() async {
-    final uri = Uri.parse(
-      "http://localhost:8000/profile/$currentUserId/request"
-      "?target_id=${widget.userId}",
-    );
-
-    final response = await http.post(uri);
-    if (response.statusCode == 200) {
+    try {
+      logger.i("[$runtimeType] Sending connection request to User");
+      await userRepository.sendConnectionRequest(currentUserId, widget.userId);
       setState(() => connectionStatus = "outgoing_request");
+      logger.i("[$runtimeType] Connection request sent successfully");
+    } catch (e) {
+      logger.e("[$runtimeType] Send request error: $e");
     }
   }
 
   // ---------------- CANCEL REQUEST ----------------
   Future<void> cancelConnectionRequest() async {
-    final uri = Uri.parse(
-      "http://localhost:8000/profile/$currentUserId/cancel-request"
-      "?target_id=${widget.userId}",
-    );
+    try {
 
-    final response = await http.post(uri);
-    if (response.statusCode == 200) {
+      await userRepository.cancelConnectionRequest(currentUserId, widget.userId);
       setState(() => connectionStatus = "none");
+    } catch (e) {
+      logger.e("[$runtimeType] Cancel request error: $e");
     }
   }
 
   // ---------------- ACCEPT REQUEST ----------------
   Future<void> acceptRequest() async {
-    final uri = Uri.parse(
-      "http://localhost:8000/profile/$currentUserId/respond",
-    );
-
-    final response = await http.post(
-      uri,
-      headers: {"Content-Type": "application/json"},
-      body: json.encode({
-        "requester_id": widget.userId,
-        "action": "accept",
-      }),
-    );
-
-    if (response.statusCode == 200) {
+    try {
+      logger.i("[$runtimeType] Accepting connection request from User");
+      await userRepository.respondRequest(currentUserId, widget.userId, "accept");
       setState(() => connectionStatus = "friends");
+      logger.i("[$runtimeType] Connection request accepted successfully");
+    } catch (e) {
+      logger.e("[$runtimeType] Accept request error: $e");
     }
   }
 
   // ---------------- REJECT REQUEST ----------------
   Future<void> rejectRequest() async {
-    final uri = Uri.parse(
-      "http://localhost:8000/profile/$currentUserId/respond",
-    );
-
-    final response = await http.post(
-      uri,
-      headers: {"Content-Type": "application/json"},
-      body: json.encode({
-        "requester_id": widget.userId,
-        "action": "reject",
-      }),
-    );
-
-    if (response.statusCode == 200) {
+    try {
+      logger.i("[$runtimeType] Rejecting connection request from User");
+      await userRepository.respondRequest(currentUserId, widget.userId, "reject");
       setState(() => connectionStatus = "none");
+      logger.i("[$runtimeType] Connection request rejected successfully");
+    } catch (e) {
+      logger.e("[$runtimeType] Reject request error: $e");
     }
   }
 
   // ---------------- UNFRIEND ----------------
   Future<void> unfriendUser() async {
-    final uri = Uri.parse(
-      "http://localhost:8000/profile/$currentUserId/unfriend",
-    );
-
-    final response = await http.post(
-      uri,
-      headers: {"Content-Type": "application/json"},
-      body: json.encode({
-        "friend_id": widget.userId,
-      }),
-    );
-
-    if (response.statusCode == 200) {
+    try {
+      logger.i("[$runtimeType] Unfriending user");
+      await userRepository.unfriendUser(currentUserId, widget.userId);
       setState(() => connectionStatus = "none");
+      logger.i("[$runtimeType] User unfriended successfully");
+    } catch (e) {
+      logger.e("[$runtimeType] Unfriend error: $e");
     }
   }
 
@@ -224,11 +190,11 @@ class _UserProfilePageState extends State<UserProfilePage> {
 
   // ---------------- PROFILE BODY ----------------
   Widget _buildProfile() {
-    final String name = user!["Name"] ?? "";
-    final String department = user!["department"] ?? "";
-    final String batch = user!["batch"]?.toString() ?? "";
-    final List<String> interests =
-        (user!["interests"] ?? []).cast<String>();
+    final User profileUser = user!;
+    final String name = profileUser.name;
+    final String department = profileUser.department;
+    final String batch = profileUser.batch;
+    final List<String> interests = profileUser.interests ?? [];
 
     String buttonText = "Connect";
     VoidCallback? onPressed = sendConnectionRequest;
