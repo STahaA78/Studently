@@ -1,4 +1,5 @@
 class User {
+  String? uid;
   String name; // renamed from fullName
   String email;
   String password;
@@ -11,6 +12,7 @@ class User {
   String? bio;
 
   User({
+    this.uid,
     required this.name,
     required this.email,
     required this.password,
