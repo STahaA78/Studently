@@ -96,6 +96,27 @@ class ApiService {
     }
   }
 
+  // PATCH
+  Future<http.Response> patch(String endpoint, {Map<String, dynamic>? body}) async {
+    logger.i("[$runtimeType] PATCH request to $endpoint Initiated");
+    final url = Uri.parse("$_baseUrl$endpoint");
+    try {
+      final response = await http.patch(
+        url,
+        headers: await _getAuthHeaders(),
+        body: body != null ? jsonEncode(body) : null,
+      );
+      logger.i("[$runtimeType] PATCH request to $endpoint Completed with status code ${response.statusCode}");
+      return _handleResponse(response);
+    } on SocketException {
+      logger.e("[$runtimeType] PATCH request to $endpoint Failed: No Internet connection");
+      throw Exception('No Internet connection');
+    } catch (e) {
+      logger.e("[$runtimeType] PATCH request to $endpoint Failed with error: $e");
+      throw Exception('Error occurred: $e');
+    }
+  }
+
   http.Response _handleResponse(http.Response response) {
     logger.i("[$runtimeType] Handling response with status code ${response.statusCode}");
     if (response.statusCode >= 200 && response.statusCode < 300) {

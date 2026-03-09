@@ -4,45 +4,56 @@ import 'package:studently/services/api.dart';
 import 'package:studently/logger.dart';
 
 class UserRepository {
-		Future<User> fetchUserProfile(String userId) async {
-			logger.i("[$runtimeType] Fetch User Profile Initiated for userId: $userId");
-			try {
-				final response = await _apiService.get('/profile/$userId');
-				final data = jsonDecode(response.body);
-				logger.i("[$runtimeType] Fetch User Profile Completed Successfully");
-				return User.fromJson(data);
-			} catch (e) {
-				logger.e("[$runtimeType] Fetch User Profile Failed with error: $e");
-				rethrow;
-			}
-		}
+  Future<User> fetchUserProfile(String userId) async {
+    logger.i("[$runtimeType] Fetch User Profile Initiated for userId: $userId");
+    try {
+      final response = await _apiService.get('/users/0/profile');
+      final data = jsonDecode(response.body);
+      logger.i("[$runtimeType] Fetch User Profile Completed Successfully");
+      return User.fromJson(data);
+    } catch (e) {
+      logger.e("[$runtimeType] Fetch User Profile Failed with error: $e");
+      rethrow;
+    }
+  }
+  Future<User> updateUserProfile(String userId, Map<String, dynamic> updatedData) async {
+    logger.i("[$runtimeType] Update User Profile Initiated for userId: $userId");
+    try {
+      final response = await _apiService.patch('/users/0/update', body: updatedData);
+      final data = jsonDecode(response.body);
+      logger.i("[$runtimeType] Update User Profile Completed Successfully");
+      return User.fromJson(data);
+    } catch (e) {
+      logger.e("[$runtimeType] Update User Profile Failed with error: $e");
+      rethrow;
+    }
+  }
+  Future<List<User>> fetchPendingRequests(String currentUserId) async {
+    logger.i("[$runtimeType] Fetch Pending Requests Initiated");
+    try {
+      final response = await _apiService.get('/profile/$currentUserId/requests');
+      final List<dynamic> data = jsonDecode(response.body);
+      logger.i("[$runtimeType] Fetch Pending Requests Completed Successfully");
+      return data.map((item) => User.fromJson(item)).toList();
+    } catch (e) {
+      logger.e("[$runtimeType] Fetch Pending Requests Failed with error: $e");
+      rethrow;
+    }
+  }
 
-		Future<List<User>> fetchPendingRequests(String currentUserId) async {
-			logger.i("[$runtimeType] Fetch Pending Requests Initiated");
-			try {
-				final response = await _apiService.get('/profile/$currentUserId/requests');
-				final List<dynamic> data = jsonDecode(response.body);
-				logger.i("[$runtimeType] Fetch Pending Requests Completed Successfully");
-				return data.map((item) => User.fromJson(item)).toList();
-			} catch (e) {
-				logger.e("[$runtimeType] Fetch Pending Requests Failed with error: $e");
-				rethrow;
-			}
-		}
-
-		Future<void> respondRequest(String currentUserId, String requesterId, String action) async {
-			logger.i("[$runtimeType] Respond Request Initiated for requesterId: $requesterId, action: $action");
-			try {
-				await _apiService.post('/profile/$currentUserId/respond', body: {
-					'requester_id': requesterId,
-					'action': action,
-				});
-				logger.i("[$runtimeType] Respond Request Completed Successfully");
-			} catch (e) {
-				logger.e("[$runtimeType] Respond Request Failed with error: $e");
-				rethrow;
-			}
-		}
+  Future<void> respondRequest(String currentUserId, String requesterId, String action) async {
+    logger.i("[$runtimeType] Respond Request Initiated for requesterId: $requesterId, action: $action");
+    try {
+      await _apiService.post('/profile/$currentUserId/respond', body: {
+        'requester_id': requesterId,
+        'action': action,
+      });
+      logger.i("[$runtimeType] Respond Request Completed Successfully");
+    } catch (e) {
+      logger.e("[$runtimeType] Respond Request Failed with error: $e");
+      rethrow;
+    }
+  }
 
 		Future<void> unfriendUser(String currentUserId, String friendId) async {
 			logger.i("[$runtimeType] Unfriend User Initiated for friendId: $friendId");

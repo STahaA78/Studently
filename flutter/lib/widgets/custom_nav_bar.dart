@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:studently/screens/community_feed_page.dart';
 import 'package:studently/screens/connect_discover_page.dart';
-import 'package:studently/screens/profile_page.dart';
+import 'package:studently/screens/profile_main.dart';
 import 'package:studently/screens/knowledge_hub_main.dart';
 
 class CustomNavBar extends StatelessWidget {
