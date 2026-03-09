@@ -3,13 +3,13 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:studently/models/chat.dart';
 import 'package:studently/repositories/chat.dart';
-import 'package:studently/services/socket.dart'; // Added SocketService import
-import 'package:studently/services/firebase_auth.dart'; // Ensure this is imported for UID check
+import 'package:studently/services/socket.dart'; 
+import 'package:studently/services/firebase_auth.dart'; 
 
 class ChatPage extends StatefulWidget {
   final String conversationId;
-  final String otherUserId;
-  final String otherUserName;
+  final String otherUserId; // Will be "GROUP" for academic group chats
+  final String otherUserName; // Displays the Course Name or Friend Name
 
   const ChatPage({
     super.key,
@@ -28,7 +28,7 @@ class _ChatPageState extends State<ChatPage> {
   final Color blue = const Color(0xFF1976D2);
 
   List<ChatMessage> _messages = [];
-  StreamSubscription? _socketSubscription; // Replaced Timer with StreamSubscription
+  StreamSubscription? _socketSubscription; 
   bool _isLoading = true;
 
   @override
@@ -39,7 +39,7 @@ class _ChatPageState extends State<ChatPage> {
     // Initial mark as read
     ChatRepository().markChatAsRead(widget.conversationId);
 
-    // REAL-TIME: Listen for new messages via WebSocket instead of polling
+    // REAL-TIME: Listen for new messages via WebSocket
     _socketSubscription = socketService.stream?.listen((event) {
       final payload = jsonDecode(event);
       
@@ -55,7 +55,7 @@ class _ChatPageState extends State<ChatPage> {
 
   @override
   void dispose() {
-    _socketSubscription?.cancel(); // Important: cancel subscription to avoid memory leaks
+    _socketSubscription?.cancel(); 
     _messageController.dispose();
     _scrollController.dispose();
     super.dispose();
@@ -136,7 +136,7 @@ class _ChatPageState extends State<ChatPage> {
           onPressed: () => Navigator.pop(context),
         ),
         title: Text(
-          widget.otherUserName, 
+          widget.otherUserName, // This displays the full Course Name
           style: const TextStyle(color: Colors.black, fontWeight: FontWeight.w700, fontSize: 18)
         ),
         centerTitle: true,
@@ -154,7 +154,6 @@ class _ChatPageState extends State<ChatPage> {
                       itemCount: _messages.length,
                       itemBuilder: (context, index) {
                         final msg = _messages[index];
-                        // Compare message sender with current logged in user
                         final bool isMe = msg.senderId == authService.value.currentUser?.uid;
 
                         return _buildMessageBubble(msg, isMe);
@@ -167,9 +166,10 @@ class _ChatPageState extends State<ChatPage> {
     );
   }
 
-  // --- UI HELPER METHODS ---
-
   Widget _buildMessageBubble(ChatMessage msg, bool isMe) {
+    // Check if this is a group chat
+    final bool isGroupChat = widget.otherUserId == "GROUP";
+
     return Align(
       alignment: isMe ? Alignment.centerRight : Alignment.centerLeft,
       child: Container(
@@ -190,6 +190,19 @@ class _ChatPageState extends State<ChatPage> {
         child: Column(
           crossAxisAlignment: isMe ? CrossAxisAlignment.end : CrossAxisAlignment.start,
           children: [
+            // NEW: Display User Name if it's a Group Chat and not the current user
+            if (isGroupChat && !isMe) 
+              Padding(
+                padding: const EdgeInsets.only(bottom: 4),
+                child: Text(
+                  msg.senderName, // Uses the name fetched from the database
+                  style: TextStyle(
+                    color: blue,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 12,
+                  ),
+                ),
+              ),
             Text(
               msg.text, 
               style: TextStyle(color: isMe ? Colors.white : Colors.black87, fontSize: 15)
@@ -215,7 +228,7 @@ class _ChatPageState extends State<ChatPage> {
         color: Colors.white,
         boxShadow: [
           BoxShadow(
-            color: Colors.grey.withValues(alpha: 0.1),
+            color: Colors.grey.withOpacity(0.1),
             blurRadius: 4,
             offset: const Offset(0, -2),
           ),

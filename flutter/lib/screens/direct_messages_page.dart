@@ -115,12 +115,18 @@ class _DirectMessagesPageState extends State<DirectMessagesPage> {
 
     setState(() {
       _filteredConversations = _allConversations.where((chat) {
-        final otherId = chat.participants.firstWhere(
-          (id) => id != currentUid,
-          orElse: () => "",
-        );
-        final name = _getDisplayName(otherId).toLowerCase();
-        return name.contains(query);
+        // CHANGED: Handle search differently if it's a group chat
+        if (chat.isGroup) {
+          final groupName = (chat.title ?? "").toLowerCase();
+          return groupName.contains(query);
+        } else {
+          final otherId = chat.participants.firstWhere(
+            (id) => id != currentUid,
+            orElse: () => "",
+          );
+          final name = _getDisplayName(otherId).toLowerCase();
+          return name.contains(query);
+        }
       }).toList();
     });
   }
@@ -155,16 +161,25 @@ class _DirectMessagesPageState extends State<DirectMessagesPage> {
                         itemCount: _filteredConversations.length,
                         itemBuilder: (context, index) {
                           final chat = _filteredConversations[index];
-                          final otherUserId = chat.participants.firstWhere(
-                            (id) => id != myId,
-                            orElse: () => "Unknown",
-                          );
+                          final bool isGroup = chat.isGroup;
+                          
+                          // CHANGED: Determine the correct ID based on chat type
+                          final String otherUserId = isGroup 
+                              ? "GROUP" 
+                              : chat.participants.firstWhere(
+                                  (id) => id != myId,
+                                  orElse: () => "Unknown",
+                                );
 
-                          final displayName = _getDisplayName(otherUserId);
+                          // CHANGED: Use Group Title if applicable
+                          final String displayName = isGroup 
+                              ? (chat.title ?? "Group Chat") 
+                              : _getDisplayName(otherUserId);
+
                           final int unreadCount = chat.unreadCounts[myId] ?? 0;
                           final String lastMsgTime = _formatTimestamp(chat.lastMessage?['timestamp']);
 
-                          return _buildConversationTile(chat, otherUserId, displayName, unreadCount, lastMsgTime);
+                          return _buildConversationTile(chat, otherUserId, displayName, unreadCount, lastMsgTime, isGroup);
                         },
                       ),
           ),
@@ -198,7 +213,8 @@ class _DirectMessagesPageState extends State<DirectMessagesPage> {
     );
   }
 
-  Widget _buildConversationTile(ChatConversation chat, String otherUserId, String displayName, int unreadCount, String lastMsgTime) {
+  // CHANGED: Added bool isGroup parameter
+  Widget _buildConversationTile(ChatConversation chat, String otherUserId, String displayName, int unreadCount, String lastMsgTime, bool isGroup) {
     return InkWell(
       onTap: () async {
         await Navigator.push(
@@ -218,13 +234,16 @@ class _DirectMessagesPageState extends State<DirectMessagesPage> {
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.center,
           children: [
+            // CHANGED: Conditionally render an Orange Group Icon or Blue Initials
             CircleAvatar(
               radius: 28,
-              backgroundColor: const Color(0xFF1976D2),
-              child: Text(
-                displayName != "Loading..." && displayName.isNotEmpty ? displayName[0] : "?",
-                style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 20),
-              ),
+              backgroundColor: isGroup ? Colors.orange.shade400 : const Color(0xFF1976D2),
+              child: isGroup 
+                  ? const Icon(Icons.groups, color: Colors.white, size: 30)
+                  : Text(
+                      displayName != "Loading..." && displayName.isNotEmpty ? displayName[0] : "?",
+                      style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 20),
+                    ),
             ),
             const SizedBox(width: 12),
             Expanded(

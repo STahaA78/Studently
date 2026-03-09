@@ -3,23 +3,19 @@ class ChatMessage {
   String id;
   String conversationId;
   String senderId;
-  String receiverId;
+  String senderName; // NEW: Added senderName
   String text;
   List<String> attachments = [];
   String timestamp;
-  String status;
-  bool isDeleted;
 
   ChatMessage({
     required this.id,
     required this.conversationId,
     required this.senderId,
-    required this.receiverId,
+    required this.senderName, // NEW
     required this.text,
     List<String>? attachments,
     required this.timestamp,
-    this.status = 'sent',
-    this.isDeleted = false,
   }) {
     if (attachments != null) this.attachments = attachments;
   }
@@ -29,35 +25,26 @@ class ChatMessage {
       id: json['_id'] ?? '',
       conversationId: json['conversation_id'] ?? '',
       senderId: json['sender_id'] ?? '',
-      receiverId: json['receiver_id'] ?? '',
+      senderName: json['sender_name'] ?? 'Unknown', // NEW
       text: json['text'] ?? '',
       attachments: List<String>.from(json['attachments'] ?? []),
       timestamp: json['timestamp'] ?? '',
-      status: json['status'] ?? 'sent',
-      isDeleted: json['is_deleted'] ?? false,
     );
   }
 
-  Map<String, dynamic> toJson() => {
-        '_id': id,
-        'conversation_id': conversationId,
-        'sender_id': senderId,
-        'receiver_id': receiverId,
-        'text': text,
-        'attachments': attachments,
-        'timestamp': timestamp,
-        'status': status,
-        'is_deleted': isDeleted,
-      };
   bool get isMe => senderId == authService.value.currentUser?.uid;
 }
-
 class ChatConversation {
   String id;
   List<String> participants = [];
   Map<String, dynamic>? lastMessage;
   Map<String, int> unreadCounts = {};
   String createdAt;
+  
+  // NEW FIELDS FOR GROUP CHATS
+  bool isGroup;
+  String? courseId;
+  String? title;
 
   ChatConversation({
     required this.id,
@@ -65,11 +52,14 @@ class ChatConversation {
     this.lastMessage,
     Map<String, int>? unreadCounts,
     required this.createdAt,
+    this.isGroup = false,
+    this.courseId,
+    this.title,
   }) {
     if (participants != null) this.participants = participants;
     if (unreadCounts != null) this.unreadCounts = unreadCounts;
   }
-  // converts json to object
+  
   factory ChatConversation.fromJson(Map<String, dynamic> json) {
     Map<String, int> parsedCounts = {};
     if (json['unread_counts'] != null) {
@@ -84,14 +74,20 @@ class ChatConversation {
       lastMessage: json['last_message'],
       unreadCounts: parsedCounts,
       createdAt: json['created_at'] ?? '',
+      isGroup: json['is_group'] ?? false,  // Added
+      courseId: json['course_id'],         // Added
+      title: json['title'],                // Added
     );
   }
- //coverts the object to json
+
   Map<String, dynamic> toJson() => {
         '_id': id,
         'participants': participants,
         'last_message': lastMessage,
         'unread_counts': unreadCounts,
         'created_at': createdAt,
+        'is_group': isGroup,               // Added
+        'course_id': courseId,             // Added
+        'title': title,                    // Added
       };
 }

@@ -60,4 +60,17 @@ class ChatRepository {
     final data = jsonDecode(response.body);
     return data['conversation_id'];
   }
+
+  // Add this inside ChatRepository class
+  Future<String?> joinCourseGroupChat(String courseId) async {
+    logger.d("[$runtimeType] Joining group chat for course: $courseId");
+    try {
+      final response = await _apiService.post('/chat/course/$courseId/join');
+      final data = jsonDecode(response.body);
+      return data['conversation_id'];
+    } catch (e) {
+      logger.e("[$runtimeType] Error joining course chat: $e");
+      return null;
+    }
+  }
 }
