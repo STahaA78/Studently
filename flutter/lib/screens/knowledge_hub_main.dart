@@ -348,7 +348,7 @@ class _KnowledgeHubPageState extends State<KnowledgeHubPage> {
                                                   conversationId: convId,
                                                   otherUserId: "GROUP",
                                                   otherUserName:
-                                                      "${course.code} Group",
+                                                      "${course.name} Group",
                                                 ),
                                               ),
                                             );
