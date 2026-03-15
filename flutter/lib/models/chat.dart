@@ -1,4 +1,4 @@
-import 'package:studently/auth_service.dart'; 
+import 'package:studently/services/firebase_auth.dart'; 
 class ChatMessage {
   String id;
   String conversationId;

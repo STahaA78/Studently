@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
-import '../screens/community_feed_page.dart';
-import '../screens/connect_discover_page.dart';
-import '../screens/profile_page.dart';
-import '../screens/knowledge_hub_page.dart';
+import 'package:studently/screens/community_feed_page.dart';
+import 'package:studently/screens/discover_main.dart';
+import 'package:studently/screens/profile_main.dart';
+import 'package:studently/screens/knowledge_hub_main.dart';
 
 class CustomNavBar extends StatelessWidget {
   final int currentIndex;
@@ -13,23 +13,11 @@ class CustomNavBar extends StatelessWidget {
   Widget build(BuildContext context) {
     const Color blue = Color(0xFF1976D2);
 
-    void _navigateTo(Widget destination) {
-      Navigator.pushAndRemoveUntil(
-        context,
-        PageRouteBuilder(
-          pageBuilder: (_, __, ___) => destination,
-          transitionDuration: const Duration(milliseconds: 200),
-          transitionsBuilder: (_, animation, __, child) {
-            return FadeTransition(opacity: animation, child: child);
-          },
-        ),
-        (route) => false,
-      );
-    }
+    void onItemTapped(int index) {
+      if (index == currentIndex) return; // stay on same page
 
-    void _onItemTapped(int index) {
+      // Define the correct destination for each tab
       Widget? destination;
-
       switch (index) {
         case 0:
           destination = const CommunityFeedPage();
@@ -43,35 +31,38 @@ class CustomNavBar extends StatelessWidget {
           );
           return;
         case 3:
-          destination = const KnowledgeHubPage();
+          destination = const KnowledgeHubPage(); // ✅ HUB FIX
           break;
         case 4:
           destination = const ProfilePage();
           break;
       }
 
-      if (destination == null) return;
-
-      // 🔥 IMPORTANT: Even if same tab → refresh it
-      _navigateTo(destination);
+      if (destination != null) {
+        Navigator.pushAndRemoveUntil(
+          context,
+          PageRouteBuilder(
+            pageBuilder: (_, _, _) => destination!,
+            transitionDuration: const Duration(milliseconds: 200),
+            transitionsBuilder: (_, animation, _, child) {
+              return FadeTransition(opacity: animation, child: child);
+            },
+          ),
+          (route) => false, // Remove all previous routes
+        );
+      }
     }
 
     return BottomNavigationBar(
       currentIndex: currentIndex,
-      onTap: _onItemTapped,
+      onTap: onItemTapped,
       type: BottomNavigationBarType.fixed,
       selectedItemColor: blue,
       unselectedItemColor: Colors.grey,
       showUnselectedLabels: true,
       items: const [
-        BottomNavigationBarItem(
-          icon: Icon(Icons.home_filled),
-          label: "Feed",
-        ),
-        BottomNavigationBarItem(
-          icon: Icon(Icons.people_alt),
-          label: "Connect",
-        ),
+        BottomNavigationBarItem(icon: Icon(Icons.home_filled), label: "Feed"),
+        BottomNavigationBarItem(icon: Icon(Icons.people_alt), label: "Connect"),
         BottomNavigationBarItem(
           icon: CircleAvatar(
             radius: 15,
@@ -80,14 +71,8 @@ class CustomNavBar extends StatelessWidget {
           ),
           label: "Post",
         ),
-        BottomNavigationBarItem(
-          icon: Icon(Icons.grid_view),
-          label: "Hub",
-        ),
-        BottomNavigationBarItem(
-          icon: Icon(Icons.person),
-          label: "Profile",
-        ),
+        BottomNavigationBarItem(icon: Icon(Icons.grid_view), label: "Hub"),
+        BottomNavigationBarItem(icon: Icon(Icons.person), label: "Profile"),
       ],
     );
   }

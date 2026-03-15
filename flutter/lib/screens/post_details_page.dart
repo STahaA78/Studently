@@ -80,7 +80,7 @@ class _PostDetailsPageState extends State<PostDetailsPage> {
                 // Post Card
                 _buildPostCard(),
                 const SizedBox(height: 16),
-                ...comments.map((c) => _buildCommentTile(c)).toList(),
+                ...comments.map((c) => _buildCommentTile(c)),
               ],
             ),
           ),

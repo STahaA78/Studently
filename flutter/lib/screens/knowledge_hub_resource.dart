@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:studently/models/resource.dart';
 import 'package:studently/repositories/resource.dart';
+import 'package:studently/services/firebase_auth.dart';
 import 'package:syncfusion_flutter_pdfviewer/pdfviewer.dart';
 import 'package:studently/logger.dart';
 
@@ -21,10 +22,17 @@ class PdfGalleryScreen extends StatefulWidget {
 class _PdfGalleryScreenState extends State<PdfGalleryScreen> {
   late PageController _pageController;
   late int _currentIndex; // Track current page for the title
-
+  late Map<String, String> _headers; // Get token once for all requests
   @override
   void initState() {
     super.initState();
+    authService.value.getIdToken().then((token) {
+      setState(() {
+        _headers = {
+          "Authorization": "Bearer $token",
+        };
+      });
+    });
     _currentIndex = widget.initialIndex;
     _pageController = PageController(initialPage: widget.initialIndex);
   }
@@ -78,6 +86,7 @@ class _PdfGalleryScreenState extends State<PdfGalleryScreen> {
                   ResourceRepository().getDownloadUrl(item.id),
                   // IMPORTANT: Key ensures the viewer resets correctly on swipe
                   key: ValueKey(item.id), 
+                  headers: _headers,
                   onDocumentLoadFailed: (details) {
                     logger.e("Error: ${details.error} - ${details.description}");
                   },

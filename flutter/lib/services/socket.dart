@@ -1,9 +1,10 @@
-import 'dart:convert';
+import 'package:studently/config.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
-import 'package:studently/auth_service.dart';
+import 'package:studently/services/firebase_auth.dart';
 import 'package:studently/logger.dart';
 
 class SocketService {
+  static final String _baseUrl = AppConfig.wsBaseUrl;
   WebSocketChannel? _channel;
   Stream? _broadcastStream;
   bool _isConnected = false;
@@ -15,7 +16,7 @@ class SocketService {
       final token = await authService.value.getIdToken();
       if (token == null) return;
 
-      final wsUrl = Uri.parse("ws://127.0.0.1:8000/ws/$token");
+      final wsUrl = Uri.parse("$_baseUrl/$token");
       _channel = WebSocketChannel.connect(wsUrl);
       
       // Broadcast stream allows both ChatPage and DirectMessagesPage to listen

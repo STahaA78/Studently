@@ -4,7 +4,7 @@ import 'package:studently/models.dart';
 import 'package:studently/logger.dart';
 import 'package:http/http.dart' as http;
 import 'community_feed_page.dart';
-import 'package:studently/auth_service.dart';
+import 'package:studently/services/firebase_auth.dart';
 import 'dart:convert';
 
 class SignupAdditionalPage extends StatefulWidget {
@@ -63,7 +63,7 @@ class _SignupAdditionalPageState extends State<SignupAdditionalPage> {
     
     final Map<String, dynamic> payload = {
       "uid": firebaseUid, // NEW: The specific ID from Firebase
-      "Name": widget.user.name,
+      "name": widget.user.name,
       "email": widget.user.email,
       "password": widget.user.password,
       "birthday": widget.user.birthday,
@@ -204,7 +204,7 @@ class _SignupAdditionalPageState extends State<SignupAdditionalPage> {
                           decoration: BoxDecoration(
                             color: Colors.grey.shade100,
                             borderRadius: BorderRadius.circular(25),
-                            boxShadow: [BoxShadow(color: Colors.grey.withOpacity(0.2), blurRadius: 6, offset: const Offset(0, 3))],
+                            boxShadow: [BoxShadow(color: Colors.grey.withValues(alpha: 0.2), blurRadius: 6, offset: const Offset(0, 3))],
                           ),
                           child: Row(
                             mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -270,7 +270,7 @@ class _SignupAdditionalPageState extends State<SignupAdditionalPage> {
                           ...interests.map((interest) => Chip(
                             label: Text(interest),
                             deleteIcon: const Icon(Icons.close, size: 18),
-                            backgroundColor: blue.withOpacity(0.1),
+                            backgroundColor: blue.withValues(alpha: 0.1),
                             onDeleted: () {
                               setState(() {
                                 interests.remove(interest);
@@ -309,7 +309,7 @@ class _SignupAdditionalPageState extends State<SignupAdditionalPage> {
                             },
                             child: CircleAvatar(
                               radius: 16,
-                              backgroundColor: blue.withOpacity(0.1),
+                              backgroundColor: blue.withValues(alpha: 0.1),
                               child: Icon(Icons.add, color: blue, size: 20),
                             ),
                           ),
@@ -365,10 +365,10 @@ class _SignupAdditionalPageState extends State<SignupAdditionalPage> {
       decoration: BoxDecoration(
         color: Colors.grey.shade100,
         borderRadius: BorderRadius.circular(25),
-        boxShadow: [BoxShadow(color: Colors.grey.withOpacity(0.1), blurRadius: 4, offset: const Offset(0, 2))],
+        boxShadow: [BoxShadow(color: Colors.grey.withValues(alpha: 0.1), blurRadius: 4, offset: const Offset(0, 2))],
       ),
       child: DropdownButtonFormField<T>(
-        value: value,
+        initialValue: value,
         decoration: const InputDecoration(border: InputBorder.none, contentPadding: EdgeInsets.symmetric(horizontal: 18, vertical: 8)),
         isExpanded: true,
         dropdownColor: Colors.white,

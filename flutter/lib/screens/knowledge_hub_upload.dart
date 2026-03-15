@@ -236,6 +236,7 @@ class _AddResourcePageState extends State<AddResourcePage> {
       
       final resourceItemRequest = ResourceItemRequest(
         course: widget.course,
+        type: _selectedType!,
         semester: _selectedSemester!,
         year: _selectedYear!,
         quizNumber: _quizNumberController.text.isNotEmpty ? int.parse(_quizNumberController.text) : null,
@@ -261,16 +262,41 @@ class _AddResourcePageState extends State<AddResourcePage> {
       logger.i("File Upload Ended - Upload Successful");      
     }
   }
+  bool get _canShowUpload {
+    if (_selectedType == null) return false;
+
+    if (_selectedType == "final" || _selectedType == "midterm") {
+      return _selectedSemester != null && _selectedYear != null;
+    }
+
+    if (_selectedType == "quiz") {
+      return _quizNumberController.text.isNotEmpty &&
+          _instructorController.text.isNotEmpty;
+    }
+
+    if (_selectedType == "book") {
+      return true;
+    }
+
+    return false;
+  }
+
+  bool get _canSubmit {
+    return (_selectedPdf != null ||
+            _selectedImages.isNotEmpty) &&
+        _canShowUpload;
+  }
 
   @override
   Widget build(BuildContext context) {
-    final String courseDisplay = "${widget.course.code} - ${widget.course.name}";
+    final String courseDisplay =
+        "${widget.course.code} - ${widget.course.name}";
 
     return Scaffold(
       backgroundColor: Colors.white,
       appBar: AppBar(
         backgroundColor: Colors.white,
-        elevation: 0, 
+        elevation: 0,
         surfaceTintColor: Colors.transparent,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back_ios_new_rounded,
@@ -287,30 +313,54 @@ class _AddResourcePageState extends State<AddResourcePage> {
         ),
         centerTitle: true,
       ),
+
+      // ✅ FIXED BOTTOM BUTTON
+      bottomNavigationBar: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: SizedBox(
+            width: double.infinity,
+            child: ElevatedButton(
+              onPressed:
+                (_isUploading || !_canSubmit) ? null : () async {
+                  await _fileUpload();
+                  if (!context.mounted) return;
+                  Navigator.pop(context,true); // Return true to indicate a successful upload
+                },
+              child: _isUploading
+                  ? const SizedBox(
+                      height: 20,
+                      width: 20,
+                      child: CircularProgressIndicator(
+                        color: Colors.white,
+                        strokeWidth: 2,
+                      ),
+                    )
+                  : const Text("Add Resource"),
+            ),
+          ),
+        ),
+      ),
+
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(20),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            /// 🔹 Course (Greyed Out)
-            const Text(
-              "Course",
-              style: TextStyle(fontWeight: FontWeight.w600),
-            ),
+
+            /// Course
+            const Text("Course",
+                style: TextStyle(fontWeight: FontWeight.w600)),
             const SizedBox(height: 8),
             TextField(
               enabled: false,
-              decoration: InputDecoration(
-                hintText: courseDisplay,
-              ),
+              decoration: InputDecoration(hintText: courseDisplay),
             ),
             const SizedBox(height: 20),
 
-            /// 🔹 Resource Type Dropdown
-            const Text(
-              "Resource Type",
-              style: TextStyle(fontWeight: FontWeight.w600),
-            ),
+            /// Resource Type
+            const Text("Resource Type",
+                style: TextStyle(fontWeight: FontWeight.w600)),
             const SizedBox(height: 8),
             DropdownButtonFormField<String>(
               initialValue: _selectedType,
@@ -325,65 +375,89 @@ class _AddResourcePageState extends State<AddResourcePage> {
                   _selectedType = value;
                 });
               },
-              decoration: const InputDecoration(
-                hintText: "Select Resource Type",
-              ),
+              decoration:
+                  const InputDecoration(hintText: "Select Resource Type"),
             ),
             const SizedBox(height: 20),
 
-            /// 🔹 Final / Midterm Fields
-            if (_selectedType == "final" || _selectedType == "midterm") ...[
+            /// Final / Midterm Fields (VERTICAL FIX)
+            if (_selectedType == "final" ||
+                _selectedType == "midterm") ...[
+              /// Semester + Year in Same Row (Responsive)
               Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  const Text("Semester",
-                      style: TextStyle(fontWeight: FontWeight.w600)
-                  ),
-                  const SizedBox(height: 8),
-                  DropdownButtonFormField<String>(
-                    initialValue: _selectedSemester,
-                    items: const [
-                      DropdownMenuItem(value: "Fall", child: Text("Fall")),
-                      DropdownMenuItem(value: "Spring", child: Text("Spring")),
-                      DropdownMenuItem(value: "Summer", child: Text("Summer")),
-                    ],
-                    onChanged: (value) {
-                      setState(() {
-                        _selectedSemester = value;
-                      });
-                    },
-                    decoration:
-                        const InputDecoration(hintText: "Select Semester"),
-                  ),
-                  const SizedBox(height: 16),
-                  const Text("Year", style: TextStyle(fontWeight: FontWeight.w600)),
-                  const SizedBox(height: 8),
-                  DropdownButtonFormField<int>(
-                    value: _selectedYear,
-                    // Generate years from the Current Year down to 2010
-                    items: List.generate(
-                      DateTime.now().year - 2009, // Number of years to show
-                      (index) {
-                        int year = DateTime.now().year - index;
-                        return DropdownMenuItem(
-                          value: year,
-                          child: Text(year.toString()),
-                        );
-                      },
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          "Semester",
+                          style: TextStyle(fontWeight: FontWeight.w600),
+                        ),
+                        const SizedBox(height: 8),
+                        DropdownButtonFormField<String>(
+                          initialValue: _selectedSemester,
+                          isExpanded: true,
+                          items: const [
+                            DropdownMenuItem(value: "Fall", child: Text("Fall")),
+                            DropdownMenuItem(value: "Spring", child: Text("Spring")),
+                            DropdownMenuItem(value: "Summer", child: Text("Summer")),
+                          ],
+                          onChanged: (value) {
+                            setState(() {
+                              _selectedSemester = value;
+                            });
+                          },
+                          decoration: const InputDecoration(
+                            hintText: "Select Semester",
+                          ),
+                        ),
+                      ],
                     ),
-                    onChanged: (value) {
-                      setState(() {
-                        _selectedYear = value;
-                      });
-                    },
-                    decoration: const InputDecoration(hintText: "Select Year"),
                   ),
-                ]
+
+                  const SizedBox(width: 16),
+
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          "Year",
+                          style: TextStyle(fontWeight: FontWeight.w600),
+                        ),
+                        const SizedBox(height: 8),
+                        DropdownButtonFormField<int>(
+                          initialValue: _selectedYear,
+                          isExpanded: true,
+                          items: List.generate(
+                            DateTime.now().year - 2009,
+                            (index) {
+                              int year = DateTime.now().year - index;
+                              return DropdownMenuItem(
+                                value: year,
+                                child: Text(year.toString()),
+                              );
+                            },
+                          ),
+                          onChanged: (value) {
+                            setState(() {
+                              _selectedYear = value;
+                            });
+                          },
+                          decoration: const InputDecoration(
+                            hintText: "Select Year",
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
               ),
-              const SizedBox(height: 20),
+              const SizedBox(height: 8),
             ],
 
-            /// 🔹 Quiz Fields
+            /// Quiz Fields
             if (_selectedType == "quiz") ...[
               TextField(
                 controller: _quizNumberController,
@@ -400,18 +474,19 @@ class _AddResourcePageState extends State<AddResourcePage> {
               const SizedBox(height: 20),
             ],
 
-            /// 🔹 Solved Toggle (For exam types only)
-            if (_selectedType == "final" || _selectedType == "midterm" || _selectedType == "quiz") ...[
+            /// Solved Toggle
+            if (_selectedType == "final" ||
+                _selectedType == "midterm" ||
+                _selectedType == "quiz") ...[
               Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                mainAxisAlignment:
+                    MainAxisAlignment.spaceBetween,
                 children: [
-                  const Text(
-                    "Solved?",
-                    style: TextStyle(fontWeight: FontWeight.w600),
-                  ),
+                  const Text("Solved?",
+                      style:
+                          TextStyle(fontWeight: FontWeight.w600)),
                   Switch(
                     value: _isSolved,
-                    activeThumbColor: blue,
                     onChanged: (value) {
                       setState(() {
                         _isSolved = value;
@@ -423,118 +498,29 @@ class _AddResourcePageState extends State<AddResourcePage> {
               const SizedBox(height: 20),
             ],
 
-            OutlinedButton.icon(
-              onPressed: _pickFiles,
-              icon: const Icon(Icons.upload_file),
-              label: Text(
-                _selectedPdf != null
-                    ? "PDF Selected"
-                    : _selectedImages.isNotEmpty
-                        ? "${_selectedImages.length} image(s) selected"
-                        : "Upload PDF or Images",
-              ),
-              style: OutlinedButton.styleFrom(
-                minimumSize: const Size(double.infinity, 50),
-              ),
-            ),
-            if (_selectedImages.isNotEmpty)
-              Wrap(
-                spacing: 10,
-                runSpacing: 10,
-                children: _selectedImages.map((img) {
-                  return Stack(
-                    children: [
-                      ClipRRect(
-                        borderRadius: BorderRadius.circular(8),
-                        child: Image.file(
-                          img.file,
-                          width: 100,
-                          height: 100,
-                          fit: BoxFit.cover,
-                        ),
-                      ),
-
-                      // Spinner overlay
-                      if (img.status == UploadStatus.compressing)
-                        Positioned.fill(
-                          child: Container(
-                            decoration: BoxDecoration(
-                              color: Colors.black.withOpacity(0.4),
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            child: const Center(
-                              child: CircularProgressIndicator(
-                                color: Colors.white,
-                                strokeWidth: 2,
-                              ),
-                            ),
-                          ),
-                        ),
-
-                      // Failed overlay with retry
-                      if (img.status == UploadStatus.failed)
-                        Positioned.fill(
-                          child: Container(
-                            decoration: BoxDecoration(
-                              color: Colors.red.withOpacity(0.6),
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            child: Center(
-                              child: IconButton(
-                                icon: const Icon(Icons.refresh, color: Colors.white),
-                                onPressed: () async {
-                                  setState(() {
-                                    img.status = UploadStatus.compressing;
-                                  });
-
-                                  try {
-                                    final compressedFile = await _compressImage(img.file);
-
-                                    if (!mounted) return;
-
-                                    setState(() {
-                                      img.status = UploadStatus.success;
-                                      img.file = compressedFile;
-                                    });
-                                  } catch (_) {
-                                    if (!mounted) return;
-                                    setState(() {
-                                      img.status = UploadStatus.failed;
-                                    });
-                                  }
-                                },
-                              ),
-                            ),
-                          ),
-                        ),
-                    ],
-                  );
-                }).toList(),
-              ),
-
-            const SizedBox(height: 30),
-
-            /// 🔹 Add Resource Button
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton(
-                onPressed: () {
-                  if (_isUploading) return;
-                  _fileUpload();
-                },
-                child: const Text(
-                  "Add Resource",
-                  style: TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
-                    color: Colors.white,
-                  ),
+            /// Upload Button (ONLY WHEN READY)
+            if (_canShowUpload) ...[
+              OutlinedButton.icon(
+                onPressed: _pickFiles,
+                icon: const Icon(Icons.upload_file),
+                label: Text(
+                  _selectedPdf != null
+                      ? "PDF Selected"
+                      : _selectedImages.isNotEmpty
+                          ? "${_selectedImages.length} image(s) selected"
+                          : "Upload PDF or Images",
+                ),
+                style: OutlinedButton.styleFrom(
+                  minimumSize:
+                      const Size(double.infinity, 50),
                 ),
               ),
-            ),
+              const SizedBox(height: 20),
+            ],
           ],
         ),
       ),
     );
   }
+
 }
