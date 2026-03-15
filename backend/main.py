@@ -3,8 +3,7 @@ from contextlib import asynccontextmanager
 import logging
 from fastapi.middleware.cors import CORSMiddleware
 from firebase_admin import auth
-
-# NEW: Import the WebSocket connection manager
+from fastapi.staticfiles import StaticFiles
 from utils.websocket_manager import manager 
 
 # Import Routes
@@ -42,7 +41,7 @@ async def lifespan(app: FastAPI):
     LOGGER.info("Studently Backend Shutting Down...")
 
 app = FastAPI(title="Studently Backend", lifespan=lifespan)
-
+app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
 # CORS Middleware to allow requests from any origin (for development purposes)
 app.add_middleware(
     CORSMiddleware,

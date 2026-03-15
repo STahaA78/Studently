@@ -28,6 +28,10 @@ dependencies:
   path_provider: ^2.1.5
   flutter_image_compress: ^2.4.0
   mime: ^2.0.0
+  record: ^5.0.5
+  audioplayers: ^5.2.1
+  url_launcher: ^6.3.2
+  open_filex: ^4.7.0
 
   
 

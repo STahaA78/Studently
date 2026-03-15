@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException, Depends
+from fastapi import APIRouter, HTTPException, Depends, UploadFile, File, Request
 from database import conversations_collection, messages_collection, users_collection, courses_collection
 from models.chat_model import MessageCreate, MessageOut, ConversationOut
 from bson import ObjectId
@@ -6,10 +6,13 @@ from datetime import datetime
 from utils.auth import get_current_user
 import logging
 from utils.websocket_manager import manager
-
+import os
+import uuid
+import shutil
 router = APIRouter()
 LOGGER = logging.getLogger(__name__)
-
+UPLOAD_DIR = "uploads"
+os.makedirs(UPLOAD_DIR, exist_ok=True)
 def fix_id(doc):
     doc["_id"] = str(doc["_id"])
     return doc
@@ -66,12 +69,26 @@ async def send_message(msg: MessageCreate, current_user_id: str = Depends(get_cu
             "is_deleted": False
         })
         messages_collection.insert_one(message_dict)
-
+        preview_text = msg.text
+        if not preview_text and hasattr(msg, "attachments") and msg.attachments:
+            # Grab the first attachment URL
+            first_url = msg.attachments[0]
+            filename = first_url.split("/")[-1]
+            name_part, ext_part = os.path.splitext(filename)
+            
+            # Strip the 8-character ID if it exists (-a1b2c3d4)
+            if len(name_part) > 9 and name_part[-9] == "-":
+                clean_name = name_part[:-9] + ext_part
+            else:
+                clean_name = filename
+                
+            # Set the inbox preview text
+            preview_text = f"📎 {clean_name}"
         # 3. Update Conversation Meta
         update_query = {
             "$set": {
                 "last_message": {
-                    "text": msg.text,
+                    "text": preview_text,
                     "sender_id": current_user_id,
                     "timestamp": message_dict["timestamp"]
                 }
@@ -91,6 +108,7 @@ async def send_message(msg: MessageCreate, current_user_id: str = Depends(get_cu
                 "sender_id": current_user_id,
                 "sender_name": sender_name, # Broadcast to update UI instantly
                 "text": msg.text,
+                "attachments": getattr(msg, "attachments", []),
                 "timestamp": message_dict["timestamp"].isoformat()
             }
         }
@@ -184,3 +202,41 @@ def join_course_chat(course_id: str, current_user_id: str = Depends(get_current_
     except Exception as e:
         LOGGER.error(f"Error joining: {e}")
         raise HTTPException(status_code=500, detail="Internal Server Error")
+
+@router.post("/upload")
+async def upload_attachment(
+    request: Request,
+    file: UploadFile = File(...), 
+    current_user_id: str = Depends(get_current_user)
+):
+    LOGGER.info(f"User {current_user_id} initiated upload for file: {file.filename}")
+    try:
+        # 1. Clean the original filename (replace spaces with underscores to prevent URL issues)
+        safe_original_name = file.filename.replace(" ", "_")
+        
+        # 2. Split the name and the extension (e.g., "Assignment-01" and ".pdf")
+        name_part, ext_part = os.path.splitext(safe_original_name)
+        
+        # 3. Generate a short 8-character unique ID
+        short_uuid = str(uuid.uuid4())[:8]
+        
+        # 4. Combine them: "Assignment-01-a1b2c3d4.pdf"
+        unique_filename = f"{name_part}-{short_uuid}{ext_part}"
+        
+        file_path = os.path.join(UPLOAD_DIR, unique_filename)
+
+        LOGGER.info(f"Saving file to disk at: {file_path}")
+
+        with open(file_path, "wb") as buffer:
+            shutil.copyfileobj(file.file, buffer)
+
+        base_url = str(request.base_url).rstrip("/")
+        file_url = f"{base_url}/uploads/{unique_filename}"
+
+        LOGGER.info(f"Successfully uploaded! Public URL generated: {file_url}")
+        
+        return {"success": True, "url": file_url}
+
+    except Exception as e:
+        LOGGER.error(f"Upload failed for user {current_user_id}. Error: {e}")
+        raise HTTPException(status_code=500, detail="Could not upload file")
