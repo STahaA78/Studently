@@ -13,7 +13,7 @@ class UserCreate(BaseModel):
     batch: str
     interests: List[str] = []
     university: str = "FAST"
-    profile_picture: Optional[str] = None
+    profilePhotoUrl: Optional[str] = None
     bio: Optional[str] = None
     isAdmin: bool = False
 
@@ -44,12 +44,10 @@ class UserOut(BaseModel):
     id: str  # This maps to the internal MongoDB _id (which is now our uid)
     name: str
     email: EmailStr
-    birthday: date
     department: str
     batch: str
     interests: List[str] = []
-    university: str
-    profile_picture: Optional[str] = None
+    profilePhotoUrl: Optional[str] = None
     bio: Optional[str] = None
     friends: List[str] = []
     created_at: Optional[datetime] = None
@@ -66,7 +64,8 @@ class UserProfileData(BaseModel):
     id: str
     name: str
     email: EmailStr
-    connection_count: int
     interests: List[str]
     department: str
     batch: str
+    profilePhotoUrl: Optional[str] = None
+    friendsCount: int

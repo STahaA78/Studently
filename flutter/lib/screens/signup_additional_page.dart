@@ -63,7 +63,7 @@ class _SignupAdditionalPageState extends State<SignupAdditionalPage> {
     
     final Map<String, dynamic> payload = {
       "uid": firebaseUid, // NEW: The specific ID from Firebase
-      "Name": widget.user.name,
+      "name": widget.user.name,
       "email": widget.user.email,
       "password": widget.user.password,
       "birthday": widget.user.birthday,

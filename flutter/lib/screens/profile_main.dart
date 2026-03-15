@@ -3,6 +3,8 @@ import '../widgets/custom_nav_bar.dart';
 import 'post_details_page.dart';
 import 'package:studently/models/user.dart';
 import 'package:studently/repositories/user.dart';
+import 'package:studently/logger.dart';
+import 'package:studently/screens/profile_edit.dart';
 
 class ProfilePage extends StatefulWidget {
   final String? userId;
@@ -35,24 +37,103 @@ class _ProfilePageState extends State<ProfilePage> {
 
   User? user;
   bool isLoading = true;
+  String connectionStatus = "none";
+  bool isStatusLoading = true;
   final userRepository = UserRepository();
+  final String currentUserId = "6989b03caf678f41033614ea";
 
   @override
   void initState() {
+    logger.i("[ProfilePage] initState called with userId: ${widget.userId}");
     super.initState();
     _loadUserProfile();
+    _loadConnectionStatus();
   }
 
   Future<void> _loadUserProfile() async {
     setState(() => isLoading = true);
     try {
-      final fetchedUser = await userRepository.fetchUserProfile("0");
+      final fetchedUser = await userRepository.fetchUserProfile(widget.userId ?? "0");
       setState(() {
         user = fetchedUser;
         isLoading = false;
       });
     } catch (e) {
       setState(() => isLoading = false);
+    }
+  }
+
+  Future<void> _loadConnectionStatus() async {
+    // Only load status for other users
+    if (widget.userId == null) return;
+    setState(() => isStatusLoading = true);
+    try {
+      final status = await userRepository.fetchConnectionStatus(widget.userId!);
+      setState(() {
+        connectionStatus = status;
+        isStatusLoading = false;
+      });
+    } catch (e) {
+      setState(() => isStatusLoading = false);
+    }
+  }
+
+  Future<void> _sendConnectionRequest() async {
+    try {
+      await userRepository.sendConnectionRequest(widget.userId!);
+      setState(() => connectionStatus = "outgoing_request");
+    } catch (_) {}
+  }
+
+  Future<void> _cancelConnectionRequest() async {
+    try {
+      await userRepository.cancelConnectionRequest(widget.userId!);
+      setState(() => connectionStatus = "none");
+    } catch (_) {}
+  }
+
+  Future<void> _acceptRequest() async {
+    try {
+      await userRepository.respondRequest(widget.userId!, "accept");
+      setState(() => connectionStatus = "friends");
+    } catch (_) {}
+  }
+
+  Future<void> _rejectRequest() async {
+    try {
+      await userRepository.respondRequest(widget.userId!, "reject");
+      setState(() => connectionStatus = "none");
+    } catch (_) {}
+  }
+
+  Future<void> _unfriendUser() async {
+    try {
+      await userRepository.unfriendUser(widget.userId!);
+      setState(() => connectionStatus = "none");
+    } catch (_) {}
+  }
+
+  Future<void> _showDisconnectDialog() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text("Disconnect"),
+        content: const Text("Are you sure you want to remove this connection?"),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text("Cancel"),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text("Disconnect"),
+          ),
+        ],
+      ),
+    );
+    if (confirmed == true) {
+      await _unfriendUser();
     }
   }
 
@@ -88,7 +169,6 @@ class _ProfilePageState extends State<ProfilePage> {
                     crossAxisAlignment: CrossAxisAlignment.center,
                     children: [
                       const SizedBox(height: 12),
-                      // Avatar
                       _buildProfilePhoto(user!),
                       const SizedBox(height: 12),
                       Text(
@@ -104,16 +184,15 @@ class _ProfilePageState extends State<ProfilePage> {
                         onPressed: null,
                         icon: const Icon(Icons.people, color: Colors.blue),
                         label: Text(
-                          "${user!.connectionCount} Connections",
+                          "${user!.friendsCount} Friends",
                           style: const TextStyle(color: Colors.blue),
                         ),
                       ),
                       const SizedBox(height: 12),
-                      // Interests
                       Wrap(
                         spacing: 8,
                         runSpacing: 8,
-                        children: (user!.interests ?? [])
+                        children: (user!.interests)
                             .map((interest) => Chip(
                                   label: Text(
                                     interest,
@@ -124,13 +203,13 @@ class _ProfilePageState extends State<ProfilePage> {
                             .toList(),
                       ),
                       const SizedBox(height: 16),
-                      // ✅ EDIT PROFILE (ONLY FOR MY PROFILE)
                       if (isMyProfile)
                         OutlinedButton.icon(
                           onPressed: () {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
-                                content: Text("Edit Profile coming soon"),
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => EditProfilePage(user: user!)
                               ),
                             );
                           },
@@ -146,8 +225,8 @@ class _ProfilePageState extends State<ProfilePage> {
                             ),
                           ),
                         ),
+                      if (!isMyProfile) _buildConnectionActions(),
                       const SizedBox(height: 20),
-                      // Posts
                       const Align(
                         alignment: Alignment.centerLeft,
                         child: Text(
@@ -181,8 +260,60 @@ class _ProfilePageState extends State<ProfilePage> {
     );
   }
 
+  Widget _buildConnectionActions() {
+    String buttonText = "Connect";
+    VoidCallback? onPressed = _sendConnectionRequest;
+    bool showReject = false;
+    if (connectionStatus == "incoming_request") {
+      buttonText = "Accept";
+      onPressed = _acceptRequest;
+      showReject = true;
+    } else if (connectionStatus == "outgoing_request") {
+      buttonText = "Pending";
+      onPressed = _cancelConnectionRequest;
+    } else if (connectionStatus == "friends") {
+      buttonText = "Connected";
+      onPressed = null;
+    }
+    return Column(
+      children: [
+        Row(
+          children: [
+            if (showReject)
+              Expanded(
+                child: OutlinedButton(
+                  onPressed: _rejectRequest,
+                  child: const Text("Decline"),
+                ),
+              ),
+            if (showReject) const SizedBox(width: 12),
+            Expanded(
+              child: ElevatedButton(
+                onPressed: isStatusLoading ? null : onPressed,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: blue,
+                ),
+                child: Text(buttonText),
+              ),
+            ),
+          ],
+        ),
+        if (connectionStatus == "friends") ...[
+          const SizedBox(height: 14),
+          GestureDetector(
+            onTap: _showDisconnectDialog,
+            child: const Text(
+              "Disconnect",
+              style: TextStyle(color: Colors.red, fontWeight: FontWeight.w600),
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+
   Widget _buildProfilePhoto(User user) {
-    if (user.profilePhotoUrl == null || user.profilePhotoUrl!.isEmpty) {
+    if (user.profilePhotoUrl.isEmpty) {
       return CircleAvatar(
         radius: 45,
         backgroundColor: Colors.grey.shade400,
@@ -192,8 +323,8 @@ class _ProfilePageState extends State<ProfilePage> {
     return CircleAvatar(
       radius: 45,
       backgroundColor: Colors.grey.shade400,
-      backgroundImage: NetworkImage(user.profilePhotoUrl!),
-      onBackgroundImageError: (_, __) {
+      backgroundImage: NetworkImage(user.profilePhotoUrl),
+      onBackgroundImageError: (_, _) {
         // fallback to icon if image fails
       },
       child: Container(),

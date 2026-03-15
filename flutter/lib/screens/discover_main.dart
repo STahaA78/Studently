@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 
 import 'package:studently/widgets/custom_nav_bar.dart';
-import 'requests_page.dart';
-import 'user_profile_page.dart';
+import 'package:studently/screens/profile_main.dart';
+import 'discover_requests.dart';
 import 'package:studently/models/user.dart';
 import 'package:studently/repositories/user.dart';
 import 'package:studently/logger.dart';
@@ -31,7 +31,7 @@ class _ConnectDiscoverPageState extends State<ConnectDiscoverPage> {
   @override
   void initState() {
     super.initState();
-    _discoverFuture = _userRepository.discoverUsers(currentUserId);
+    _discoverFuture = _userRepository.discoverUsers();
     loadPendingRequestsCount();
     _searchController.addListener(_onSearchChanged);
   }
@@ -48,21 +48,11 @@ class _ConnectDiscoverPageState extends State<ConnectDiscoverPage> {
     setState(() {
       searchQuery = query;
       if (query.isEmpty) {
-        _discoverFuture = _userRepository.discoverUsers(currentUserId);
+        _discoverFuture = _userRepository.discoverUsers();
       } else if (query.length >= 2) {
-        _discoverFuture = _userRepository.searchUsers(query, currentUserId);
+        _discoverFuture = _userRepository.searchUsers(query);
       }
     });
-  }
-
-  // ---------------- USER MAPPER ----------------
-  Map<String, dynamic> mapUser(dynamic user) {
-    return {
-      "id": user["id"],
-      "name": user["Name"] ?? "",
-      "department": user["department"] ?? "",
-      "batch": user["batch"]?.toString() ?? "",
-    };
   }
 
   // ---------------- INITIALS ----------------
@@ -75,7 +65,7 @@ class _ConnectDiscoverPageState extends State<ConnectDiscoverPage> {
   // ---------------- CONNECTION STATUS ----------------
   Future<void> fetchConnectionStatus(String targetId) async {
     try {
-      final status = await _userRepository.fetchConnectionStatus(currentUserId, targetId);
+      final status = await _userRepository.fetchConnectionStatus(targetId);
       setState(() {
         connectionStatus[targetId] = status;
       });
@@ -87,7 +77,7 @@ class _ConnectDiscoverPageState extends State<ConnectDiscoverPage> {
   // ---------------- SEND / CANCEL ----------------
   Future<void> sendConnectionRequest(String targetId) async {
     try {
-      await _userRepository.sendConnectionRequest(currentUserId, targetId);
+      await _userRepository.sendConnectionRequest(targetId);
       setState(() {
         connectionStatus[targetId] = "outgoing_request";
       });
@@ -98,7 +88,7 @@ class _ConnectDiscoverPageState extends State<ConnectDiscoverPage> {
 
   Future<void> cancelConnectionRequest(String targetId) async {
     try {
-      await _userRepository.cancelConnectionRequest(currentUserId, targetId);
+      await _userRepository.cancelConnectionRequest(targetId);
       setState(() {
         connectionStatus[targetId] = "none";
       });
@@ -110,7 +100,7 @@ class _ConnectDiscoverPageState extends State<ConnectDiscoverPage> {
   // ---------------- PENDING COUNT ----------------
   Future<void> loadPendingRequestsCount() async {
     try {
-      final count = await _userRepository.fetchPendingRequestsCount(currentUserId);
+      final count = await _userRepository.fetchPendingRequestsCount();
       setState(() {
         pendingRequestsCount = count;
       });
@@ -169,7 +159,7 @@ class _ConnectDiscoverPageState extends State<ConnectDiscoverPage> {
               if (result == true) {
                 await loadPendingRequestsCount();
                 setState(() {
-                  _discoverFuture = _userRepository.discoverUsers(currentUserId);
+                  _discoverFuture = _userRepository.discoverUsers();
                 });
               }
             },
@@ -227,7 +217,7 @@ class _ConnectDiscoverPageState extends State<ConnectDiscoverPage> {
                             child: ElevatedButton(
                               onPressed: () {
                                 setState(() {
-                                  _discoverFuture = _userRepository.discoverUsers(currentUserId);
+                                  _discoverFuture = _userRepository.discoverUsers();
                                 });
                               },
                               style: ElevatedButton.styleFrom(
@@ -263,10 +253,9 @@ class _ConnectDiscoverPageState extends State<ConnectDiscoverPage> {
   }
 
   // ---------------- STUDENT CARD ----------------
-  Widget _buildStudentCard(
-      User student) {
-    final status =
-        connectionStatus[student.id] ?? "none";
+  Widget _buildStudentCard(User student) {
+    logger.d("[ConnectDiscoverPage] Building card for student: ${student.name} with id: ${student.id}");
+    final status = connectionStatus[student.id] ?? "none";
 
     Widget actionWidget;
 
@@ -315,12 +304,12 @@ class _ConnectDiscoverPageState extends State<ConnectDiscoverPage> {
         final changed = await Navigator.push(
           context,
           MaterialPageRoute(
-            builder: (_) => UserProfilePage(userId: student.id),
+            builder: (_) => ProfilePage(userId: student.id),
           ),
         );
         if (changed == true) {
           setState(() {
-            _discoverFuture = _userRepository.discoverUsers(currentUserId);
+            _discoverFuture = _userRepository.discoverUsers();
           });
           await loadPendingRequestsCount();
         }

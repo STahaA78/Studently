@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import '../widgets/custom_nav_bar.dart';
-import 'user_profile_page.dart';
 import 'package:studently/models/user.dart';
 import 'package:studently/repositories/user.dart';
 import 'package:studently/logger.dart';
+import 'package:studently/screens/profile_main.dart';
 
 class RequestsPage extends StatefulWidget {
   const RequestsPage({super.key});
@@ -24,22 +24,22 @@ class _RequestsPageState extends State<RequestsPage> {
   @override
   void initState() {
     super.initState();
-    _requestsFuture = UserRepository().fetchPendingRequests(currentUserId);
+    _requestsFuture = UserRepository().fetchPendingRequests();
   }
 
   // ---------------- FETCH REQUESTS ----------------
   Future<void> loadPendingRequests() async {
     setState(() {
-      _requestsFuture = UserRepository().fetchPendingRequests(currentUserId);
+      _requestsFuture = UserRepository().fetchPendingRequests();
     });
   }
 
   // ---------------- RESPOND REQUEST ----------------
   Future<void> respondRequest(String requesterId, String action) async {
     try {
-      await UserRepository().respondRequest(currentUserId, requesterId, action);
+      await UserRepository().respondRequest(requesterId, action);
       setState(() {
-        _requestsFuture = UserRepository().fetchPendingRequests(currentUserId);
+        _requestsFuture = UserRepository().fetchPendingRequests();
       });
       if (!mounted) return;
       Navigator.pop(context, true);
@@ -110,7 +110,7 @@ class _RequestsPageState extends State<RequestsPage> {
                       child: ElevatedButton(
                         onPressed: () {
                           setState(() {
-                            _requestsFuture = UserRepository().fetchPendingRequests(currentUserId);
+                            _requestsFuture = UserRepository().fetchPendingRequests();
                           });
                         },
                         style: ElevatedButton.styleFrom(
@@ -156,14 +156,14 @@ class _RequestsPageState extends State<RequestsPage> {
         final bool? changed = await Navigator.push(
           context,
           MaterialPageRoute(
-            builder: (_) => UserProfilePage(
+            builder: (_) => ProfilePage(
               userId: user.id,
             ),
           ),
         );
         if (changed == true) {
           setState(() {
-            _requestsFuture = UserRepository().fetchPendingRequests(currentUserId);
+            _requestsFuture = UserRepository().fetchPendingRequests();
           });
         }
       },

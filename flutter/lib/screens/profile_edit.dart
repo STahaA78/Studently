@@ -1,12 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:studently/models/user.dart';
 import 'package:studently/repositories/user.dart';
-
+import 'package:image_picker/image_picker.dart';
 class EditProfilePage extends StatefulWidget {
   final User user;
-  final String userId;
 
-  const EditProfilePage({super.key, required this.user, required this.userId});
+  const EditProfilePage({super.key, required this.user});
 
   @override
   State<EditProfilePage> createState() => _EditProfilePageState();
@@ -26,7 +25,7 @@ class _EditProfilePageState extends State<EditProfilePage> {
     nameController = TextEditingController(text: widget.user.name);
     departmentController = TextEditingController(text: widget.user.department);
     batchController = TextEditingController(text: widget.user.batch);
-    interestsController = TextEditingController(text: (widget.user.interests ?? []).join(", "));
+    interestsController = TextEditingController(text: (widget.user.interests).join(", "));
   }
 
   @override
@@ -48,7 +47,8 @@ class _EditProfilePageState extends State<EditProfilePage> {
       'interests': interestsController.text.split(',').map((e) => e.trim()).toList(),
     };
     try {
-      final updatedUser = await UserRepository().updateUserProfile(widget.userId, updatedData);
+      final updatedUser = await UserRepository().updateUserProfile(updatedData);
+      if (!mounted) return;
       Navigator.pop(context, updatedUser);
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -75,6 +75,24 @@ class _EditProfilePageState extends State<EditProfilePage> {
           key: _formKey,
           child: Column(
             children: [
+              // Profile photo
+              const SizedBox(height: 12),
+              CircleAvatar(
+                radius: 45,
+                backgroundColor: Colors.grey.shade400,
+                backgroundImage: widget.user.profilePhotoUrl.isNotEmpty
+                  ? NetworkImage(widget.user.profilePhotoUrl)
+                  : null,
+                child: widget.user.profilePhotoUrl.isEmpty
+                  ? const Icon(Icons.person, size: 40, color: Colors.white)
+                  : null,
+              ),
+              TextButton.icon(
+                icon: const Icon(Icons.edit),
+                label: const Text('Edit Profile Photo'),
+                onPressed: _showEditPhotoOptions,
+              ),
+              const SizedBox(height: 24),
               TextFormField(
                 controller: nameController,
                 decoration: const InputDecoration(labelText: 'Name'),
@@ -104,5 +122,53 @@ class _EditProfilePageState extends State<EditProfilePage> {
         ),
       ),
     );
+  }
+
+  void _showEditPhotoOptions() async {
+    final action = await showModalBottomSheet<String>(
+      context: context,
+      builder: (context) {
+        return SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ListTile(
+                leading: const Icon(Icons.camera_alt),
+                title: const Text('Take Photo'),
+                onTap: () => Navigator.pop(context, 'take'),
+              ),
+              ListTile(
+                leading: const Icon(Icons.photo_library),
+                title: const Text('Add from Gallery'),
+                onTap: () => Navigator.pop(context, 'gallery'),
+              ),
+              ListTile(
+                leading: const Icon(Icons.delete),
+                title: const Text('Remove Photo'),
+                onTap: () => Navigator.pop(context, 'remove'),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+    if (action == 'remove') {
+      await UserRepository().removeProfilePhoto();
+      setState(() {
+        widget.user.profilePhotoUrl = '';
+      });
+    } else if (action == 'gallery' || action == 'take') {
+      // Pick image from gallery or camera
+      // Requires image_picker package
+      final ImageSource source = action == 'gallery' ? ImageSource.gallery : ImageSource.camera;
+      final pickedFile = await ImagePicker().pickImage(source: source);
+      if (pickedFile != null) {
+        await UserRepository().uploadProfilePhoto(pickedFile.path);
+        // Ideally, refetch user profile to get updated URL from backend
+        setState(() {
+          // This will trigger UI update, but you should refetch user profile for latest URL
+        });
+      }
+    }
   }
 }

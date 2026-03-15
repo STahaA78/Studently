@@ -1,4 +1,7 @@
-from fastapi import APIRouter, HTTPException, Depends
+# Endpoint to return profile photo
+from fastapi.responses import FileResponse
+import os
+from fastapi import APIRouter, HTTPException, Depends, Query, Body, UploadFile, File, Request
 from datetime import datetime
 from utils.auth import hash_password
 from database import users_collection
@@ -34,7 +37,7 @@ def is_admin(user_id: str) -> bool:
 #Create User
 @router.post("/register")
 def register(user: UserCreate):
-    LOGGER.info("User Registration Started", extra={"uid": user.uid if user.uid else "Guest"})
+    LOGGER.info("User Registration Started", extra={"uid": "Guest"})
     # Check if email is already taken
     if users_collection.find_one({"email": user.email.lower()}):
         raise HTTPException(status_code=400, detail="Email already registered")
@@ -48,14 +51,15 @@ def register(user: UserCreate):
     user_dict["password"] = hashed_pass
     user_dict["email"] = user.email.lower()
     user_dict["birthday"] = datetime.combine(user.birthday, datetime.min.time())
-    user_dict["connection_count"] = 0
-    # Remove the redundant uid field since it's now stored as _id
+    user_dict["friendsCount"] = 0
     if "uid" in user_dict:
         del user_dict["uid"]
     result = users_collection.insert_one(user_dict)
     LOGGER.info(f"User Registered Ended Successfully - id: {result.inserted_id}", extra={"uid": user_id})
     return {"success": True, "uid": str(result.inserted_id)}
-#Verify User
+
+
+#Login
 @router.post("/login")
 def login(user: UserLogin):
     LOGGER.info("User Login Started", extra={"uid": "Guest"})
@@ -69,37 +73,387 @@ def login(user: UserLogin):
     return {"success": True, "uid": str(db_user["_id"])}
 
 @router.get("/{user_id}/profile", response_model=UserProfileData)
-def get_user_info(user_id: str, user: str = Depends(get_current_user)):
-    LOGGER.info(f"Fetching profile for user ID: {user}", extra={"uid": user})
-        
-    if user_id != "0":
-        if is_admin(user):
-            LOGGER.info(f"Admin accessing  profile of user ID: {user_id}", extra={"uid": user})
-        else:
-            LOGGER.warning(f"Unauthorized access attempt to user ID: {user_id} by user ID: {user}", extra={"uid": user})
-            raise HTTPException(status_code=403, detail="Not authorized to access this profile")
-    else:
-        LOGGER.info(f"User accessing own profile", extra={"uid": user})
-        user_id = user  # Override to fetch own profile when user_id is "0"
+def get_user_info(user_id: str, USER: str = Depends(get_current_user)):
+    LOGGER.info(f"Fetching profile for USER ID: {USER}", extra={"uid": USER})
+    if user_id == "0":
+        LOGGER.info(f"USER accessing own profile", extra={"uid": USER})
+        user_id = USER  # Override to fetch own profile when user_id is "0"
 
     user_data = users_collection.find_one(
         {
             "_id": user_id
         },
         {
-
+            "_id":1,
             "name": 1,
             "email": 1,
-            "connection_count"
             "interests": 1,
             "department": 1,
             "batch": 1,
+            "profilePhotoUrl":1
         }
     )
-    LOGGER.debug(f"Database query result for user ID {user_id}: {user_data}", extra={"uid": user})
+    LOGGER.debug(f"Database query result for user ID {user_id}: {user_data}", extra={"uid": USER})
     if not user_data:
-        LOGGER.warning(f"User not found in DB for ID: {user_id}", extra={"uid": user_id})
+        LOGGER.warning(f"User not found in DB for ID: {user_id}", extra={"uid": USER})
         raise HTTPException(status_code=404, detail="User not found")
     user_data["id"] = user_id # Insert id
-    LOGGER.info(f"Profile fetched successfully for user ID: {user_id}", extra={"uid": user})
+    user_data["friendsCount"] = len(user_data.get("friends", [])) # Add friends count
+    LOGGER.info(f"Profile fetched successfully for user ID: {user_id}", extra={"uid": USER})
     return user_data
+
+
+@router.get("/{user_id}/profile/photo")
+def get_profile_photo(user_id: str, USER: str = Depends(get_current_user)):
+    LOGGER.info(f"Fetching profile photo for USER ID: {user_id}", extra={"uid": USER})
+    if user_id != "0":
+        if is_admin(USER):
+            LOGGER.info(f"Admin accessing profile photo of USER ID: {user_id}", extra={"uid": USER})
+        else:
+            LOGGER.warning(f"Unauthorized access attempt to profile photo of USER ID: {user_id} by USER ID: {USER}", extra={"uid": USER})
+            raise HTTPException(status_code=403, detail="Not authorized to access this profile photo")
+    else:
+        LOGGER.info(f"USER accessing own profile photo", extra={"uid": USER})
+        user_id = USER  # Override to fetch own profile photo when user_id is "0"
+    user = users_collection.find_one({"_id": user_id})
+    photo_path = user.get("profile_photo_path")
+    if not photo_path:
+        LOGGER.warning("No Photo Path Found for USER ID: {user_id}", extra= {"uid": USER})
+        raise HTTPException(status_code=404, detail="Profile photo not set")
+    file_path = os.path.join(os.getcwd(), photo_path.lstrip("/"))
+    if not os.path.exists(file_path):
+        raise HTTPException(status_code=404, detail="Profile photo file not found")
+    return FileResponse(file_path)
+
+# Remove Profile Photo
+@router.post("/{user_id}/profile/photo/remove")
+def remove_profile_photo(user_id: str, USER: str = Depends(get_current_user)):
+    if user_id != "0":
+        if is_admin(USER):
+            LOGGER.info(f"Admin accessing profile photo of USER ID: {user_id}", extra={"uid": USER})
+        else:
+            LOGGER.warning(f"Unauthorized access attempt to profile photo of USER ID: {user_id} by USER ID: {USER}", extra={"uid": USER})
+            raise HTTPException(status_code=403, detail="Not authorized to remove this profile photo")
+    else:
+        user_id = USER
+    user = users_collection.find_one({"_id": user_id})
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    users_collection.update_one({"_id": user_id}, {"$set": {"profilePhotoPath": None,"profilePhotoUrl": None}})
+    return {"success": True, "profile_photo_url": None}
+
+# Add Profile Photo
+@router.post("/{user_id}/profile/photo/add")
+async def add_profile_photo(request: Request,user_id: str, photo: UploadFile = File(...), USER: str = Depends(get_current_user)):
+    LOGGER.info(f"USER {USER} Add profile photo for USER ID: {user_id}", extra={"uid": USER})
+    if user_id != "0":
+        if is_admin(USER):
+            LOGGER.info(f"Admin Add profile photo of USER ID: {user_id}", extra={"uid": USER})
+        else:
+            LOGGER.warning(f"Unauthorized update attempt to USER ID: {user_id} by USER ID: {USER}", extra={"uid": USER})
+            raise HTTPException(status_code=403, detail="Not authorized to update this profile photo")
+    else:
+        LOGGER.info(f"USER Add own profile photo", extra={"uid": USER})
+        user_id = USER  # Override to update own profile when user_id is "0"
+
+    user = users_collection.find_one({"_id": user_id})
+    if not user:
+        LOGGER.warning(f"User not found in DB for ID: {user_id}", extra={"uid": USER})
+        raise HTTPException(status_code=404, detail="User not found")
+
+    # Save photo to disk (or cloud, here local for demo)
+    try:
+        photos_dir = "profile_photos"
+        os.makedirs(photos_dir, exist_ok=True)
+        _ , ext = os.path.splitext(photo.filename)
+        filename = f"{uuid.uuid4()}{ext}"
+        file_path = os.path.join(photos_dir, filename)
+        with open(file_path, "wb") as f:
+            content = await photo.read()
+            f.write(content)
+        # Store the file path or URL in DB
+        photo_path = f"/{photos_dir}/{user_id}{ext}"
+        users_collection.update_one({"_id": user_id}, {"$set": {"profilePhotoPath": photo_path, "profilePhotoUrl": f"{request.base_url}/users/0/profile/photo"}})
+        LOGGER.info(f"Profile photo updated for user ID: {user_id}", extra={"uid": USER})
+        return {"success": True, "message": "Photo Upload Successful"}
+    except Exception as e:
+        LOGGER.error(f"Error Uploading Profile Photo")
+        raise HTTPException(status_code=500, detail="Internal Server Error")
+
+@router.get("/search/", response_model=list[UserOut])
+def search_users(limit: int = Query(10, ge=1, le=50),query: str = Query(..., min_length=1), USER: str = Depends(get_current_user)):
+    LOGGER.info(f"Searching users with: {query}", extra={"uid": USER})
+    regex_query = {"$regex": query, "$options": "i"}
+    users = list(users_collection.find(
+        {
+            "_id": {"$ne": USER},   # exclude current user
+            "$or": [
+                {"name": regex_query},
+                {"department": regex_query},
+                {"interests": regex_query}
+            ]
+        },
+        {
+            "_id": 0,
+            "id": "$_id",
+            "name": 1,
+            "department": 1,
+            "batch": 1,
+            "interests": 1
+        }
+    ).limit(limit))
+    LOGGER.debug(f"Database search results for query '{query}': {users}",extra={"uid": USER})
+    LOGGER.info(f"Search completed with {len(users)} results for query: {query}",extra={"uid": USER})
+    return users
+
+@router.get("/{users_id}/status")
+def check_connection_status(user_id: str,target_id, USER: str = Depends(get_current_user)):
+    LOGGER.info(f"Checking connection with {target_id}", extra={"uid": USER})
+    if user_id != "0":
+        if is_admin(USER):
+            LOGGER.info(f"Admin accessing  profile of USER ID: {user_id}", extra={"uid": USER})
+        else:
+            LOGGER.warning(f"Unauthorized access attempt to USER ID: {user_id} by USER ID: {USER}", extra={"uid": USER})
+            raise HTTPException(status_code=403, detail="Not authorized to access this profile")
+    else:
+        LOGGER.info(f"USER accessing own profile", extra={"uid": USER})
+        user_id = USER  # Override to fetch own profile when user_id is "0"
+    user = users_collection.find_one({"_id": user_id})  # Ensure the requesting user exists in the database
+    target = users_collection.find_one({"_id": target_id})   # Ensure the target user exists in the database
+
+    if not user or not target:
+        LOGGER.warning(f"User not found for either USER {USER} or target {target_id}", extra={"uid": USER})
+        raise HTTPException(status_code=404, detail="User not found")
+
+    if target_id in user.get("friends", []):
+        LOGGER.info(f"Already friends with {target_id}", extra={"uid": USER})
+        return {"status": "friends"}
+    if target_id in user.get("friend_requests", []):
+        LOGGER.info(f"Incoming friend request found with {target_id}", extra={"uid": USER})
+        return {"status": "incoming_request"}
+    if USER in target.get("friend_requests", []):
+        LOGGER.info(f"Outgoing friend request found with {target_id}", extra={"uid": USER})
+        return {"status": "outgoing_request"}
+    LOGGER.info(f"No connection found with {target_id}", extra={"uid": USER})
+    return {"status": "none"}
+
+@router.get("/discover", response_model=list[UserOut])
+def discover_users(
+    limit: int = Query(10, ge=1, le=50),
+    exclude: list[str] = Query(default=[]),
+    USER: str = Depends(get_current_user)
+):
+    LOGGER.info(f"Discovering users", extra={"uid": USER})
+    current_user = users_collection.find_one(
+        {"_id": USER},
+        {"friends": 1}
+    )
+    friends = current_user.get("friends", [])
+    excluded_ids = list(set(friends + exclude + [USER]))
+    pipeline = [
+        {
+            "$match": {
+                "_id": {"$nin": excluded_ids}
+            }
+        },
+        {"$sample": {"size": limit}},
+        {
+            "$project": {
+                "id": "$_id",
+                "name": 1,
+                "email": 1,
+                "department": 1,
+                "batch": 1,
+                "interests": 1
+            }
+        }
+    ]
+
+    users = list(users_collection.aggregate(pipeline))
+
+    LOGGER.info(f"Discovery completed with {len(users)} users",extra={"uid": USER})
+    return users
+
+@router.post("/{user_id}/request")
+def send_friend_request(user_id: str, target_id: str, USER: str = Depends(get_current_user)):
+    LOGGER.info(f"Sending friend request from {user_id} to {target_id}", extra={"uid": USER})
+
+    if user_id == target_id:
+        LOGGER.warning(f"User {user_id} attempted to send friend request to self", extra={"uid": USER})
+        raise HTTPException(status_code=400, detail="Cannot connect with self")
+
+    user = users_collection.find_one({"_id": user_id})
+    target = users_collection.find_one({"_id": target_id})
+
+    if not user or not target:
+        LOGGER.warning(f"User not found for either sender {user_id} or target {target_id}", extra={"uid": USER})
+        raise HTTPException(status_code=404, detail="User not found")
+
+    if target_id in user.get("friends", []):
+        LOGGER.info(f"Users {user_id} and {target_id} are already friends", extra={"uid": USER})
+        return {"success": False, "message": "Already friends"}
+
+    users_collection.update_one(
+        {"_id": target_id},
+        {"$addToSet": {"friend_requests": user_id}}
+    )
+    LOGGER.info(f"Friend request sent from {user_id} to {target_id}", extra={"uid": USER})
+    return {"success": True, "message": "Friend request sent"}
+
+
+@router.get("/{user_id}/requests", response_model=list[UserOut])
+def get_pending_requests(user_id:str, USER: str = Depends(get_current_user)):
+
+    LOGGER.info(f"Fetching pending friend requests for USER {USER}", extra={"uid": USER})
+
+    if user_id != "0":
+        if is_admin(USER):
+            LOGGER.info(f"Admin accessing  profile of USER ID: {user_id}", extra={"uid": USER})
+        else:
+            LOGGER.warning(f"Unauthorized access attempt to USER ID: {user_id} by USER ID: {USER}", extra={"uid": USER})
+            raise HTTPException(status_code=403, detail="Not authorized to access this profile")
+    else:
+        LOGGER.info(f"USER accessing own profile", extra={"uid": USER})
+        user_id = USER  # Override to fetch own profile when user_id is "0"
+    
+    user = users_collection.find_one({"_id": user_id})
+    request_ids = user.get("friend_requests", [])
+    if not request_ids:
+        LOGGER.info(f"No pending friend requests for USER {USER}", extra={"uid": USER})
+        return []
+
+    requesters = list(users_collection.find(
+        {"_id": {"$in": [rid for rid in request_ids]}}
+    ))
+    LOGGER.info(f"Found {len(requesters)} pending friend requests for USER {USER}", extra={"uid": USER})
+    return requesters
+
+@router.post("/{user_id}/respond")
+def respond_to_friend_request(user_id: str, action_data: FriendRequestAction, USER : str = Depends(get_current_user)):
+    LOGGER.info(f"USER {USER} responding to friend request for USER ID: {action_data.requester_id}", extra={"uid": USER})
+    if user_id != "0":
+        if is_admin(USER):
+            LOGGER.info(f"Admin accessing  profile of USER ID: {user_id}", extra={"uid": USER})
+        else:
+            LOGGER.warning(f"Unauthorized access attempt to USER ID: {user_id} by USER ID: {USER}", extra={"uid": USER})
+            raise HTTPException(status_code=403, detail="Not authorized to access this profile")
+    else:
+        LOGGER.info(f"USER accessing own profile", extra={"uid": USER})
+        user_id = USER  # Override to fetch own profile when user_id is "0"
+    
+    user = users_collection.find_one({"_id": user_id})
+    
+    requester_id = action_data.requester_id
+    action = action_data.action.lower()
+
+    user = users_collection.find_one({"_id": user_id})
+    if not user or requester_id not in user.get("friend_requests", []):
+        LOGGER.warning(f"Friend request not found for USER {user_id} from requester {requester_id}", extra={"uid": user_id})
+        raise HTTPException(status_code=404, detail="Friend request not found")
+
+    users_collection.update_one(
+        {"_id": user_id},
+        {"$pull": {"friend_requests": requester_id}}
+    )
+
+    if action == "accept":
+        users_collection.update_one(
+            {"_id": user_id},
+            {"$addToSet": {"friends": requester_id}}
+        )
+        users_collection.update_one(
+            {"_id": requester_id},
+            {"$addToSet": {"friends": user_id}}
+        )
+        LOGGER.info(f"Friend request accepted by USER {user_id} from requester {requester_id}", extra={"uid": user_id}) 
+        return {"success": True, "message": "Friend request accepted"}
+    elif action == "reject":
+        LOGGER.info(f"Friend request rejected by USER {user_id} from requester {requester_id}", extra={"uid": user_id})
+        return {"success": True, "message": "Friend request rejected"}
+    else:
+        LOGGER.warning(f"Invalid action '{action}' for USER {user_id} responding to requester {requester_id}", extra={"uid": user_id})
+        raise HTTPException(status_code=400, detail="Invalid action")
+
+
+@router.post("/{user_id}/cancel-request")
+def cancel_friend_request(user_id: str, target_id: str, USER: str = Depends(get_current_user)):
+    LOGGER.info(f"USER {USER} cancelling friend request to {target_id}", extra={"uid": USER})
+    if user_id != "0":
+        if is_admin(USER):
+            LOGGER.info(f"Admin accessing  profile of USER ID: {user_id}", extra={"uid": USER})
+        else:
+            LOGGER.warning(f"Unauthorized access attempt to USER ID: {user_id} by USER ID: {USER}", extra={"uid": USER})
+            raise HTTPException(status_code=403, detail="Not authorized to access this profile")
+    else:
+        LOGGER.info(f"USER accessing own profile", extra={"uid": USER})
+        user_id = USER  # Override to fetch own profile when user_id is "0"
+    users_collection.update_one(
+        {"_id": target_id},
+        {"$pull": {"friend_requests": user_id}}
+    )
+    LOGGER.info(f"Friend request from USER {user_id} to {target_id} cancelled", extra={"uid": USER})
+    return {"success": True, "message": "Friend request cancelled"}
+
+
+@router.post("/{user_id}/unfriend")
+def remove_friend(user_id: str, action_data: FriendRemoveAction, USER: str = Depends(get_current_user)):
+    LOGGER.info(f"USER {USER} removing friend {action_data.friend_id}", extra={"uid": USER})
+    if user_id != "0":
+        if is_admin(USER):
+            LOGGER.info(f"Admin accessing  profile of USER ID: {user_id}", extra={"uid": USER})
+        else:
+            LOGGER.warning(f"Unauthorized access attempt to USER ID: {user_id} by USER ID: {USER}", extra={"uid": USER})
+            raise HTTPException(status_code=403, detail="Not authorized to access this profile")
+    else:
+        LOGGER.info(f"USER accessing own profile", extra={"uid": USER})
+        user_id = USER  # Override to fetch own profile when user_id is "0"
+
+    users_collection.update_one(
+        {"_id": user_id},
+        {"$pull": {"friends": action_data.friend_id}}
+    )
+    users_collection.update_one(
+        {"_id": action_data.friend_id},
+        {"$pull": {"friends": user_id}}
+    )
+    LOGGER.info(f"USER {user_id} and {action_data.friend_id} are no longer friends", extra={"uid": USER})
+    return {"success": True, "message": "Friend removed successfully"}
+
+# Update User Profile
+@router.patch("/{user_id}/update", response_model=UserProfileData)
+def update_user_profile(user_id: str, updated_data: dict = Body(...), USER: str = Depends(get_current_user)):
+    LOGGER.info(f"USER {USER} updating profile for USER ID: {user_id}", extra={"uid": USER})
+    if user_id != "0":
+        if is_admin(USER):
+            LOGGER.info(f"Admin updating profile of USER ID: {user_id}", extra={"uid": USER})
+        else:
+            LOGGER.warning(f"Unauthorized update attempt to USER ID: {user_id} by USER ID: {USER}", extra={"uid": USER})
+            raise HTTPException(status_code=403, detail="Not authorized to update this profile")
+    else:
+        LOGGER.info(f"USER updating own profile", extra={"uid": USER})
+        user_id = USER  # Override to update own profile when user_id is "0"
+
+    user = users_collection.find_one({"_id": user_id})
+    if not user:
+        LOGGER.warning(f"User not found in DB for ID: {user_id}", extra={"uid": USER})
+        raise HTTPException(status_code=404, detail="User not found")
+
+    # Only allow updating certain fields
+    allowed_fields = {"name", "department", "batch", "interests"}
+    update_fields = {k: v for k, v in updated_data.items() if k in allowed_fields}
+    if not update_fields:
+        raise HTTPException(status_code=400, detail="No valid fields to update")
+
+    users_collection.update_one({"_id": user_id}, {"$set": update_fields})
+    LOGGER.info(f"Profile updated successfully for user ID: {user_id}", extra={"uid": USER})
+    # Return updated profile
+    updated_user = users_collection.find_one({"_id": user_id}, {
+        "name": 1,
+        "email": 1,
+        "interests": 1,
+        "department": 1,
+        "batch": 1,
+    })
+    updated_user["id"] = user_id
+    updated_user["friends_count"] = len(updated_user.get("friends", []))
+    return updated_user
