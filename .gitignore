@@ -67,3 +67,5 @@ backend/serviceAccountKey.json
 # Knowledge Hub Material Folder
 misc/
 resources/
+
+uploads/

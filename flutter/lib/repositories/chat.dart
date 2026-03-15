@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:studently/models/chat.dart';
 import 'package:studently/services/api.dart';
 import 'package:studently/logger.dart';
+import 'dart:io';
 
 class ChatRepository {
   final ApiService _apiService = ApiService();
@@ -23,6 +24,7 @@ class ChatRepository {
   Future<void> sendMessage({
     required String conversationId,
     required String text,
+    List<String>? attachments,
   }) async {
     logger.d("[$runtimeType] Sending message to conversation: $conversationId");
     await _apiService.post(
@@ -30,7 +32,7 @@ class ChatRepository {
       body: {
         "conversation_id": conversationId,
         "text": text,
-        "attachments": [],
+        "attachments": attachments ?? [],
       },
     );
   }
@@ -59,5 +61,36 @@ class ChatRepository {
     final response = await _apiService.post('/chat/$receiverId/create_chat');
     final data = jsonDecode(response.body);
     return data['conversation_id'];
+  }
+
+  // Add this inside ChatRepository class
+  Future<String?> joinCourseGroupChat(String courseId) async {
+    logger.d("[$runtimeType] Joining group chat for course: $courseId");
+    try {
+      final response = await _apiService.post('/chat/course/$courseId/join');
+      final data = jsonDecode(response.body);
+      return data['conversation_id'];
+    } catch (e) {
+      logger.e("[$runtimeType] Error joining course chat: $e");
+      return null;
+    }
+  }
+
+  Future<String?> uploadAttachment(List<int> bytes, String filename) async {
+    logger.i("ChatRepository: Initiating attachment upload...");
+    try {
+      // Pass bytes and filename to the API Gateway
+      final response = await ApiService().uploadFile('/chat/upload', bytes, filename);
+      
+      final data = jsonDecode(response.body);
+      final url = data['url'];
+      
+      logger.i("ChatRepository: Upload successful. URL: $url");
+      return url;
+      
+    } catch (e) {
+      logger.e("ChatRepository: Attachment upload failed: $e");
+      return null;
+    }
   }
 }
