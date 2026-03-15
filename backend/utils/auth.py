@@ -2,27 +2,23 @@ import firebase_admin
 from firebase_admin import auth, credentials
 from fastapi import HTTPException, Depends
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
-import os
 from passlib.context import CryptContext
-import json
+from config import CONFIG
+import logging
 
-firebase_creds_json = os.environ.get("FIREBASE_CONFIG")
+LOGGER = logging.getLogger(__name__)
+
+firebase_creds = CONFIG.FIREBASE_CONFIG
 security = HTTPBearer()
 
+try:
+    # Initialize Firebase with the credentials from the environment variable
+    cred = credentials.Certificate(firebase_creds)
+    firebase_admin.initialize_app(cred)
+    LOGGER.info("Firebase initialized successfully from environment variable.")
+except Exception as e:
+    LOGGER.error(f"Error initializing Firebase from environment variable")
 
-if firebase_creds_json:
-    try:
-        # Parse the JSON string into a dictionary
-        firebase_creds_dict = json.loads(firebase_creds_json)
-        # Initialize Firebase with the credentials from the environment variable
-        cred = credentials.Certificate(firebase_creds_dict)
-        firebase_admin.initialize_app(cred)
-        print("Firebase initialized successfully from environment variable.")
-    except Exception as e:
-        print(f"Error initializing Firebase from environment variable: {e}")
-else:
-    raise Exception("FIREBASE_CONFIG environment variable not set. Please set it with your Firebase service account JSON.")
-    
 
 pwd_context = CryptContext(schemes=["argon2"], deprecated="auto")
 
@@ -37,6 +33,8 @@ async def get_current_user(res: HTTPAuthorizationCredentials = Depends(security)
     token = res.credentials
     try:
         decoded_token = auth.verify_id_token(token)
+        print(f"Decoded token: {decoded_token}")
         return decoded_token.get("uid")
     except Exception as e:
+        LOGGER.error(f"Error occurred while verifying ID token")
         raise HTTPException(status_code=401, detail="Invalid Authentication")

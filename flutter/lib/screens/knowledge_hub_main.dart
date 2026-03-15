@@ -3,7 +3,7 @@ import 'package:flutter/services.dart';
 import '../widgets/custom_nav_bar.dart';
 import 'package:studently/models/course.dart';
 import 'package:studently/repositories/course.dart';
-import 'knowledge_hub_courses.dart';
+import 'knowledge_hub_course.dart';
 
 // NEW IMPORTS FOR GROUP CHAT
 import 'package:studently/repositories/chat.dart';
