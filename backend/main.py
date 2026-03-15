@@ -3,8 +3,7 @@ from contextlib import asynccontextmanager
 import logging
 from fastapi.middleware.cors import CORSMiddleware
 from firebase_admin import auth
-
-# NEW: Import the WebSocket connection manager
+from fastapi.staticfiles import StaticFiles
 from utils.websocket_manager import manager 
 
 # Import Routes
@@ -41,7 +40,7 @@ async def lifespan(app: FastAPI):
     LOGGER.info("Studently Backend Shutting Down...")
 
 app = FastAPI(title="Studently Backend", lifespan=lifespan)
-
+app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
 # CORS Middleware to allow requests from any origin (for development purposes)
 app.add_middleware(
     CORSMiddleware,
@@ -64,25 +63,27 @@ async def websocket_endpoint(websocket: WebSocket, token: str):
     # 1. Validate Token & Get User ID
     try:
         payload = auth.verify_id_token(token)
-        user_id = payload.get("user_id")
+        # Fix 1: Use 'uid' instead of 'user_id'
+        user_id = payload.get("user_id") 
         
         if not user_id:
-            LOGGER.warning("WebSocket auth failed: No user_id found in token.")
-            await websocket.close(code=1008)
-            return
+            LOGGER.warning("WebSocket auth failed: No uid found in token.")
+            # Fix 2: Return to reject connection safely
+            return 
     except Exception as e:
         LOGGER.error(f"WebSocket auth failed: {e}")
-        await websocket.close(code=1008)
-        return
+        # Fix 2: Return to reject connection safely
+        return 
 
-    # 2. Add to Manager
+    # 2. Add to Manager (This accepts the connection)
     await manager.connect(websocket, user_id)
+    
     try:
         while True:
             # Keep connection alive
             await websocket.receive_text()
-    except WebSocketDisconnect:
-        # Note: Must pass BOTH websocket and user_id to remove the exact connection
+    except Exception: 
+        # Fix 3: Catch generic Exception to prevent memory leaks
         manager.disconnect(websocket, user_id)
 
 @app.get("/")

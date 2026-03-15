@@ -134,7 +134,28 @@ class ApiService {
     logger.d("[$runtimeType] Complete URL: $completeUrl");
     return completeUrl;
   }
+  //VM and Attachments Uploading for Cgat
+  Future<http.Response> uploadFile(String endpoint, List<int> bytes, String filename) async {
+    logger.i("[$runtimeType] File Upload request to $endpoint Initiated");
+    final url = Uri.parse("$_baseUrl$endpoint");
+    
+    try {
+      var request = http.MultipartRequest('POST', url)
+        ..headers['Authorization'] = 'Bearer ${await authService.value.getIdToken()}'
+        // USE .fromBytes INSTEAD OF .fromPath
+        ..files.add(http.MultipartFile.fromBytes('file', bytes, filename: filename)); 
 
+      final streamedResponse = await request.send();
+      final response = await http.Response.fromStream(streamedResponse);
+
+      logger.i("[$runtimeType] File Upload to $endpoint Completed with status code ${response.statusCode}");
+      return _handleResponse(response); 
+      
+    } catch (e) {
+      logger.e("[$runtimeType] File Upload to $endpoint Failed with error: $e");
+      throw Exception('Error occurred: $e');
+    }
+  }
   Future<http.Response> downloadFile(String endpoint) async {
     logger.i("[$runtimeType] Download file request to $endpoint Initiated");
     final url = Uri.parse("$_baseUrl$endpoint");

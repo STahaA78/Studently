@@ -5,6 +5,10 @@ import 'package:studently/models/course.dart';
 import 'package:studently/repositories/course.dart';
 import 'knowledge_hub_course.dart';
 
+// NEW IMPORTS FOR GROUP CHAT
+import 'package:studently/repositories/chat.dart';
+import 'package:studently/screens/chat_page.dart';
+
 class KnowledgeHubPage extends StatefulWidget {
   const KnowledgeHubPage({super.key});
 
@@ -330,7 +334,34 @@ class _KnowledgeHubPageState extends State<KnowledgeHubPage> {
                                         ),
                                       ),
                                       OutlinedButton.icon(
-                                        onPressed: () {},
+                                        // CHANGED: Wired up Group Chat backend logic
+                                        onPressed: () async {
+                                          final convId = await ChatRepository()
+                                              .joinCourseGroupChat(course.code);
+
+                                          if (convId != null &&
+                                              context.mounted) {
+                                            Navigator.push(
+                                              context,
+                                              MaterialPageRoute(
+                                                builder: (_) => ChatPage(
+                                                  conversationId: convId,
+                                                  otherUserId: "GROUP",
+                                                  otherUserName:
+                                                      "${course.name} Group",
+                                                ),
+                                              ),
+                                            );
+                                          } else if (context.mounted) {
+                                            ScaffoldMessenger.of(context)
+                                                .showSnackBar(
+                                              const SnackBar(
+                                                content: Text(
+                                                    "Failed to join group chat."),
+                                              ),
+                                            );
+                                          }
+                                        },
                                         icon: const Icon(
                                             Icons.forum_outlined, size: 18),
                                         label: const Text("Group Chat"),
