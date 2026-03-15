@@ -3,6 +3,7 @@ import '../screens/community_feed_page.dart';
 import '../screens/connect_discover_page.dart';
 import '../screens/profile_page.dart';
 import '../screens/knowledge_hub_page.dart';
+import '../screens/create_post_page.dart';
 
 class CustomNavBar extends StatelessWidget {
   final int currentIndex;
@@ -27,24 +28,43 @@ class CustomNavBar extends StatelessWidget {
       );
     }
 
-    void _onItemTapped(int index) {
+    void _onItemTapped(int index) async {
       Widget? destination;
 
       switch (index) {
         case 0:
           destination = const CommunityFeedPage();
           break;
+
         case 1:
           destination = const ConnectDiscoverPage();
           break;
+
         case 2:
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text("Create post coming soon!")),
+
+          final created = await Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => CreatePostPage(),
+            ),
           );
+
+          if (created == true) {
+            Navigator.pushAndRemoveUntil(
+              context,
+              MaterialPageRoute(
+                builder: (_) => const CommunityFeedPage(),
+              ),
+              (route) => false,
+            );
+          }
+
           return;
+
         case 3:
           destination = const KnowledgeHubPage();
           break;
+
         case 4:
           destination = const ProfilePage();
           break;
@@ -52,7 +72,6 @@ class CustomNavBar extends StatelessWidget {
 
       if (destination == null) return;
 
-      // 🔥 IMPORTANT: Even if same tab → refresh it
       _navigateTo(destination);
     }
 

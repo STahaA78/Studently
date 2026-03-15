@@ -11,25 +11,56 @@ class AuthService {
 
   Stream<User?> get authStateChanges => firebaseAuth.authStateChanges();
 
+  // Future<User?> signIn({
+  //   required String email,
+  //   required String password,
+  // }) async {
+  //   logger.i("[$runtimeType] SignIn Started");
+  //   logger.d("[$runtimeType] Email: $email, Password: $password");
+  //   try {
+  //     final userCredential = await firebaseAuth.signInWithEmailAndPassword(
+  //       email: email,
+  //       password: password
+  //     );
+  //     logger.i("[$runtimeType] SignIn Successful");
+  //     return userCredential.user;
+  //   } catch (e) {
+  //     logger.e("[$runtimeType] SignIn Failed" , error: e);
+  //     rethrow;
+  //   }
+  // }
   Future<User?> signIn({
     required String email,
     required String password,
   }) async {
+
     logger.i("[$runtimeType] SignIn Started");
-    logger.d("[$runtimeType] Email: $email, Password: $password");
+
     try {
+
       final userCredential = await firebaseAuth.signInWithEmailAndPassword(
         email: email,
         password: password
       );
+
+      final token = await userCredential.user?.getIdToken(true);
+
+
+      
+      print(token);
+      
+
       logger.i("[$runtimeType] SignIn Successful");
+
       return userCredential.user;
+
     } catch (e) {
-      logger.e("[$runtimeType] SignIn Failed" , error: e);
+
+      logger.e("[$runtimeType] SignIn Failed", error: e);
       rethrow;
+
     }
   }
-
   Future<User?> createAccount({
     required String email,
     required String password,

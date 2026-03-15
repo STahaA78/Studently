@@ -1,6 +1,8 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
+import '../auth_service.dart';
+import '../services/api.dart';
 
 class UserProfilePage extends StatefulWidget {
   final String userId;
@@ -13,10 +15,10 @@ class UserProfilePage extends StatefulWidget {
 
 class _UserProfilePageState extends State<UserProfilePage> {
   final Color primaryBlue = const Color(0xFF0F74C5);
+  final ApiService api = ApiService();
 
   /// TEMP logged-in user id
-  final String currentUserId = "6989b03caf678f41033614ea";
-
+  String get currentUserId => authService.value.currentUser!.uid;
   Map<String, dynamic>? user;
   bool isLoading = true;
 
@@ -32,11 +34,23 @@ class _UserProfilePageState extends State<UserProfilePage> {
   }
 
   // ---------------- LOAD USER PROFILE ----------------
+
+
   Future<void> loadUserProfile() async {
     try {
+
+      final token = await authService.value.getIdToken();
+
       final uri =
-          Uri.parse("http://localhost:8000/profile/${widget.userId}");
-      final response = await http.get(uri);
+          Uri.parse(api.getCompleteUrl("/profile/${widget.userId}"));
+
+      final response = await http.get(
+        uri,
+        headers: {
+          "Authorization": "Bearer $token",
+          "Content-Type": "application/json"
+        },
+      );
 
       if (response.statusCode == 200) {
         setState(() {
@@ -44,14 +58,15 @@ class _UserProfilePageState extends State<UserProfilePage> {
           isLoading = false;
         });
       } else {
+        debugPrint("User fetch failed: ${response.body}");
         setState(() => isLoading = false);
       }
+
     } catch (e) {
       debugPrint("User profile error: $e");
       setState(() => isLoading = false);
     }
   }
-
   // ---------------- LOAD CONNECTION STATUS ----------------
   Future<void> loadConnectionStatus() async {
     try {

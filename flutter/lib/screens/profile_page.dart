@@ -1,9 +1,10 @@
 import 'package:flutter/material.dart';
 import '../widgets/custom_nav_bar.dart';
 import 'post_details_page.dart';
+import '../models/post.dart';
 
 class ProfilePage extends StatefulWidget {
-  final String? userId; // null = my profile, not null = other user
+  final String? userId;
 
   const ProfilePage({super.key, this.userId});
 
@@ -33,7 +34,6 @@ class _ProfilePageState extends State<ProfilePage> {
 
   @override
   Widget build(BuildContext context) {
-    /// ✅ CORE LOGIC
     final bool isMyProfile = widget.userId == null;
 
     final List<String> interests = [
@@ -71,7 +71,7 @@ class _ProfilePageState extends State<ProfilePage> {
           children: [
             const SizedBox(height: 12),
 
-            // Avatar
+            /// Avatar
             CircleAvatar(
               radius: 45,
               backgroundColor: Colors.grey.shade400,
@@ -91,6 +91,7 @@ class _ProfilePageState extends State<ProfilePage> {
               "Moiz Pasha",
               style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
             ),
+
             const Text(
               "Computer Science, Batch 2022",
               style: TextStyle(color: Colors.grey),
@@ -109,7 +110,7 @@ class _ProfilePageState extends State<ProfilePage> {
 
             const SizedBox(height: 12),
 
-            // Interests
+            /// Interests
             Wrap(
               spacing: 8,
               runSpacing: 8,
@@ -128,7 +129,7 @@ class _ProfilePageState extends State<ProfilePage> {
 
             const SizedBox(height: 16),
 
-            // ✅ EDIT PROFILE (ONLY FOR MY PROFILE)
+            /// Edit profile (only for my profile)
             if (isMyProfile)
               OutlinedButton.icon(
                 onPressed: () {
@@ -153,7 +154,7 @@ class _ProfilePageState extends State<ProfilePage> {
 
             const SizedBox(height: 20),
 
-            // Posts
+            /// Posts
             const Align(
               alignment: Alignment.centerLeft,
               child: Text(
@@ -193,10 +194,25 @@ class _ProfilePageState extends State<ProfilePage> {
   Widget _buildPostCard(BuildContext context, Map<String, dynamic> post) {
     return GestureDetector(
       onTap: () async {
+
+        /// CREATE A TEMP POST OBJECT
+        final tempPost = Post(
+          id: "temp",
+          authorId: "temp",
+          authorName: "Moiz Pasha",
+          content: post["title"],
+          mediaUrls: [],
+          likes: [],
+          comments: [],
+          timestamp: DateTime.now(),
+        );
+
         await Navigator.push(
           context,
           MaterialPageRoute(
-            builder: (_) => PostDetailsPage(postData: post),
+            builder: (_) => PostDetailsPage(
+              postData: tempPost,
+            ),
           ),
         );
       },

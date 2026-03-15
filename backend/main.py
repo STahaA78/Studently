@@ -3,6 +3,7 @@ from contextlib import asynccontextmanager
 import logging
 from fastapi.middleware.cors import CORSMiddleware
 from firebase_admin import auth
+from fastapi.staticfiles import StaticFiles
 
 # NEW: Import the WebSocket connection manager
 from utils.websocket_manager import manager 
@@ -13,6 +14,8 @@ from routes.post_routes import router as post_router
 from routes.chat_routes import router as chat_router
 from routes.profile_routes import router as profile_router
 from routes.knowledge_hub_routes import router as hub_router
+
+
 
 # Suppress noisy loggers
 logging.getLogger("pymongo").setLevel(logging.WARNING)
@@ -42,7 +45,7 @@ async def lifespan(app: FastAPI):
     LOGGER.info("Studently Backend Shutting Down...")
 
 app = FastAPI(title="Studently Backend", lifespan=lifespan)
-
+app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
 # CORS Middleware to allow requests from any origin (for development purposes)
 app.add_middleware(
     CORSMiddleware,

@@ -28,7 +28,6 @@ dependencies:
   path_provider: ^2.1.5
   flutter_image_compress: ^2.4.0
   mime: ^2.0.0
-
   
 
 dev_dependencies:

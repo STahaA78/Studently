@@ -173,10 +173,10 @@ def remove_friend(user_id: str, action_data: FriendRemoveAction):
 
 @router.get("/{user_id}", response_model=UserOut)
 def get_profile(user_id: str):
-    if not ObjectId.is_valid(user_id):
-        raise HTTPException(status_code=400, detail="Invalid ID")
 
-    user = users_collection.find_one({"_id": ObjectId(user_id)})
+    # Users are stored using Firebase UID as _id (string)
+    user = users_collection.find_one({"_id": user_id})
+
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
 
