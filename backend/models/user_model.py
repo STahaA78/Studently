@@ -5,7 +5,7 @@ import uuid
 
 class UserCreate(BaseModel):
     uid: str = ""  # New: Field for custom or generated UID
-    Name: str
+    name: str
     email: EmailStr
     password: str
     birthday: date  
@@ -13,7 +13,7 @@ class UserCreate(BaseModel):
     batch: str
     interests: List[str] = []
     university: str = "FAST"
-    profile_picture: Optional[str] = None
+    profilePhotoUrl: Optional[str] = None
     bio: Optional[str] = None
     isAdmin: bool = False
 
@@ -33,7 +33,7 @@ class UserLogin(BaseModel):
     password: str
 
 class UserUpdate(BaseModel):
-    Name: Optional[str] = None
+    name: Optional[str] = None
     department: Optional[str] = None
     batch: Optional[str] = None
     interests: Optional[List[str]] = None
@@ -42,14 +42,12 @@ class UserUpdate(BaseModel):
 
 class UserOut(BaseModel):
     id: str  # This maps to the internal MongoDB _id (which is now our uid)
-    Name: str
+    name: str
     email: EmailStr
-    birthday: date
     department: str
     batch: str
     interests: List[str] = []
-    university: str
-    profile_picture: Optional[str] = None
+    profilePhotoUrl: Optional[str] = None
     bio: Optional[str] = None
     friends: List[str] = []
     created_at: Optional[datetime] = None
@@ -61,3 +59,13 @@ class FriendRequestAction(BaseModel):
 
 class FriendRemoveAction(BaseModel):
     friend_id: str
+
+class UserProfileData(BaseModel):
+    id: str
+    name: str
+    email: EmailStr
+    interests: List[str]
+    department: str
+    batch: str
+    profilePhotoUrl: Optional[str] = None
+    friendsCount: int

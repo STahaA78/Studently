@@ -33,6 +33,7 @@ async def get_current_user(res: HTTPAuthorizationCredentials = Depends(security)
     token = res.credentials
     try:
         decoded_token = auth.verify_id_token(token)
+        print(f"Decoded token: {decoded_token}")
         return decoded_token.get("uid")
     except Exception as e:
         LOGGER.error(f"Error occurred while verifying ID token")
