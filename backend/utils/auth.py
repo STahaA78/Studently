@@ -8,33 +8,68 @@ import logging
 
 LOGGER = logging.getLogger(__name__)
 
+# =========================
+# Firebase Initialization
+# =========================
+
 firebase_creds = CONFIG.FIREBASE_CONFIG
 security = HTTPBearer()
 
 try:
-    # Initialize Firebase with the credentials from the environment variable
     cred = credentials.Certificate(firebase_creds)
-    firebase_admin.initialize_app(cred)
-    LOGGER.info("Firebase initialized successfully from environment variable.")
-except Exception as e:
-    LOGGER.error(f"Error initializing Firebase from environment variable")
 
+    # Prevent multiple Firebase initializations
+    if not firebase_admin._apps:
+        firebase_admin.initialize_app(cred)
+
+    LOGGER.info("Firebase initialized successfully.")
+
+except Exception as e:
+    LOGGER.error(f"Firebase initialization failed: {e}")
+    raise
+
+
+# =========================
+# Password Hashing
+# =========================
 
 pwd_context = CryptContext(schemes=["argon2"], deprecated="auto")
 
+
 def hash_password(password: str) -> str:
-    # Argon2id supports long passwords, no need to truncate
     return pwd_context.hash(password)
+
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
     return pwd_context.verify(plain_password, hashed_password)
 
-async def get_current_user(res: HTTPAuthorizationCredentials = Depends(security)):
-    token = res.credentials
+
+# =========================
+# JWT Authentication
+# =========================
+
+security = HTTPBearer()
+
+
+async def get_current_user(
+    credentials: HTTPAuthorizationCredentials = Depends(security)
+):
+    """
+    Verifies Firebase JWT token and returns UID
+    """
+
+    token = credentials.credentials
+
     try:
         decoded_token = auth.verify_id_token(token)
-        print(f"Decoded token: {decoded_token}")
-        return decoded_token.get("uid")
+
+        uid = decoded_token.get("uid")
+
+        if not uid:
+            raise HTTPException(status_code=401, detail="Invalid token")
+
+        return uid
+
     except Exception as e:
-        LOGGER.error(f"Error occurred while verifying ID token")
+        LOGGER.error(f"Auth verification failed: {e}")
         raise HTTPException(status_code=401, detail="Invalid Authentication")

@@ -4,6 +4,8 @@ import logging
 from fastapi.middleware.cors import CORSMiddleware
 from firebase_admin import auth
 from fastapi.staticfiles import StaticFiles
+
+# NEW: Import the WebSocket connection manager
 from utils.websocket_manager import manager 
 
 # Import Routes
@@ -11,6 +13,8 @@ from routes.user_routes import router as user_router
 from routes.post_routes import router as post_router
 from routes.chat_routes import router as chat_router
 from routes.knowledge_hub import router as hub_router
+
+
 
 # Suppress noisy loggers
 logging.getLogger("pymongo").setLevel(logging.WARNING)

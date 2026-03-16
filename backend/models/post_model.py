@@ -9,9 +9,11 @@ class Comment(BaseModel):
     timestamp: datetime = Field(default_factory=datetime.utcnow)
 
 class PostCreate(BaseModel):
-    author_id: str
     content: str
     media_urls: List[str] = []
+
+class PostUpdate(BaseModel):
+    content: str
 
 class PostOut(BaseModel):
     id: str = Field(alias="_id")
@@ -28,6 +30,4 @@ class PostOut(BaseModel):
         populate_by_name = True
 
 class CommentCreate(BaseModel):
-    user_id: str
-    # username field removed; will be fetched from DB
     content: str

@@ -1,63 +1,179 @@
 import 'package:flutter/material.dart';
+import '../auth_service.dart';
+import '../models/post.dart';
+import '../repositories/post.dart';
+import 'profile_page.dart';
+import 'user_profile_page.dart';
 
 class PostDetailsPage extends StatefulWidget {
-  final Map<String, dynamic> postData;
+  final Post postData;
 
-  const PostDetailsPage({super.key, required this.postData});
+  const PostDetailsPage({
+    super.key,
+    required this.postData,
+  });
 
   @override
   State<PostDetailsPage> createState() => _PostDetailsPageState();
 }
 
 class _PostDetailsPageState extends State<PostDetailsPage> {
-  late Map<String, dynamic> post;
-  final TextEditingController _commentController = TextEditingController();
-  final List<Map<String, String>> comments = [];
+
+  late Post post;
+  String? currentUserId;
+
+  final TextEditingController commentController = TextEditingController();
+  final PostRepository repository = PostRepository();
+
+  bool isSending = false;
 
   @override
   void initState() {
     super.initState();
-    post = Map<String, dynamic>.from(widget.postData);
-
-    // Simulated starting comments
-    comments.addAll([
-      {"name": "Danyal Rehman", "time": "1 hour ago", "comment": "That's awesome! Good luck!"},
-      {"name": "Ameer Hamza", "time": "50 min ago", "comment": "This is inspiring work!"},
-    ]);
-  }
-
-  void toggleLike() {
-    setState(() {
-      post["isLiked"] = !(post["isLiked"] ?? false);
-      post["likes"] = (post["likes"] ?? 0) + (post["isLiked"] ? 1 : -1);
-    });
-  }
-
-  void addComment() {
-    if (_commentController.text.trim().isEmpty) return;
-    setState(() {
-      comments.insert(0, {
-        "name": "You",
-        "time": "Just now",
-        "comment": _commentController.text.trim(),
-      });
-      post["comments"] = (post["comments"] ?? 0) + 1;
-      _commentController.clear();
-    });
+    post = widget.postData;
+    currentUserId = authService.value.firebaseAuth.currentUser?.uid;
   }
 
   @override
   void dispose() {
-    _commentController.dispose();
+    commentController.dispose();
     super.dispose();
   }
 
+  /// ---------------- COMMENT SUBMIT ----------------
+  Future<void> submitComment() async {
+
+    final text = commentController.text.trim();
+
+    if (text.isEmpty) return;
+
+    setState(() => isSending = true);
+
+    try {
+
+      await repository.addComment(post.id, text);
+
+      setState(() {
+
+        final uid = authService.value.currentUser?.uid ?? "";
+
+        post.comments.add(
+          Comment(
+            userId: uid,
+            username: "You",
+            text: text,
+            timestamp: DateTime.now().toUtc(),
+          ),
+        );
+
+        commentController.clear();
+
+      });
+
+    } catch (e) {
+
+      debugPrint("Comment error: $e");
+
+    }
+
+    setState(() => isSending = false);
+  }
+
+  /// ---------------- DELETE COMMENT ----------------
+  Future<void> deleteComment(Comment comment) async {
+
+    final index = post.comments.indexOf(comment);
+
+    try {
+
+      await repository.deleteComment(post.id, index);
+
+      setState(() {
+        post.comments.removeAt(index);
+      });
+
+    } catch (e) {
+
+      debugPrint("Delete comment error: $e");
+
+    }
+  }
+
+  /// ---------------- LIKE ----------------
+  void toggleLike() {
+
+    if (currentUserId == null) return;
+
+    setState(() {
+
+      if (post.likes.contains(currentUserId)) {
+
+        post.likes.remove(currentUserId);
+
+      } else {
+
+        post.likes.add(currentUserId!);
+
+      }
+
+    });
+  }
+
+  /// ---------------- TIME FORMAT ----------------
+  String formatTime(DateTime time) {
+
+    final now = DateTime.now();
+    final diff = now.difference(time);
+
+    if (diff.inSeconds < 60) return "Just now";
+    if (diff.inMinutes < 60) return "${diff.inMinutes}m ago";
+    if (diff.inHours < 24) return "${diff.inHours}h ago";
+    return "${diff.inDays}d ago";
+  }
+
+  /// ---------------- PROFILE NAVIGATION ----------------
+  void openProfile(String userId) {
+
+    final currentUid = authService.value.currentUser?.uid;
+
+    if (userId == currentUid) {
+
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => ProfilePage(),
+        ),
+      );
+
+    } else {
+
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => UserProfilePage(
+            userId: userId,
+          ),
+        ),
+      );
+
+    }
+  }
+
+  /// ---------------- UI ----------------
   @override
   Widget build(BuildContext context) {
+
     return Scaffold(
+      backgroundColor: Colors.white,
+
       appBar: AppBar(
-        title: const Text("Comments",
-        style: TextStyle(color: Colors.black, fontWeight: FontWeight.w600)),
+        title: const Text(
+          "Comments",
+          style: TextStyle(
+            color: Colors.black,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
         elevation: 0,
         backgroundColor: Colors.white,
         shadowColor: Colors.transparent,
@@ -66,51 +182,62 @@ class _PostDetailsPageState extends State<PostDetailsPage> {
           icon: const Icon(Icons.arrow_back_ios, color: Colors.black),
           onPressed: () => Navigator.pop(context, post),
         ),
-        bottom: PreferredSize(
-          preferredSize: const Size.fromHeight(8), // distance below AppBar
-          child: SizedBox(),
-        ),
       ),
-      backgroundColor: Colors.white,
+
       body: Column(
         children: [
+
           Expanded(
             child: ListView(
               children: [
-                // Post Card
                 _buildPostCard(),
                 const SizedBox(height: 16),
-                ...comments.map((c) => _buildCommentTile(c)),
+                ...post.comments.map(_buildCommentTile),
+
               ],
             ),
           ),
-
-          // Add comment input
+          /// COMMENT INPUT
           SafeArea(
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
               decoration: BoxDecoration(
                 color: Colors.white,
-                border: Border(top: BorderSide(color: Colors.grey.shade300)),
+                border: Border(
+                  top: BorderSide(color: Colors.grey.shade300),
+                ),
               ),
               child: Row(
                 children: [
+
                   Expanded(
                     child: TextField(
-                      controller: _commentController,
+                      controller: commentController,
                       decoration: InputDecoration(
                         hintText: "Add a comment...",
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(25),
                         ),
-                        contentPadding:
-                            const EdgeInsets.symmetric(vertical: 10, horizontal: 16),
+                        contentPadding: const EdgeInsets.symmetric(
+                          vertical: 10,
+                          horizontal: 16,
+                        ),
                       ),
                     ),
                   ),
+
                   IconButton(
-                    icon: const Icon(Icons.send, color: Color(0xFF1976D2)),
-                    onPressed: addComment,
+                    icon: isSending
+                        ? const SizedBox(
+                            height: 20,
+                            width: 20,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Icon(
+                            Icons.send,
+                            color: Color(0xFF1976D2),
+                          ),
+                    onPressed: isSending ? null : submitComment,
                   ),
                 ],
               ),
@@ -121,97 +248,215 @@ class _PostDetailsPageState extends State<PostDetailsPage> {
     );
   }
 
+  /// ---------------- POST CARD ----------------
   Widget _buildPostCard() {
+
     return Container(
-      width : double.infinity,
-      decoration: BoxDecoration(
-        color: Colors.white,
-      ),
+      width: double.infinity,
+      decoration: const BoxDecoration(color: Colors.white),
+
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+
+          /// AUTHOR (CLICKABLE)
           Padding(
-            padding: const EdgeInsets.only(left: 16, right: 16),
-            child: Row(
-              children: [
-                CircleAvatar(
-                  backgroundColor: Colors.grey.shade300,
-                  child: Text(post["name"][0],
-                      style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.black)),
-                ),
-                const SizedBox(width: 10),
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(post["name"],
-                        style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 15)),
-                    Text(post["time"], style: const TextStyle(color: Colors.grey)),
-                  ],
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 10),
-          if (post["image"] != null)
-            Container(
-              width: double.infinity,
-              clipBehavior: Clip.hardEdge,              // <— important
-              decoration: const BoxDecoration(),
-              child: Image.asset(
-                post["image"],
-                fit: BoxFit.cover,                      // <— fills width
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: GestureDetector(
+
+              onTap: () => openProfile(post.authorId),
+
+              child: Row(
+                children: [
+
+                  CircleAvatar(
+                    backgroundColor: Colors.grey.shade300,
+                    child: Text(
+                      post.authorName.isNotEmpty ? post.authorName[0] : "?",
+                      style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        color: Colors.black,
+                      ),
+                    ),
+                  ),
+
+                  const SizedBox(width: 10),
+
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+
+                      Text(
+                        post.authorName,
+                        style: const TextStyle(
+                          fontWeight: FontWeight.w600,
+                          fontSize: 15,
+                        ),
+                      ),
+
+                      Text(
+                        formatTime(post.timestamp),
+                        style: const TextStyle(color: Colors.grey),
+                      ),
+                    ],
+                  ),
+                ],
               ),
             ),
-          if (post["image"] != null) const SizedBox(height: 10),
-          
-          if (post["title"] != null)
-            Padding(
-              padding: const EdgeInsets.only(left: 19.0, right: 19.0),
-              child: Text(post["title"],
-                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-            ),
-          if (post["title"] != null) const SizedBox(height: 6),
-          Padding(
-            padding: const EdgeInsets.only(left: 19, right: 19),
-            child: Text(post["description"], style: const TextStyle(fontSize: 15)),
           ),
+
+          const SizedBox(height: 10),
+
+          /// POST CONTENT
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 19),
+            child: Text(
+              post.content,
+              style: const TextStyle(fontSize: 15),
+            ),
+          ),
+
           const SizedBox(height: 8),
-          Row(
-            children: [
-              Padding(
-                padding: const EdgeInsets.only(left: 19),
-                child: GestureDetector(
+
+          /// LIKE + COMMENT
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 19),
+            child: Row(
+              children: [
+
+                GestureDetector(
                   onTap: toggleLike,
                   child: Icon(
-                    (post["isLiked"] ?? false) ? Icons.favorite : Icons.favorite_border,
-                    color: (post["isLiked"] ?? false) ? Colors.red : Colors.grey,
+                    post.likes.contains(currentUserId)
+                        ? Icons.favorite
+                        : Icons.favorite_border,
+                    color: post.likes.contains(currentUserId)
+                        ? Colors.red
+                        : Colors.grey,
                     size: 22,
                   ),
                 ),
-              ),
-              const SizedBox(width: 6),
-              Text("${post["likes"]}"),
-              const SizedBox(width: 12),
-              const Icon(Icons.chat_bubble_outline, size: 22, color: Colors.grey),
-              const SizedBox(width: 6),
-              Text("${post["comments"]}"),
-            ],
+
+                const SizedBox(width: 6),
+                Text("${post.likes.length}"),
+
+                const SizedBox(width: 12),
+
+                const Icon(
+                  Icons.chat_bubble_outline,
+                  size: 22,
+                  color: Colors.grey,
+                ),
+
+                const SizedBox(width: 6),
+                Text("${post.comments.length}"),
+              ],
+            ),
           ),
+
+          const SizedBox(height: 10),
         ],
       ),
     );
   }
 
-  Widget _buildCommentTile(Map<String, String> c) {
+  /// ---------------- COMMENT TILE ----------------
+  Widget _buildCommentTile(Comment comment) {
+
+    final currentUid = authService.value.currentUser?.uid;
+    final bool isOwner = comment.userId == currentUid;
+    final displayName = isOwner ? "You" : comment.username;
+
     return ListTile(
-      leading: CircleAvatar(
-        backgroundColor: Colors.grey.shade300,
-        child: Text(c["name"]![0],
-            style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.black)),
+
+      leading: GestureDetector(
+        onTap: () => openProfile(comment.userId),
+        child: CircleAvatar(
+          backgroundColor: Colors.grey.shade300,
+          child: Text(
+            displayName[0],
+            style: const TextStyle(
+              fontWeight: FontWeight.bold,
+              color: Colors.black,
+            ),
+          ),
+        ),
       ),
-      title: Text(c["name"]!, style: const TextStyle(fontWeight: FontWeight.w600)),
-      subtitle: Text(c["comment"]!),
-      trailing: Text(c["time"]!, style: const TextStyle(color: Colors.grey, fontSize: 12)),
+
+      title: GestureDetector(
+        onTap: () => openProfile(comment.userId),
+        child: Text(
+          displayName,
+          style: const TextStyle(fontWeight: FontWeight.w600),
+        ),
+      ),
+
+      subtitle: Text(comment.text),
+
+      trailing: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+
+          Text(
+            formatTime(comment.timestamp),
+            style: const TextStyle(
+              color: Colors.grey,
+              fontSize: 12,
+            ),
+          ),
+
+          if (isOwner)
+            PopupMenuButton(
+              icon: const Icon(Icons.more_vert, size: 20),
+              itemBuilder: (context) => const [
+                PopupMenuItem(
+                  value: "delete",
+                  child: Text("Delete"),
+                ),
+              ],
+              onSelected: (value) async {
+
+                if (value == "delete") {
+
+                  final confirm = await showDialog(
+                    context: context,
+                    builder: (context) => AlertDialog(
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      title: const Text("Delete Comment"),
+                      content: const Text(
+                        "Are you sure you want to delete this comment?",
+                      ),
+                      actions: [
+
+                        TextButton(
+                          onPressed: () => Navigator.pop(context, false),
+                          child: const Text("Cancel"),
+                        ),
+
+                        TextButton(
+                          onPressed: () => Navigator.pop(context, true),
+                          child: const Text(
+                            "Delete",
+                            style: TextStyle(color: Colors.red),
+                          ),
+                        ),
+
+                      ],
+                    ),
+                  );
+
+                  if (confirm == true) {
+                    deleteComment(comment);
+                  }
+
+                }
+
+              },
+            ),
+        ],
+      ),
     );
   }
 }

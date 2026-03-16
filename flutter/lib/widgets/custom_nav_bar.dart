@@ -3,6 +3,7 @@ import 'package:studently/screens/community_feed_page.dart';
 import 'package:studently/screens/discover_main.dart';
 import 'package:studently/screens/profile_main.dart';
 import 'package:studently/screens/knowledge_hub_main.dart';
+import 'package:studently/screens/create_post_page.dart';
 
 class CustomNavBar extends StatelessWidget {
   final int currentIndex;
@@ -13,26 +14,47 @@ class CustomNavBar extends StatelessWidget {
   Widget build(BuildContext context) {
     const Color blue = Color(0xFF1976D2);
 
-    void onItemTapped(int index) {
-      if (index == currentIndex) return; // stay on same page
+    void onItemTapped(int index) async {
+      if (index == currentIndex) return;
 
-      // Define the correct destination for each tab
       Widget? destination;
+
       switch (index) {
         case 0:
           destination = const CommunityFeedPage();
           break;
+
         case 1:
           destination = const ConnectDiscoverPage();
           break;
+
         case 2:
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text("Create post coming soon!")),
+          final created = await Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => const CreatePostPage(),
+            ),
           );
+
+          if (created == true) {
+            Navigator.pushAndRemoveUntil(
+              context,
+              PageRouteBuilder(
+                pageBuilder: (_, __, ___) => const CommunityFeedPage(),
+                transitionDuration: const Duration(milliseconds: 200),
+                transitionsBuilder: (_, animation, __, child) {
+                  return FadeTransition(opacity: animation, child: child);
+                },
+              ),
+              (route) => false,
+            );
+          }
           return;
+
         case 3:
-          destination = const KnowledgeHubPage(); // ✅ HUB FIX
+          destination = const KnowledgeHubPage();
           break;
+
         case 4:
           destination = const ProfilePage();
           break;
@@ -42,13 +64,13 @@ class CustomNavBar extends StatelessWidget {
         Navigator.pushAndRemoveUntil(
           context,
           PageRouteBuilder(
-            pageBuilder: (_, _, _) => destination!,
+            pageBuilder: (_, __, ___) => destination!,
             transitionDuration: const Duration(milliseconds: 200),
-            transitionsBuilder: (_, animation, _, child) {
+            transitionsBuilder: (_, animation, __, child) {
               return FadeTransition(opacity: animation, child: child);
             },
           ),
-          (route) => false, // Remove all previous routes
+          (route) => false,
         );
       }
     }

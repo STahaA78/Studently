@@ -27,3 +27,7 @@ except ConnectionFailure:
 
 except Exception as e:
     print(f"Unexpected MongoDB connection error: {e}")
+
+print("MONGO URL:", MONGO_URL)
+print("DATABASE NAME:", db.name)
+print("USERS COUNT:", users_collection.count_documents({}))
