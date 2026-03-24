@@ -206,18 +206,25 @@ class _ProfilePageState extends State<ProfilePage> {
                       const SizedBox(height: 16),
                       if (isMyProfile)
                         OutlinedButton.icon(
-                          onPressed: () {
-                            Navigator.push(
+                          onPressed: () async {
+                            final updatedUser = await Navigator.push(
                               context,
                               MaterialPageRoute(
                                 builder: (context) => EditProfilePage(user: user!)
                               ),
                             );
+                            if (updatedUser != null && mounted) {
+                              setState(() {
+                                user = updatedUser;
+                              });
+                            }
                           },
-                          icon: Icon(Icons.edit, color: blue),
-                          label: Text(
-                            "Edit Profile",
-                            style: TextStyle(color: blue),
+                          label: Padding(
+                            padding: const EdgeInsets.only(left:4, right: 4),
+                            child: Text(
+                              "Edit Profile",
+                              style: TextStyle(color: blue),
+                            ),
                           ),
                           style: OutlinedButton.styleFrom(
                             side: BorderSide(color: blue),
@@ -314,7 +321,7 @@ class _ProfilePageState extends State<ProfilePage> {
   }
 
   Widget _buildProfilePhoto(User user) {
-    if (user.profilePhotoUrl!.isEmpty) {
+    if (user.profilePhotoUrl?.isEmpty ?? true) {
       return CircleAvatar(
         radius: 45,
         backgroundColor: Colors.grey.shade400,
@@ -325,9 +332,7 @@ class _ProfilePageState extends State<ProfilePage> {
       radius: 45,
       backgroundColor: Colors.grey.shade400,
       backgroundImage: NetworkImage(user.profilePhotoUrl!),
-      onBackgroundImageError: (_, _) {
-        // fallback to icon if image fails
-      },
+      onBackgroundImageError: (_, _) {},
       child: Container(),
     );
   }
