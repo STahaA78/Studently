@@ -15,43 +15,59 @@ class EditProfilePage extends StatefulWidget {
 class _EditProfilePageState extends State<EditProfilePage> {
   final _formKey = GlobalKey<FormState>();
   late TextEditingController nameController;
-  late TextEditingController departmentController;
-  late TextEditingController batchController;
-  late TextEditingController interestsController;
+  String? selectedDepartment;
+  String? selectedBatch;
+  List<String> interests = [];
+  final List<String> departments = ['Computer Science', 'IT', 'ECE', 'Mechanical'];
+  final List<String> batches = ['2022', '2023', '2024', '2025'];
+  final TextEditingController _interestController = TextEditingController();
   bool isSaving = false;
+  String? _departmentError;
+  String? _batchError;
+  String? _interestsError;
 
   @override
   void initState() {
     super.initState();
     nameController = TextEditingController(text: widget.user.name);
-    departmentController = TextEditingController(text: widget.user.department);
-    batchController = TextEditingController(text: widget.user.batch);
-    interestsController = TextEditingController(
-      text: widget.user.interests.join(', '),
-    );
+    selectedDepartment = widget.user.department;
+    selectedBatch = widget.user.batch;
+    interests = List<String>.from(widget.user.interests);
   }
 
   @override
   void dispose() {
     nameController.dispose();
-    departmentController.dispose();
-    batchController.dispose();
-    interestsController.dispose();
+    _interestController.dispose();
     super.dispose();
   }
 
   Future<void> saveProfile() async {
     if (!_formKey.currentState!.validate()) return;
+    if (selectedDepartment == null || selectedDepartment!.isEmpty) {
+      setState(() => _departmentError = 'Select department');
+      return;
+    } else {
+      setState(() => _departmentError = null);
+    }
+    if (selectedBatch == null || selectedBatch!.isEmpty) {
+      setState(() => _batchError = 'Select batch');
+      return;
+    } else {
+      setState(() => _batchError = null);
+    }
+    if (interests.isEmpty) {
+      setState(() => _interestsError = 'Add at least one interest');
+      return;
+    } else {
+      setState(() => _interestsError = null);
+    }
     setState(() => isSaving = true);
     final updatedData = {
       'name': nameController.text.trim(),
-      'department': departmentController.text.trim(),
-      'batch': batchController.text.trim(),
-      'interests': interestsController.text
-          .split(',')
-          .map((e) => e.trim())
-          .where((e) => e.isNotEmpty)
-          .toList(),
+      'department': selectedDepartment,
+      'batch': selectedBatch,
+      'interests': interests,
     };
     try {
       final updatedUser = await UserRepository().updateUserProfile(updatedData);
@@ -72,6 +88,7 @@ class _EditProfilePageState extends State<EditProfilePage> {
 
   @override
   Widget build(BuildContext context) {
+    final Color blue = const Color(0xFF1976D2);
     return Scaffold(
       backgroundColor: Colors.white,
       appBar: AppBar(
@@ -99,8 +116,7 @@ class _EditProfilePageState extends State<EditProfilePage> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-
-              /// Profile Photo
+              // Profile Photo
               Stack(
                 alignment: Alignment.bottomRight,
                 children: [
@@ -135,21 +151,15 @@ class _EditProfilePageState extends State<EditProfilePage> {
                   ),
                 ],
               ),
-
               const SizedBox(height: 8),
-
               TextButton(
                 onPressed: _showEditPhotoOptions,
                 child: const Text('Change Profile Photo'),
               ),
-
               const SizedBox(height: 28),
-
-              /// Section Label
               _sectionLabel('Personal Info'),
               const SizedBox(height: 12),
-
-              /// Name
+              // Name
               TextFormField(
                 controller: nameController,
                 textCapitalization: TextCapitalization.words,
@@ -157,66 +167,114 @@ class _EditProfilePageState extends State<EditProfilePage> {
                   labelText: 'Full Name',
                   prefixIcon: Icon(Icons.person_outline),
                 ),
-                validator: (v) =>
-                    v == null || v.trim().isEmpty ? 'Enter your name' : null,
+                validator: (v) => v == null || v.trim().isEmpty ? 'Enter your name' : null,
               ),
               const SizedBox(height: 16),
-
-              /// Department
-              TextFormField(
-                controller: departmentController,
-                decoration: const InputDecoration(
+              // Department Dropdown
+              DropdownButtonFormField<String>(
+                value: selectedDepartment,
+                decoration: InputDecoration(
                   labelText: 'Department',
-                  prefixIcon: Icon(Icons.school_outlined),
+                  prefixIcon: const Icon(Icons.school_outlined),
+                  errorText: _departmentError,
                 ),
-                validator: (v) =>
-                    v == null || v.trim().isEmpty ? 'Enter your department' : null,
+                items: departments.map((dept) => DropdownMenuItem(
+                  value: dept,
+                  child: Text(dept),
+                )).toList(),
+                onChanged: (val) {
+                  setState(() {
+                    selectedDepartment = val;
+                    _departmentError = null;
+                  });
+                },
               ),
               const SizedBox(height: 16),
-
-              /// Batch
-              TextFormField(
-                controller: batchController,
-                decoration: const InputDecoration(
+              // Batch Dropdown
+              DropdownButtonFormField<String>(
+                value: selectedBatch,
+                decoration: InputDecoration(
                   labelText: 'Batch',
-                  prefixIcon: Icon(Icons.calendar_today_outlined),
+                  prefixIcon: const Icon(Icons.calendar_today_outlined),
+                  errorText: _batchError,
                 ),
-                validator: (v) =>
-                    v == null || v.trim().isEmpty ? 'Enter your batch' : null,
+                items: batches.map((batch) => DropdownMenuItem(
+                  value: batch,
+                  child: Text(batch),
+                )).toList(),
+                onChanged: (val) {
+                  setState(() {
+                    selectedBatch = val;
+                    _batchError = null;
+                  });
+                },
               ),
-
               const SizedBox(height: 28),
-
-              /// Section Label
               _sectionLabel('Interests'),
               const SizedBox(height: 8),
-
-              Text(
-                'Separate each interest with a comma  (e.g. Flutter, AI, Design)',
-                style: TextStyle(
-                  fontSize: 12,
-                  color: Colors.grey.shade600,
+              Align(
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  'Add your interests (e.g. Flutter, AI, Design)',
+                  style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
                 ),
               ),
               const SizedBox(height: 12),
-
-              TextFormField(
-                controller: interestsController,
-                minLines: 2,
-                maxLines: 4,
-                decoration: const InputDecoration(
-                  labelText: 'Interests',
-                  alignLabelWithHint: true,
-                  prefixIcon: Padding(
-                    padding: EdgeInsets.only(bottom: 40),
-                    child: Icon(Icons.tag_outlined),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  ...interests.map((interest) => Chip(
+                    label: Text(interest),
+                    deleteIcon: const Icon(Icons.close, size: 18),
+                    backgroundColor: blue.withOpacity(0.1),
+                    onDeleted: () {
+                      setState(() {
+                        interests.remove(interest);
+                        if (interests.isNotEmpty) _interestsError = null;
+                      });
+                    },
+                  )),
+                  GestureDetector(
+                    onTap: () async {
+                      await showDialog(
+                        context: context,
+                        builder: (ctx) => AlertDialog(
+                          title: const Text('Add Interest'),
+                          content: TextField(
+                            controller: _interestController,
+                            decoration: const InputDecoration(hintText: 'Enter new interest'),
+                            autofocus: true,
+                          ),
+                          actions: [
+                            TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+                            TextButton(onPressed: () {
+                              setState(() {
+                                if (_interestController.text.trim().isNotEmpty) {
+                                  interests.add(_interestController.text.trim());
+                                  _interestsError = null;
+                                }
+                                _interestController.clear();
+                              });
+                              Navigator.pop(ctx);
+                            }, child: const Text('Add')),
+                          ],
+                        ),
+                      );
+                    },
+                    child: CircleAvatar(
+                      radius: 16,
+                      backgroundColor: blue.withOpacity(0.1),
+                      child: Icon(Icons.add, color: blue, size: 20),
+                    ),
                   ),
-                ),
+                ],
               ),
-
+              if (_interestsError != null) Padding(
+                padding: const EdgeInsets.only(top: 6),
+                child: Text(_interestsError!, style: const TextStyle(color: Colors.redAccent, fontSize: 12)),
+              ),
               const SizedBox(height: 36),
-
-              /// Save Button
               SizedBox(
                 width: double.infinity,
                 child: ElevatedButton(
@@ -245,7 +303,6 @@ class _EditProfilePageState extends State<EditProfilePage> {
                         ),
                 ),
               ),
-
               const SizedBox(height: 24),
             ],
           ),

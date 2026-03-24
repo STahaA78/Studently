@@ -365,11 +365,17 @@ def respond_to_friend_request(user_id: str, action_data: FriendRequestAction, US
     if action == "accept":
         users_collection.update_one(
             {"_id": user_id},
-            {"$addToSet": {"friends": requester_id}}
+            {
+                "$addToSet": {"friends": requester_id},
+                "$inc": {"friendsCount": 1}
+            },
         )
         users_collection.update_one(
             {"_id": requester_id},
-            {"$addToSet": {"friends": user_id}}
+            {
+                "$addToSet": {"friends": user_id},
+                "$inc": {"friendsCount": 1}
+            }
         )
         LOGGER.info(f"Friend request accepted by USER {user_id} from requester {requester_id}", extra={"uid": user_id}) 
         return {"success": True, "message": "Friend request accepted"}
