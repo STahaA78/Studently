@@ -59,7 +59,7 @@ class _SignupAdditionalPageState extends State<SignupAdditionalPage> {
 
   // CHANGE 2: Accepting the firebaseUid as a parameter to include in the payload
   Future<bool> _registerBackend(String firebaseUid) async {
-    final url = Uri.parse('http://127.0.0.1:8000/users/register');
+    final url = Uri.parse('https://studentlybackend-production-f362.up.railway.app/users/register');
     
     final Map<String, dynamic> payload = {
       "uid": firebaseUid, // NEW: The specific ID from Firebase
