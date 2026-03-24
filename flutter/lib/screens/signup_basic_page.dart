@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'login_page.dart';
 import 'signup_email_verification_page.dart';
 import 'package:email_otp/email_otp.dart';
-import 'package:studently/models.dart';
+import 'package:studently/models/user.dart';
 import 'package:studently/logger.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:studently/utils/constants.dart';
@@ -23,10 +23,14 @@ class _SignupBasicPageState extends State<SignupBasicPage> {
       logger.d("[$runtimeType] Next Button Pressed with Name: $name, Email: $email, Password: $pass");
       if (_validateInputs(name: name, email: email, pass: pass)) {
         final user = User(
+          id: '',
           name: name,
           email: email,
           password: pass,
-          birthday: null, // Birthday will be filled in next page
+          department: '',
+          batch: '',
+          profilePhotoUrl: '',
+          interests: [],
         );
         setState(() { _completionError = null; });
         bool otpSent = await _sendOtp(email: email);

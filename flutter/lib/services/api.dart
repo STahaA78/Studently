@@ -23,7 +23,16 @@ class ApiService {
   /// AUTH HEADERS
   /// ===============================
   Future<Map<String, String>> _getAuthHeaders() async {
-    final token = await authService.value.getIdToken();
+    final user = authService.value.currentUser;
+
+    if (user == null) {
+      return {
+        "Content-Type": "application/json",
+      };
+    }
+
+    final token = await user.getIdToken();
+
     return {
       "Content-Type": "application/json",
       "Authorization": "Bearer $token",

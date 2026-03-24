@@ -43,12 +43,7 @@ class AuthService {
         password: password
       );
 
-      final token = await userCredential.user?.getIdToken(true);
-
-
-      
-      print(token);
-      
+      //final token = await userCredential.user?.getIdToken(true);      
 
       logger.i("[$runtimeType] SignIn Successful");
 

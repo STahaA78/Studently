@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:email_otp/email_otp.dart';
 import 'package:studently/logger.dart';
-import 'package:studently/models.dart';
+import 'package:studently/models/user.dart';
 import 'package:pinput/pinput.dart';
 import 'dart:async';
 import 'signup_additional_page.dart';

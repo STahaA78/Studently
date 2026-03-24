@@ -2,7 +2,6 @@ import 'dart:convert';
 import 'package:studently/models/chat.dart';
 import 'package:studently/services/api.dart';
 import 'package:studently/logger.dart';
-import 'dart:io';
 
 class ChatRepository {
   final ApiService _apiService = ApiService();

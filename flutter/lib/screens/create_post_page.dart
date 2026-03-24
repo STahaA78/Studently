@@ -1,8 +1,6 @@
 import 'package:flutter/material.dart';
 import '../repositories/post.dart';
-import 'dart:io';
 import 'package:image_picker/image_picker.dart';
-import 'package:flutter/foundation.dart';
 class CreatePostPage extends StatefulWidget {
   const CreatePostPage({super.key});
 
@@ -56,7 +54,7 @@ class _CreatePostPageState extends State<CreatePostPage> {
     try {
 
       await repository.createPost(text, selectedImage);
-
+      if (!mounted) return;
       Navigator.pop(context, true);
 
     } catch (e) {

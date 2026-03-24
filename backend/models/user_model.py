@@ -7,7 +7,6 @@ class UserCreate(BaseModel):
     uid: str = ""  # New: Field for custom or generated UID
     name: str
     email: EmailStr
-    password: str
     birthday: date  
     department: str
     batch: str

@@ -202,7 +202,7 @@ class _RequestsPageState extends State<RequestsPage> {
                       ),
                     ),
                     Text(
-                      user.department,
+                      user.department!,
                       style: const TextStyle(fontSize: 13),
                     ),
                     Text(

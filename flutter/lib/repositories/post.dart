@@ -1,5 +1,4 @@
 import 'dart:convert';
-import 'dart:io';
 import 'package:http/http.dart' as http;
 import 'package:image_picker/image_picker.dart';
 import '../models/post.dart';
@@ -16,7 +15,7 @@ Future<List<Post>> getFeed({int skip = 0, int limit = 10}) async {
   final token = await authService.value.getIdToken();
 
   final uri = Uri.parse(
-    api.getCompleteUrl("/feed"),
+    api.getCompleteUrl("/feed/"),
   ).replace(
     queryParameters: {
       "skip": skip.toString(),
@@ -102,7 +101,7 @@ Future<void> createPost(String content, XFile? image) async {
 
   if (image != null) {
     request.files.add(
-      await http.MultipartFile.fromBytes(
+      http.MultipartFile.fromBytes(
         "file",
         await image.readAsBytes(),
         filename: image.name,
@@ -113,8 +112,7 @@ Future<void> createPost(String content, XFile? image) async {
   final response = await request.send();
 
   if (response.statusCode != 200) {
-    final resp = await http.Response.fromStream(response);
-    print(resp.body);
+    await http.Response.fromStream(response);
     throw Exception("Failed to create post");
   }
 }
