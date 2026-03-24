@@ -50,7 +50,7 @@ async def send_message(msg: MessageCreate, current_user_id: str = Depends(get_cu
     try:
         # 1. Fetch sender's name
         user = users_collection.find_one({"_id": current_user_id})
-        sender_name = user.get("Name", "Unknown") if user else "Unknown"
+        sender_name = user.get("name", "Unknown") if user else "Unknown"
 
         if not ObjectId.is_valid(msg.conversation_id):
             raise HTTPException(status_code=400, detail="Invalid ID")

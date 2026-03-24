@@ -5,11 +5,9 @@ import os
 from typing import Dict, List
 from fastapi import WebSocket
 import redis.asyncio as redis
-
+from config import CONFIG
 LOGGER = logging.getLogger(__name__)
-
-# Get Redis URL from environment variables, default to local Redis
-REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379/0")
+REDIS_URL = CONFIG.REDIS_URL
 
 class ConnectionManager:
     def __init__(self):
