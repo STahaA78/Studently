@@ -12,28 +12,14 @@ class PostRepository {
   /// GET FEED
 Future<List<Post>> getFeed({int skip = 0, int limit = 10}) async {
 
-  final token = await authService.value.getIdToken();
-
-  final uri = Uri.parse(
-    api.getCompleteUrl("/feed/"),
-  ).replace(
-    queryParameters: {
-      "skip": skip.toString(),
-      "limit": limit.toString(),
-    },
+  final response = await api.get(
+    '/feed?limit=$limit&skip=$skip',
   );
 
-  final response = await http.get(
-    uri,
-    headers: {
-      "Authorization": "Bearer $token",
-      "Content-Type": "application/json",
-    },
-  );
-
-  final List data = jsonDecode(response.body);
-
-  return data.map((e) => Post.fromJson(e)).toList();
+  final List<dynamic> jsonData = jsonDecode(response.body);
+    
+    // 2. Map the raw JSON objects into your strongly-typed Post models
+  return jsonData.map((e) => Post.fromJson(e as Map<String, dynamic>)).toList();
 }
 
   /// LIKE POST

@@ -27,7 +27,7 @@ def fix_id(doc):
 # ================================
 # Get Community Feed
 # ================================
-@router.get("/", response_model=list[PostOut])
+@router.get("", response_model=list[PostOut])
 def get_feed(
     user: str = Depends(get_current_user),
     limit: int = Query(10, ge=1, le=50),

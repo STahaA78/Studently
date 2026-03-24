@@ -25,7 +25,7 @@ void main() async {
     );
     runApp(
       DevicePreview(
-        enabled: true, // Set to false to disable Device Preview
+        enabled: false , // Set to false to disable Device Preview
         builder: (context) => MyApp(), // Wrap your app
       ),
     );

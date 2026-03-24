@@ -26,7 +26,6 @@ class UserRepository {
 			"department": department,
 			"batch": batch,
 			"interests": interests,
-      "password": "", // Placeholder, to be removed
 		};
 		try {
 			final response = await _apiService.post(
@@ -53,6 +52,7 @@ class UserRepository {
 		try {
 			final response = await _apiService.get('/users/$userId/profile');
 			final data = jsonDecode(response.body);
+      logger.d( "[$runtimeType] Raw API Response: $data");
 			logger.i("[$runtimeType] Fetch User Profile Completed Successfully");
 			return User.fromJson(data);
 		} catch (e) {
