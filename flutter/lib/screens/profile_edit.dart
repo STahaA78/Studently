@@ -80,10 +80,10 @@ class _EditProfilePageState extends State<EditProfilePage> {
               CircleAvatar(
                 radius: 45,
                 backgroundColor: Colors.grey.shade400,
-                backgroundImage: widget.user.profilePhotoUrl.isNotEmpty
-                  ? NetworkImage(widget.user.profilePhotoUrl)
+                backgroundImage: widget.user.profilePhotoUrl!.isNotEmpty
+                  ? NetworkImage(widget.user.profilePhotoUrl!)
                   : null,
-                child: widget.user.profilePhotoUrl.isEmpty
+                child: widget.user.profilePhotoUrl!.isEmpty
                   ? const Icon(Icons.person, size: 40, color: Colors.white)
                   : null,
               ),

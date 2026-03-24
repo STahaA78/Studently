@@ -502,7 +502,7 @@ Widget _buildPostCard({
                     }
 
                     if (value == "delete") {
-
+                      if (!mounted) return;
                       final confirm = await showDialog(
                         context: context,
                         builder: (context) => AlertDialog(

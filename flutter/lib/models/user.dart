@@ -2,22 +2,30 @@ class User {
   final String id;
   String name;
   final String email;
-  int friendsCount;
-  String department;
-  String batch;
-  String profilePhotoUrl;
+  int? friendsCount;
+  String? password;
+  String? birthday; // MM/DD/YYYY
+  String? department;
+  String? batch;
   List<String> interests;
+  String? university;
+  String? profilePhotoUrl;
+  String? bio;
 
   User({
     required this.id,
     required this.name,
     required this.email,
-    required this.friendsCount,
-    required this.department,
-    required this.batch,
-    required this.profilePhotoUrl,
-    required this.interests,
-  });
+    this.friendsCount,
+    this.password,
+    this.birthday,
+    this.department,
+    this.batch,
+    List<String>? interests,
+    this.university,
+    this.profilePhotoUrl,
+    this.bio,
+  }) : interests = interests ?? [];
 
   factory User.fromJson(Map<String, dynamic> json) {
     return User(
@@ -25,10 +33,14 @@ class User {
       name: json['name'] ?? '',
       email: json['email'] ?? '',
       friendsCount: json['friendsCount'] ?? 0,
-      department: json['department'] ?? '',
-      batch: json['batch'] ?? '',
-      profilePhotoUrl: json['profilePhotoUrl'] ?? '',
+      password: json['password'],
+      birthday: json['birthday'],
+      department: json['department'],
+      batch: json['batch'],
       interests: List<String>.from(json['interests'] ?? []),
+      university: json['university'],
+      profilePhotoUrl: json['profilePhotoUrl'],
+      bio: json['bio'],
     );
   }
 }

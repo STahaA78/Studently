@@ -38,8 +38,8 @@ class _AddResourcePageState extends State<AddResourcePage> {
   // Uploaded File
   File? _selectedPdf;
   List<UploadImage> _selectedImages = [];
-  bool _isUploading = false; // To show loading indicator during upload
-  //Form Fields
+  bool _isUploading = false;
+  // Form Fields
   String? _selectedType;
   String? _selectedSemester;
   int? _selectedYear;
@@ -77,11 +77,12 @@ class _AddResourcePageState extends State<AddResourcePage> {
       logger.e("Image Compression Failed for ${file.path}");
       throw Exception("Image compression failed for ${file.path}");
     }
-    
+
     logger.i("Image Compression Successful");
     return File(compressedFile.path);
   }
-  //Upload File Logic 
+
+  // Upload File Logic
   Future<void> _pickFiles() async {
     logger.i("Pick Files Started");
     final result = await FilePicker.platform.pickFiles(
@@ -124,8 +125,7 @@ class _AddResourcePageState extends State<AddResourcePage> {
         _selectedImages.clear();
       });
       logger.i("Pick Files Ended - PDF");
-    } 
-    else {
+    } else {
       setState(() {
         _selectedPdf = null;
         _selectedImages = files
@@ -133,7 +133,6 @@ class _AddResourcePageState extends State<AddResourcePage> {
             .toList();
       });
       logger.i("Pick Files - Compressing Images");
-      // Compress each image
       for (int i = 0; i < _selectedImages.length; i++) {
         try {
           final compressedFile = await _compressImage(_selectedImages[i].file);
@@ -151,7 +150,7 @@ class _AddResourcePageState extends State<AddResourcePage> {
 
           setState(() {
             _selectedImages[i] = UploadImage(
-              file: _selectedImages[i].file, // keep original
+              file: _selectedImages[i].file,
               status: UploadStatus.failed,
             );
           });
@@ -159,10 +158,9 @@ class _AddResourcePageState extends State<AddResourcePage> {
       }
       logger.i("Pick Files Ended - Images");
     }
-
   }
 
-  // This function will convert the selected images into a single PDF file and return it
+  // Convert selected images into a single PDF file and return it
   Future<File> _convertImagesToPdf() async {
     logger.i("Convert Images to PDF Started");
     final pdf = pw.Document();
@@ -172,14 +170,14 @@ class _AddResourcePageState extends State<AddResourcePage> {
       final pwImage = pw.MemoryImage(imageBytes);
       pdf.addPage(
         pw.Page(
-          build: (context) => pw.Center(child: pw.Image(pwImage))
-        )
+          build: (context) => pw.Center(child: pw.Image(pwImage)),
+        ),
       );
     }
-      final dir = await getTemporaryDirectory();
-      String temporaryName = DateTime.now().millisecondsSinceEpoch.toString();
-      final file = File('${dir.path}/$temporaryName.pdf');
-      await file.writeAsBytes(await pdf.save());
+    final dir = await getTemporaryDirectory();
+    String temporaryName = DateTime.now().millisecondsSinceEpoch.toString();
+    final file = File('${dir.path}/$temporaryName.pdf');
+    await file.writeAsBytes(await pdf.save());
 
     logger.i("Convert Images to PDF Ended Successful");
     return file;
@@ -198,7 +196,6 @@ class _AddResourcePageState extends State<AddResourcePage> {
     setState(() => _isUploading = true);
 
     try {
-
       File fileToUpload;
 
       if (_selectedPdf != null) {
@@ -215,13 +212,16 @@ class _AddResourcePageState extends State<AddResourcePage> {
         throw Exception("File too large (max 20MB)");
       }
 
-      if (_selectedSemester == null || _selectedSemester!.isEmpty) {
-        logger.i("File Upload Ended - No Semester Selected");
-        throw Exception("Please select a semester");
-      }
-      if (_selectedYear == null) {
-        logger.i("File Upload Ended - No Year Selected");
-        throw Exception("Please select a year");
+      // Semester and year are required for everything except books
+      if (_selectedType != "book") {
+        if (_selectedSemester == null || _selectedSemester!.isEmpty) {
+          logger.i("File Upload Ended - No Semester Selected");
+          throw Exception("Please select a semester");
+        }
+        if (_selectedYear == null) {
+          logger.i("File Upload Ended - No Year Selected");
+          throw Exception("Please select a year");
+        }
       }
 
       if (_selectedType == "quiz" && _quizNumberController.text.isEmpty) {
@@ -233,64 +233,67 @@ class _AddResourcePageState extends State<AddResourcePage> {
         logger.i("File Upload Ended - No Instructor Name");
         throw Exception("Please enter instructor name");
       }
-      
+
       final resourceItemRequest = ResourceItemRequest(
         course: widget.course,
         type: _selectedType!,
         semester: _selectedSemester!,
         year: _selectedYear!,
-        quizNumber: _quizNumberController.text.isNotEmpty ? int.parse(_quizNumberController.text) : null,
-        instructorName: _instructorController.text.isNotEmpty ? _instructorController.text : null,
+        quizNumber: _quizNumberController.text.isNotEmpty
+            ? int.parse(_quizNumberController.text)
+            : null,
+        instructorName: _instructorController.text.isNotEmpty
+            ? _instructorController.text
+            : null,
         isSolved: _isSolved,
       );
 
-      // Call your API service to upload the file
-      await ResourceRepository().uploadResource(filePath: fileToUpload.path, resourceItemRequest: resourceItemRequest);
+      await ResourceRepository().uploadResource(
+        filePath: fileToUpload.path,
+        resourceItemRequest: resourceItemRequest,
+      );
 
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text("Upload successful")),
       );
-
     } catch (e) {
-      if (!mounted) return; 
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text("Upload failed: $e")),
       );
     } finally {
       setState(() => _isUploading = false);
-      logger.i("File Upload Ended - Upload Successful");      
+      logger.i("File Upload Ended - Upload Successful");
     }
   }
+
   bool get _canShowUpload {
     if (_selectedType == null) return false;
 
-    if (_selectedType == "final" || _selectedType == "midterm") {
-      return _selectedSemester != null && _selectedYear != null;
+    if (_selectedType == "book") {
+      return true;
     }
+
+    // final, midterm, quiz all require semester + year
+    if (_selectedSemester == null || _selectedYear == null) return false;
 
     if (_selectedType == "quiz") {
       return _quizNumberController.text.isNotEmpty &&
           _instructorController.text.isNotEmpty;
     }
 
-    if (_selectedType == "book") {
-      return true;
-    }
-
-    return false;
+    // final or midterm
+    return true;
   }
 
   bool get _canSubmit {
-    return (_selectedPdf != null ||
-            _selectedImages.isNotEmpty) &&
-        _canShowUpload;
+    return (_selectedPdf != null || _selectedImages.isNotEmpty) && _canShowUpload;
   }
 
   @override
   Widget build(BuildContext context) {
-    final String courseDisplay =
-        "${widget.course.code} - ${widget.course.name}";
+    final String courseDisplay = "${widget.course.code} - ${widget.course.name}";
 
     return Scaffold(
       backgroundColor: Colors.white,
@@ -299,8 +302,7 @@ class _AddResourcePageState extends State<AddResourcePage> {
         elevation: 0,
         surfaceTintColor: Colors.transparent,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new_rounded,
-              color: Colors.black87),
+          icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.black87),
           onPressed: () => Navigator.pop(context),
         ),
         title: const Text(
@@ -314,19 +316,19 @@ class _AddResourcePageState extends State<AddResourcePage> {
         centerTitle: true,
       ),
 
-      // ✅ FIXED BOTTOM BUTTON
       bottomNavigationBar: SafeArea(
         child: Padding(
           padding: const EdgeInsets.all(16),
           child: SizedBox(
             width: double.infinity,
             child: ElevatedButton(
-              onPressed:
-                (_isUploading || !_canSubmit) ? null : () async {
-                  await _fileUpload();
-                  if (!context.mounted) return;
-                  Navigator.pop(context,true); // Return true to indicate a successful upload
-                },
+              onPressed: (_isUploading || !_canSubmit)
+                  ? null
+                  : () async {
+                      await _fileUpload();
+                      if (!context.mounted) return;
+                      Navigator.pop(context, true);
+                    },
               child: _isUploading
                   ? const SizedBox(
                       height: 20,
@@ -349,8 +351,7 @@ class _AddResourcePageState extends State<AddResourcePage> {
           children: [
 
             /// Course
-            const Text("Course",
-                style: TextStyle(fontWeight: FontWeight.w600)),
+            const Text("Course", style: TextStyle(fontWeight: FontWeight.w600)),
             const SizedBox(height: 8),
             TextField(
               enabled: false,
@@ -359,8 +360,7 @@ class _AddResourcePageState extends State<AddResourcePage> {
             const SizedBox(height: 20),
 
             /// Resource Type
-            const Text("Resource Type",
-                style: TextStyle(fontWeight: FontWeight.w600)),
+            const Text("Resource Type", style: TextStyle(fontWeight: FontWeight.w600)),
             const SizedBox(height: 8),
             DropdownButtonFormField<String>(
               initialValue: _selectedType,
@@ -375,15 +375,14 @@ class _AddResourcePageState extends State<AddResourcePage> {
                   _selectedType = value;
                 });
               },
-              decoration:
-                  const InputDecoration(hintText: "Select Resource Type"),
+              decoration: const InputDecoration(hintText: "Select Resource Type"),
             ),
             const SizedBox(height: 20),
 
-            /// Final / Midterm Fields (VERTICAL FIX)
+            /// Semester + Year — shown for final, midterm, and quiz
             if (_selectedType == "final" ||
-                _selectedType == "midterm") ...[
-              /// Semester + Year in Same Row (Responsive)
+                _selectedType == "midterm" ||
+                _selectedType == "quiz") ...[
               Row(
                 children: [
                   Expanded(
@@ -408,9 +407,7 @@ class _AddResourcePageState extends State<AddResourcePage> {
                               _selectedSemester = value;
                             });
                           },
-                          decoration: const InputDecoration(
-                            hintText: "Select Semester",
-                          ),
+                          decoration: const InputDecoration(hintText: "Select Semester"),
                         ),
                       ],
                     ),
@@ -445,46 +442,41 @@ class _AddResourcePageState extends State<AddResourcePage> {
                               _selectedYear = value;
                             });
                           },
-                          decoration: const InputDecoration(
-                            hintText: "Select Year",
-                          ),
+                          decoration: const InputDecoration(hintText: "Select Year"),
                         ),
                       ],
                     ),
                   ),
                 ],
               ),
-              const SizedBox(height: 8),
+              const SizedBox(height: 20),
             ],
 
-            /// Quiz Fields
+            /// Quiz-only Fields
             if (_selectedType == "quiz") ...[
               TextField(
                 controller: _quizNumberController,
                 keyboardType: TextInputType.number,
-                decoration:
-                    const InputDecoration(hintText: "Quiz Number"),
+                onChanged: (_) => setState(() {}), // triggers _canShowUpload rebuild
+                decoration: const InputDecoration(hintText: "Quiz Number"),
               ),
               const SizedBox(height: 16),
               TextField(
                 controller: _instructorController,
-                decoration:
-                    const InputDecoration(hintText: "Instructor Name"),
+                onChanged: (_) => setState(() {}), // triggers _canShowUpload rebuild
+                decoration: const InputDecoration(hintText: "Instructor Name"),
               ),
               const SizedBox(height: 20),
             ],
 
-            /// Solved Toggle
+            /// Solved Toggle — shown for final, midterm, and quiz
             if (_selectedType == "final" ||
                 _selectedType == "midterm" ||
                 _selectedType == "quiz") ...[
               Row(
-                mainAxisAlignment:
-                    MainAxisAlignment.spaceBetween,
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  const Text("Solved?",
-                      style:
-                          TextStyle(fontWeight: FontWeight.w600)),
+                  const Text("Solved?", style: TextStyle(fontWeight: FontWeight.w600)),
                   Switch(
                     value: _isSolved,
                     onChanged: (value) {
@@ -498,7 +490,7 @@ class _AddResourcePageState extends State<AddResourcePage> {
               const SizedBox(height: 20),
             ],
 
-            /// Upload Button (ONLY WHEN READY)
+            /// Upload Button — shown only when required fields are filled
             if (_canShowUpload) ...[
               OutlinedButton.icon(
                 onPressed: _pickFiles,
@@ -511,8 +503,7 @@ class _AddResourcePageState extends State<AddResourcePage> {
                           : "Upload PDF or Images",
                 ),
                 style: OutlinedButton.styleFrom(
-                  minimumSize:
-                      const Size(double.infinity, 50),
+                  minimumSize: const Size(double.infinity, 50),
                 ),
               ),
               const SizedBox(height: 20),
@@ -522,5 +513,4 @@ class _AddResourcePageState extends State<AddResourcePage> {
       ),
     );
   }
-
 }

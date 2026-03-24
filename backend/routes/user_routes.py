@@ -41,14 +41,12 @@ def register(user: UserCreate):
     # Check if email is already taken
     if users_collection.find_one({"email": user.email.lower()}):
         raise HTTPException(status_code=400, detail="Email already registered")
-    hashed_pass = hash_password(user.password)
     user_dict = user.model_dump()
     # Change: Use the provided uid or generate a new one if empty
     # We map this to '_id' so MongoDB uses it as the primary key
     user_id = user.uid if user.uid else str(uuid.uuid4())
     user_dict["_id"] = user_id
     user_dict["created_at"] = datetime.now(timezone.utc).replace(tzinfo=None)
-    user_dict["password"] = hashed_pass
     user_dict["email"] = user.email.lower()
     user_dict["birthday"] = datetime.combine(user.birthday, datetime.min.time())
     user_dict["friendsCount"] = 0

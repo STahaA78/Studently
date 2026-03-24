@@ -37,12 +37,13 @@ class CustomNavBar extends StatelessWidget {
           );
 
           if (created == true) {
+            if (!context.mounted) return;
             Navigator.pushAndRemoveUntil(
               context,
               PageRouteBuilder(
-                pageBuilder: (_, __, ___) => const CommunityFeedPage(),
+                pageBuilder: (_, _, _) => const CommunityFeedPage(),
                 transitionDuration: const Duration(milliseconds: 200),
-                transitionsBuilder: (_, animation, __, child) {
+                transitionsBuilder: (_, animation, _, child) {
                   return FadeTransition(opacity: animation, child: child);
                 },
               ),
@@ -61,12 +62,13 @@ class CustomNavBar extends StatelessWidget {
       }
 
       if (destination != null) {
+        if (!context.mounted) return;
         Navigator.pushAndRemoveUntil(
           context,
           PageRouteBuilder(
-            pageBuilder: (_, __, ___) => destination!,
+            pageBuilder: (_, _, _) => destination!,
             transitionDuration: const Duration(milliseconds: 200),
-            transitionsBuilder: (_, animation, __, child) {
+            transitionsBuilder: (_, animation, _, child) {
               return FadeTransition(opacity: animation, child: child);
             },
           ),

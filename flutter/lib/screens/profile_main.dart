@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import '../widgets/custom_nav_bar.dart';
-import 'post_details_page.dart';
 import 'package:studently/models/user.dart';
 import 'package:studently/repositories/user.dart';
 import 'package:studently/logger.dart';
@@ -315,7 +314,7 @@ class _ProfilePageState extends State<ProfilePage> {
   }
 
   Widget _buildProfilePhoto(User user) {
-    if (user.profilePhotoUrl.isEmpty) {
+    if (user.profilePhotoUrl!.isEmpty) {
       return CircleAvatar(
         radius: 45,
         backgroundColor: Colors.grey.shade400,
@@ -325,7 +324,7 @@ class _ProfilePageState extends State<ProfilePage> {
     return CircleAvatar(
       radius: 45,
       backgroundColor: Colors.grey.shade400,
-      backgroundImage: NetworkImage(user.profilePhotoUrl),
+      backgroundImage: NetworkImage(user.profilePhotoUrl!),
       onBackgroundImageError: (_, _) {
         // fallback to icon if image fails
       },

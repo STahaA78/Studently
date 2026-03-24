@@ -338,7 +338,7 @@ class _ConnectDiscoverPageState extends State<ConnectDiscoverPage> {
                       student.name,
                       style: const TextStyle(fontWeight: FontWeight.w600),
                     ),
-                    Text(student.department),
+                    Text(student.department!),
                     Text(
                       "Batch ${student.batch}",
                       style: const TextStyle(fontSize: 12),

@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart' as firebase_auth; // Added for type safety
-import 'package:studently/models.dart';
+import 'package:studently/models/user.dart';
 import 'package:studently/logger.dart';
 import 'package:http/http.dart' as http;
 import 'community_feed_page.dart';
@@ -44,7 +44,7 @@ class _SignupAdditionalPageState extends State<SignupAdditionalPage> {
       // Assuming your authService returns a User object or UserCredential.user
       final user = await authService.value.createAccount(
         email: widget.user.email, 
-        password: widget.user.password,
+        password: widget.user.password!,
       );
       logger.i("[$runtimeType] Firebase Registration Successful");
       return user; 
@@ -65,14 +65,12 @@ class _SignupAdditionalPageState extends State<SignupAdditionalPage> {
       "uid": firebaseUid, // NEW: The specific ID from Firebase
       "name": widget.user.name,
       "email": widget.user.email,
-      "password": widget.user.password,
       "birthday": widget.user.birthday,
       "department": widget.user.department,
       "batch": widget.user.batch,
       "interests": widget.user.interests,
-      "university": widget.user.university ?? "FAST",
-      "profile_picture": widget.user.profilePicture,
-      "bio": widget.user.bio,
+      // "university": widget.user.university ?? "FAST",
+      // "bio": widget.user.bio,
     };
 
     logger.d("[$runtimeType] Sending Synced User data to backend: $payload");

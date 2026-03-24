@@ -423,7 +423,7 @@ class _ChatPageState extends State<ChatPage> {
                       return Container(
                         height: 200,
                         width: MediaQuery.of(context).size.width * 0.6,
-                        color: isMe ? Colors.white.withOpacity(0.2) : Colors.grey.shade300,
+                        color: isMe ? Colors.white.withValues(alpha: 0.2) : Colors.grey.shade300,
                         child: const Center(child: CircularProgressIndicator(strokeWidth: 2)),
                       );
                     },
@@ -457,7 +457,7 @@ class _ChatPageState extends State<ChatPage> {
         child: Container(
           padding: const EdgeInsets.all(12),
           decoration: BoxDecoration(
-            color: isMe ? Colors.white.withOpacity(0.2) : Colors.white,
+            color: isMe ? Colors.white.withValues(alpha: 0.2) : Colors.white,
             borderRadius: BorderRadius.circular(8),
             border: Border.all(color: isMe ? Colors.transparent : Colors.grey.shade300),
           ),
@@ -495,7 +495,7 @@ class _ChatPageState extends State<ChatPage> {
       decoration: BoxDecoration(
         color: Colors.white,
         boxShadow: [
-          BoxShadow(color: Colors.grey.withOpacity(0.1), blurRadius: 4, offset: const Offset(0, -2)),
+          BoxShadow(color: Colors.grey.withValues(alpha: 0.1), blurRadius: 4, offset: const Offset(0, -2)),
         ],
       ),
       child: SafeArea(
@@ -648,7 +648,7 @@ class _InteractiveAudioBubbleState extends State<InteractiveAudioBubble> {
                 thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 6.0),
                 overlayShape: const RoundSliderOverlayShape(overlayRadius: 14.0),
                 activeTrackColor: iconColor,
-                inactiveTrackColor: iconColor.withOpacity(0.3),
+                inactiveTrackColor: iconColor.withValues(alpha: 0.3),
                 thumbColor: iconColor,
               ),
               child: Slider(
