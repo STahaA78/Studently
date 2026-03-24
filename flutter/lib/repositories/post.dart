@@ -4,7 +4,7 @@ import 'package:http/http.dart' as http;
 import 'package:image_picker/image_picker.dart';
 import '../models/post.dart';
 import '../services/api.dart';
-import '../auth_service.dart';
+import 'package:studently/services/firebase_auth.dart'; 
 
 class PostRepository {
 

@@ -43,17 +43,17 @@ class ChatRepository {
   }
 
   Future<String> getUserName(String userId) async {
-    final response = await _apiService.get('/users/$userId/info');
+    final response = await _apiService.get('/users/$userId/profile');
     final data = jsonDecode(response.body);
-    return data['full_name'] ?? "Student User";
+    return data['name'] ?? "Student User";
   }
 
   Future<List<Map<String, String>>> getFriendsList() async {
-    final response = await _apiService.get('/users/friends_list');
+    final response = await _apiService.get('/users/0/friends_list');
     final List<dynamic> data = jsonDecode(response.body);
     return data.map((f) => {
       "id": f['id'].toString(),
-      "Name": f['Name'].toString()
+      "Name": f['name'].toString()
     }).toList();
   }
 

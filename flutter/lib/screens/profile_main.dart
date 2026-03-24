@@ -334,12 +334,12 @@ class _ProfilePageState extends State<ProfilePage> {
   Widget _buildPostCard(BuildContext context, Map<String, dynamic> post) {
     return GestureDetector(
       onTap: () async {
-        await Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (_) => PostDetailsPage(postData: post),
-          ),
-        );
+        // await Navigator.push(
+        //   context,
+        //   MaterialPageRoute(
+        //     builder: (_) => PostDetailsPage(postData: post),
+        //   ),
+        // );
       },
       child: Container(
         decoration: BoxDecoration(

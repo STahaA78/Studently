@@ -1,7 +1,7 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
-import '../auth_service.dart';
+import 'package:studently/services/firebase_auth.dart'; 
 import '../services/api.dart';
 
 class UserProfilePage extends StatefulWidget {

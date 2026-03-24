@@ -277,7 +277,15 @@ def discover_users(
 @router.post("/{user_id}/request")
 def send_friend_request(user_id: str, target_id: str, USER: str = Depends(get_current_user)):
     LOGGER.info(f"Sending friend request from {user_id} to {target_id}", extra={"uid": USER})
-
+    if user_id != "0":
+        if is_admin(USER):
+            LOGGER.info(f"Admin accessing  profile of USER ID: {user_id}", extra={"uid": USER})
+        else:
+            LOGGER.warning(f"Unauthorized access attempt to USER ID: {user_id} by USER ID: {USER}", extra={"uid": USER})
+            raise HTTPException(status_code=403, detail="Not authorized to access this profile")
+    else:
+        LOGGER.info(f"USER accessing own profile", extra={"uid": USER})
+        user_id = USER  # Override to fetch own profile when user_id is "0"
     if user_id == target_id:
         LOGGER.warning(f"User {user_id} attempted to send friend request to self", extra={"uid": USER})
         raise HTTPException(status_code=400, detail="Cannot connect with self")
@@ -457,3 +465,36 @@ def update_user_profile(user_id: str, updated_data: dict = Body(...), USER: str 
     updated_user["id"] = user_id
     updated_user["friends_count"] = len(updated_user.get("friends", []))
     return updated_user
+
+@router.get("/{user_id}/friends_list", response_model=list[UserOut])
+def get_friends_list(user_id: str, USER: str = Depends(get_current_user)):  
+    LOGGER.info(f"Fetching friends list for USER ID: {user_id}", extra={"uid": USER})
+    if user_id != "0":
+        if is_admin(USER):
+            LOGGER.info(f"Admin accessing  profile of USER ID: {user_id}", extra={"uid": USER})
+        else:
+            LOGGER.warning(f"Unauthorized access attempt to USER ID: {user_id} by USER ID: {USER}", extra={"uid": USER})
+            raise HTTPException(status_code=403, detail="Not authorized to access this profile")
+    else:
+        LOGGER.info(f"USER accessing own profile", extra={"uid": USER})
+        user_id = USER  # Override to fetch own profile when user_id is "0"
+    user = users_collection.find_one({"_id": user_id})
+    friend_ids = user.get("friends", [])
+    if not friend_ids:
+        LOGGER.info(f"No friends found for USER ID: {user_id}", extra={"uid": USER})
+        return []
+    friends = list(users_collection.find(
+        {"_id": {"$in": friend_ids}},
+        {
+            "_id": 1,
+            "name": 1,
+            "email": 1,
+            "department": 1,
+            "batch": 1,
+            "interests": 1
+        }
+    ))
+    for friend in friends:
+        friend["id"] = friend["_id"]
+    LOGGER.info(f"Found {len(friends)} friends for USER ID: {user_id}", extra={"uid": USER})
+    return friends

@@ -98,7 +98,7 @@ async def create_post(
         new_post = {
 
             "author_id": user,
-            "author_name": db_user.get("Name", "Unknown"),
+            "author_name": db_user.get("name", "Unknown"),
             "author_pic": db_user.get("profile_picture"),
 
             "content": content or "",

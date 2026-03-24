@@ -1,6 +1,6 @@
 import '../repositories/post.dart';
 import '../models/post.dart';
-import '../auth_service.dart';
+import 'package:studently/services/firebase_auth.dart'; 
 import 'package:flutter/material.dart';
 import 'direct_messages_page.dart';
 import '../widgets/custom_nav_bar.dart';
@@ -9,7 +9,7 @@ import 'package:flutter_svg/flutter_svg.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:studently/utils/constants.dart';
 import '../screens/user_profile_page.dart';
-import '../screens/profile_page.dart';
+import '../screens/profile_main.dart';
 import '../services/api.dart';
 class CommunityFeedPage extends StatefulWidget {
   const CommunityFeedPage({super.key});

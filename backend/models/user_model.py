@@ -1,4 +1,4 @@
-from pydantic import BaseModel, EmailStr, field_validator
+from pydantic import BaseModel, EmailStr, field_validator,Field
 from datetime import date, datetime
 from typing import Optional, List
 import uuid
@@ -41,7 +41,7 @@ class UserUpdate(BaseModel):
     bio: Optional[str] = None
 
 class UserOut(BaseModel):
-    id: str  # This maps to the internal MongoDB _id (which is now our uid)
+    id: str = Field(alias="_id")  # This maps to the internal MongoDB _id (which is now our uid)
     name: str
     email: EmailStr
     department: str
@@ -52,6 +52,8 @@ class UserOut(BaseModel):
     friends: List[str] = []
     created_at: Optional[datetime] = None
     isAdmin: bool = False
+    class Config:
+        allow_population_by_field_name = True
 
 class FriendRequestAction(BaseModel):
     requester_id: str

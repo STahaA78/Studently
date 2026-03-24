@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
-import '../auth_service.dart';
+import 'package:studently/services/firebase_auth.dart'; 
 import '../models/post.dart';
 import '../repositories/post.dart';
-import 'profile_page.dart';
+import 'profile_main.dart';
 import 'user_profile_page.dart';
 
 class PostDetailsPage extends StatefulWidget {
