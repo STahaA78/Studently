@@ -154,10 +154,12 @@ class _ProfilePageState extends State<ProfilePage> {
             fontSize: 20,
           ),
         ),
-        leading: IconButton(
-          icon: const Icon(Icons.chevron_left, color: Colors.black),
-          onPressed: () => Navigator.pop(context),
-        ),
+        leading: widget.userId != null
+            ? IconButton(
+                icon: const Icon(Icons.chevron_left, color: Colors.black),
+                onPressed: () => Navigator.pop(context),
+              )
+            : null,
       ),
       body: isLoading
           ? const Center(child: CircularProgressIndicator())

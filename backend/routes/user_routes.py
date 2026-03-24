@@ -463,7 +463,7 @@ def update_user_profile(user_id: str, updated_data: dict = Body(...), USER: str 
         "batch": 1,
     })
     updated_user["id"] = user_id
-    updated_user["friends_count"] = len(updated_user.get("friends", []))
+    updated_user["friendsCount"] = len(updated_user.get("friends", []))
     return updated_user
 
 @router.get("/{user_id}/friends_list", response_model=list[UserOut])
