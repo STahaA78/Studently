@@ -172,7 +172,7 @@ class _EditProfilePageState extends State<EditProfilePage> {
               const SizedBox(height: 16),
               // Department Dropdown
               DropdownButtonFormField<String>(
-                value: selectedDepartment,
+                initialValue: selectedDepartment,
                 decoration: InputDecoration(
                   labelText: 'Department',
                   prefixIcon: const Icon(Icons.school_outlined),
@@ -192,7 +192,7 @@ class _EditProfilePageState extends State<EditProfilePage> {
               const SizedBox(height: 16),
               // Batch Dropdown
               DropdownButtonFormField<String>(
-                value: selectedBatch,
+                initialValue: selectedBatch,
                 decoration: InputDecoration(
                   labelText: 'Batch',
                   prefixIcon: const Icon(Icons.calendar_today_outlined),
@@ -227,7 +227,7 @@ class _EditProfilePageState extends State<EditProfilePage> {
                   ...interests.map((interest) => Chip(
                     label: Text(interest),
                     deleteIcon: const Icon(Icons.close, size: 18),
-                    backgroundColor: blue.withOpacity(0.1),
+                    backgroundColor: blue.withValues(alpha: 0.1),
                     onDeleted: () {
                       setState(() {
                         interests.remove(interest);
@@ -264,7 +264,7 @@ class _EditProfilePageState extends State<EditProfilePage> {
                     },
                     child: CircleAvatar(
                       radius: 16,
-                      backgroundColor: blue.withOpacity(0.1),
+                      backgroundColor: blue.withValues(alpha: 0.1),
                       child: Icon(Icons.add, color: blue, size: 20),
                     ),
                   ),

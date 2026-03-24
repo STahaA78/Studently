@@ -26,6 +26,7 @@ class _SignupBasicPageState extends State<SignupBasicPage> {
           id: '',
           name: name,
           email: email,
+          password: pass,
           department: '',
           batch: '',
           profilePhotoUrl: '',

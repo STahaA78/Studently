@@ -6,9 +6,48 @@ import 'dart:io';
 
 class UserRepository {
   final ApiService _apiService = ApiService();
-
+	/// Registers a new user in the backend database.
+	/// Returns true if registration is successful, false otherwise.
+	Future<bool> registerUser({
+		required String uid,
+		required String name,
+		required String email,
+		required String birthday,
+		required String department,
+		required String batch,
+		required List<String> interests,
+	}) async {
+		logger.i("[$runtimeType] Register User Initiated for email: $email");
+		final Map<String, dynamic> payload = {
+			"uid": uid,
+			"name": name,
+			"email": email,
+			"birthday": birthday,
+			"department": department,
+			"batch": batch,
+			"interests": interests,
+      "password": "", // Placeholder, to be removed
+		};
+		try {
+			final response = await _apiService.post(
+				'/users/register',
+				body: payload,
+			);
+			if (response.statusCode == 201 || response.statusCode == 200) {
+				logger.i("[$runtimeType] Register User Completed Successfully");
+				return true;
+			} else {
+				logger.e("[$runtimeType] Register User Failed: ${response.body}");
+				return false;
+			}
+		} catch (e) {
+			logger.e("[$runtimeType] Register User Exception: $e");
+			return false;
+		}
+	}
 	// Fetch User Profile for Profile Page and User Requests
 	//(userId is optional, defaults to "0" for logged in user)
+
 	Future<User> fetchUserProfile(String userId) async {
 		logger.i("[$runtimeType] Fetch User Profile Initiated for userId: $userId");
 		try {

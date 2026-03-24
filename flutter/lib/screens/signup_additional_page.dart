@@ -2,10 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart' as firebase_auth; // Added for type safety
 import 'package:studently/models/user.dart';
 import 'package:studently/logger.dart';
-import 'package:http/http.dart' as http;
 import 'community_feed_page.dart';
 import 'package:studently/services/firebase_auth.dart';
-import 'dart:convert';
+import 'package:studently/repositories/user.dart';
 
 class SignupAdditionalPage extends StatefulWidget {
   final User user;
@@ -57,39 +56,25 @@ class _SignupAdditionalPageState extends State<SignupAdditionalPage> {
     }
   }
 
-  // CHANGE 2: Accepting the firebaseUid as a parameter to include in the payload
+  // Register user in backend using UserRepository
   Future<bool> _registerBackend(String firebaseUid) async {
-    final url = Uri.parse('http://127.0.0.1:8000/users/register');
-    
-    final Map<String, dynamic> payload = {
-      "uid": firebaseUid, // NEW: The specific ID from Firebase
-      "name": widget.user.name,
-      "email": widget.user.email,
-      "birthday": widget.user.birthday,
-      "department": widget.user.department,
-      "batch": widget.user.batch,
-      "interests": widget.user.interests,
-      // "university": widget.user.university ?? "FAST",
-      // "bio": widget.user.bio,
-    };
-
-    logger.d("[$runtimeType] Sending Synced User data to backend: $payload");
+    final userRepo = UserRepository();
     try {
-      final response = await http.post(
-        url,
-        headers: {"Content-Type": "application/json"},
-        body: jsonEncode(payload),
+      final success = await userRepo.registerUser(
+        uid: firebaseUid,
+        name: widget.user.name,
+        email: widget.user.email,
+        birthday: widget.user.birthday!,
+        department: widget.user.department!,
+        batch: widget.user.batch!,
+        interests: widget.user.interests,
       );
-      
-      if (response.statusCode != 201 && response.statusCode != 200) {
-        logger.e("[$runtimeType] Backend registration failed: ", error: response.body);
+      if (!success) {
         setState(() {
           _completionError = 'Database sync failed. Please contact support.';
         });
-        return false;
       }
-      logger.i("[$runtimeType] Backend registration successful");
-      return true;
+      return success;
     } catch (e) {
       logger.e("[$runtimeType] Error sending user to backend", error: e);
       setState(() {
