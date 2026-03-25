@@ -3,10 +3,8 @@ from fastapi.responses import FileResponse
 import os
 from fastapi import APIRouter, HTTPException, Depends, Query, Body, UploadFile, File, Request
 from datetime import datetime
-from utils.auth import hash_password
 from database import users_collection
 from models.user_model import *
-from utils.auth import verify_password
 from utils.auth import get_current_user
 import logging
 import uuid

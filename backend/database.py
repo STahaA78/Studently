@@ -14,12 +14,14 @@ try:
     posts_collection = db["posts"]
     messages_collection = db["messages"]
     conversations_collection = db["conversations"]
-    knowledge_hub_collection = db["knowledge_hub"]
-
+    
     # Knowledge Hub Collections
     courses_collection = db["courses"]
     resources_collection = db["resources"]
 
+    # Config Collections
+    config_collection = db["config"]
+    
     print("MongoDB connection established successfully!")
 
 except ConnectionFailure:

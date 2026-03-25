@@ -14,8 +14,6 @@ from routes.post_routes import router as post_router
 from routes.chat_routes import router as chat_router
 from routes.knowledge_hub import router as hub_router
 
-
-
 # Suppress noisy loggers
 logging.getLogger("pymongo").setLevel(logging.WARNING)
 logging.getLogger("motor").setLevel(logging.WARNING)
