@@ -70,11 +70,7 @@ class _ProfilePageState extends State<ProfilePage> {
       final List<dynamic> data = jsonDecode(response.body);
 
       final String userId = widget.userId ?? user?.id ?? "";
-print("CURRENT USER ID: $userId");
 
-for (var post in data) {
-  print("POST AUTHOR: ${post['author_id']}");
-}
       final filteredPosts = data.where((post) {
         return post['author_id'] == userId;
       }).toList();
@@ -85,7 +81,7 @@ for (var post in data) {
       });
 
     } catch (e) {
-      print("Error loading posts: $e");
+      logger.e("Error loading posts: $e");
       setState(() => hasLoadedPosts = true);
     }
   }

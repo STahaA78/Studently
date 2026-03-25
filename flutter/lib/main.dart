@@ -25,7 +25,7 @@ void main() async {
     );
     runApp(
       DevicePreview(
-        enabled: false , // Set to false to disable Device Preview
+        enabled: true , // Set to false to disable Device Preview
         builder: (context) => MyApp(), // Wrap your app
       ),
     );
@@ -62,15 +62,21 @@ class MyApp extends StatelessWidget {
         scaffoldBackgroundColor: white,
         colorScheme: ColorScheme.fromSeed(seedColor: blue),
         // 2. Global Text Field Style
+        textTheme: const TextTheme(
+          bodyLarge: TextStyle(color: Colors.black, fontSize: 16), // Desktop/Web default
+          bodyMedium: TextStyle(color: Colors.black, fontSize: 16), // Mobile default
+        ),
         inputDecorationTheme: InputDecorationTheme(
           filled: true,
-          fillColor: white,
+          fillColor: Colors.white,
           contentPadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
-          
+          //hint text color
+          hintStyle: TextStyle(color: const Color(0xFF475569)), // neutral 600
           // Default Border (when not clicked)
           enabledBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(formFieldRadius),
-            borderSide: BorderSide(color: Colors.grey, width: formFieldBorderSize), // Grey outline
+            // neutral 300
+            borderSide: BorderSide(color: const Color(0xFFD1D5DB), width: formFieldBorderSize), // Grey outline
           ),
           
           // Focused Border (when typing)
@@ -82,7 +88,13 @@ class MyApp extends StatelessWidget {
           // Error Border (when validation fails)
           errorBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(formFieldRadius),
-            borderSide: const BorderSide(color: Colors.redAccent),
+            borderSide: const BorderSide(color: Colors.redAccent, width: 2),
+          ),
+          
+          // Focused Error Border
+          focusedErrorBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(formFieldRadius),
+            borderSide: const BorderSide(color: Colors.redAccent, width: 2),
           ),
         ),
         // 3. Global Elevated Button Style

@@ -1,12 +1,11 @@
 import 'package:flutter/material.dart';
-import 'package:firebase_auth/firebase_auth.dart'; // Added for exception handling
+import 'package:firebase_auth/firebase_auth.dart';
 import 'signup_basic_page.dart';
 import 'community_feed_page.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:studently/utils/constants.dart';
-import 'package:studently/services/firebase_auth.dart'; // Import your AuthService
-
+import 'package:studently/logger.dart';
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
 
@@ -14,122 +13,126 @@ class LoginPage extends StatefulWidget {
   State<LoginPage> createState() => _LoginPageState();
 }
 
-class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
+class _LoginPageState extends State<LoginPage> {
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
+  late final FocusNode _emailFocusNode = FocusNode();
 
-  late AnimationController _successController;
-  late AnimationController _errorController;
-  late Animation<Offset> _successOffset;
-  late Animation<Offset> _errorOffset;
-
-  bool _showSuccess = false;
-  bool _showError = false;
-  String _errorText = "Please fill in both Email and Password";
+  bool _emailFieldTouched = false;
+  bool _isLoading = false;
+  String _emailError = "";
+  String _passwordError = "";
+  String _loginError = "";
 
   @override
   void initState() {
     super.initState();
+    _emailFocusNode.addListener(_onEmailFocusChange);
+  }
 
-    _successController = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 700),
-    );
-    _errorController = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 700),
-    );
-
-    _successOffset = Tween<Offset>(
-      begin: const Offset(0, -1.5),
-      end: const Offset(0, 0.1),
-    ).animate(CurvedAnimation(
-      parent: _successController,
-      curve: Curves.easeOutBack,
-    ));
-
-    _errorOffset = Tween<Offset>(
-      begin: const Offset(0, -1.5),
-      end: const Offset(0, 0.1),
-    ).animate(CurvedAnimation(
-      parent: _errorController,
-      curve: Curves.easeOutBack,
-    ));
+  void _onEmailFocusChange() {
+    if (!_emailFocusNode.hasFocus) {
+      setState(() => _emailFieldTouched = true);
+      _forceValidateEmail(_emailController.text);
+    }
   }
 
   @override
   void dispose() {
-    _successController.dispose();
-    _errorController.dispose();
+    _emailFocusNode.removeListener(_onEmailFocusChange);
+    _emailFocusNode.dispose();
     _emailController.dispose();
     _passwordController.dispose();
     super.dispose();
   }
+  void _forceValidateEmail(String email) {
+    if (!_emailFieldTouched) return;
+    final emailRegex = RegExp(r"^[^@\s]+@[^@\s]+\.[^@\s]+$");
+    setState(() {
+      if (email.isEmpty) {
+        _emailError = "Email is required";
+      } else if (!emailRegex.hasMatch(email)) {
+        _emailError = 'Enter a valid email address';
+      } else if (!email.endsWith('@lhr.nu.edu.pk')) {
+        _emailError = 'Email must be a valid NUCES Lahore email';
+      } else {
+        _emailError = "";
+      }
+    });
+  }
 
-  /// UPDATED: Now uses authService.value.signIn (Firebase)
   void _login(BuildContext context) async {
     String email = _emailController.text.trim();
     String password = _passwordController.text.trim();
 
-    if (email.isEmpty || password.isEmpty) {
-      _showErrorNotification("Please fill in both Email and Password");
-      return;
+    // Clear form level error
+    setState(() {
+      _passwordError = "";
+      _loginError = "";
+    });
+
+    // Validate email (should already be done by onChanged, but check again)
+    _forceValidateEmail(email);
+    
+    // Validate password
+    bool hasError = false;
+    if (password.isEmpty) {
+      setState(() => _passwordError = "Password is required");
+      hasError = true;
     }
 
+    // If field validation failed, return early
+    if (_emailError.isNotEmpty || _passwordError.isNotEmpty || hasError) return;
+
+    setState(() => _isLoading = true);
+
     try {
-      // 1. Call your central AuthService
-      final user = await authService.value.signIn(
+      // 1. Call Firebase Auth
+      final user = await FirebaseAuth.instance.signInWithEmailAndPassword(
         email: email,
         password: password,
       );
 
-      if (user != null) {
-        // 2. ✅ Success UI Feedback
-        setState(() => _showSuccess = true);
-        _successController.forward();
-
-        Future.delayed(const Duration(seconds: 2), () {
-          _successController.reverse().then((_) {
-            if (mounted) {
-              setState(() => _showSuccess = false);
-              Navigator.pushAndRemoveUntil(
-                context,
-                MaterialPageRoute(builder: (context) => const CommunityFeedPage()),
-                (route) => false,
-              );
-            }
-          });
-        });
+      if (user.user != null && mounted) {
+        // 2. Success - navigate directly
+        if (!context.mounted) return;
+        Navigator.pushAndRemoveUntil(
+          context,
+          MaterialPageRoute(builder: (context) => const CommunityFeedPage()),
+          (route) => false,
+        );
       }
     } on FirebaseAuthException catch (e) {
-      // 3. 🔴 Handle specific Firebase errors
+      // 3. Handle specific Firebase errors
       String message = "Login Failed";
-      if (e.code == 'user-not-found') {
-        message = "No account exists for this email.";
-      } else if (e.code == 'wrong-password') {
-        message = "Incorrect password.";
+
+      // Debugging: Keep this during development to see the actual code in the console
+      logger.e("Firebase Error Code: ${e.code}");
+
+      if (e.code == 'user-not-found' || e.code == 'wrong-password' || e.code == 'invalid-credential') {
+        // Firebase now often returns 'invalid-credential' for both wrong pass AND wrong email
+        message = "Invalid email or password.";
       } else if (e.code == 'invalid-email') {
-        message = "Badly formatted email.";
+        message = "The email address is badly formatted.";
+      } else if (e.code == 'user-disabled') {
+        message = "This user account has been disabled.";
+      } else if (e.code == 'too-many-requests') {
+        message = "Too many failed attempts. Try again later.";
       }
-      _showErrorNotification(message);
+      if (mounted) {
+        setState(() {
+          _loginError = message;
+          _isLoading = false;
+        });
+      }
     } catch (e) {
-      _showErrorNotification("An unexpected error occurred.");
+      if (mounted) {
+        setState(() {
+          _loginError = "An unexpected error occurred.";
+          _isLoading = false;
+        });
+      }
     }
-  }
-
-  void _showErrorNotification(String message) {
-    setState(() {
-      _errorText = message;
-      _showError = true;
-    });
-
-    _errorController.forward();
-
-    Future.delayed(const Duration(seconds: 2), () {
-      _errorController.reverse().then((_) {
-        if (mounted) setState(() => _showError = false);
-      });
-    });
   }
 
   @override
@@ -181,17 +184,63 @@ class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
                       width: formWidth,
                       child: Column(
                         children: [
-                          TextField(
-                            controller: _emailController,
-                            keyboardType: TextInputType.emailAddress,
-                            decoration: const InputDecoration(hintText: 'Email'),
+                          SizedBox(
+                            height: 50,
+                            child: TextField(
+                              controller: _emailController,
+                              keyboardType: TextInputType.emailAddress,
+                              focusNode: _emailFocusNode,
+                              decoration: const InputDecoration(
+                                hintText: 'Email',
+                              ),
+                              onChanged: (_) {
+                                if (_emailError.isNotEmpty) {
+                                  setState(() => _emailError = "");
+                                }
+                              },
+                            ),
                           ),
+                          if (_emailError.isNotEmpty && _emailFieldTouched)
+                            Padding(
+                              padding: const EdgeInsets.only(top: 2, left: 8),
+                              child: Align(
+                                alignment: Alignment.centerLeft,
+                                child: Text(
+                                  _emailError,
+                                  style: const TextStyle(
+                                    color: Colors.redAccent,
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                              ),
+                            ),
                           const SizedBox(height: AppStyle.verticalSpacingNormal),
-                          TextField(
-                            controller: _passwordController,
-                            obscureText: true,
-                            decoration: const InputDecoration(hintText: 'Password'),
+                          SizedBox(
+                            height: 50,
+                            child: TextField(
+                              controller: _passwordController,
+                              obscureText: true,
+                              decoration: const InputDecoration(
+                                hintText: 'Password',
+                              ),
+                            ),
                           ),
+                          if (_passwordError.isNotEmpty)
+                            Padding(
+                              padding: const EdgeInsets.only(top: 2, left: 8),
+                              child: Align(
+                                alignment: Alignment.centerLeft,
+                                child: Text(
+                                  _passwordError,
+                                  style: const TextStyle(
+                                    color: Colors.redAccent,
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                              ),
+                            ),
                           Align(
                             alignment: Alignment.centerRight,
                             child: TextButton(
@@ -201,22 +250,48 @@ class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
                               child: Text('Forgot Password?', style: TextStyle(color: blue)),
                             ),
                           ),
-                          const SizedBox(height: 10),
+                          const SizedBox(height: 5),
                           SizedBox(
+                            height: 45,
                             width: double.infinity,
                             child: ElevatedButton(
-                              onPressed: () => _login(context),
-                              child: const Text(
-                                'Login',
-                                style: TextStyle(
-                                  fontSize: AppStyle.smallFontSize,
-                                  color: Colors.white,
-                                  fontWeight: AppStyle.smallFontWeight,
+                              onPressed: _isLoading ? null : () => _login(context),
+                              child: _isLoading
+                                  ? SizedBox(
+                                      height: 24,
+                                      width: 24,
+                                      child: CircularProgressIndicator(
+                                        valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                                        strokeWidth: 2.5,
+                                      ),
+                                    )
+                                  : const Text(
+                                      'Login',
+                                      style: TextStyle(
+                                        fontSize: AppStyle.smallFontSize,
+                                        color: Colors.white,
+                                        fontWeight: AppStyle.smallFontWeight,
+                                      ),
+                                    ),
+                            ),
+                          ),
+                          if (_loginError.isNotEmpty)
+                            Padding(
+                              padding: const EdgeInsets.only(top: 2, left: 8),
+                              child: Align(
+                                alignment: Alignment.centerLeft,
+                                child: Text(
+                                  _loginError,
+                                  style: const TextStyle(
+                                    color: Colors.redAccent,
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w500,
+                                  ),
                                 ),
                               ),
                             ),
-                          ),
-                          const SizedBox(height: AppStyle.verticalSpacingLarge),
+                          const SizedBox(height: AppStyle.verticalSpacingSmall),
+                          const SizedBox(height: AppStyle.verticalSpacingNormal),
                           const Row(
                             children: [
                               Expanded(child: Divider(thickness: 1)),
@@ -227,15 +302,24 @@ class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
                               Expanded(child: Divider(thickness: 1)),
                             ],
                           ),
-                          const SizedBox(height: AppStyle.verticalSpacingLarge),
+                          const SizedBox(height: AppStyle.verticalSpacingNormal),
                           SizedBox(
+                            height: 45,
                             width: double.infinity,
                             child: OutlinedButton(
                               onPressed: () {
                                 Navigator.push(
                                   context,
                                   MaterialPageRoute(builder: (context) => const SignupBasicPage()),
-                                );
+                                ).then((_) {
+                                  if (mounted) {
+                                    setState(() {
+                                      _emailError = "";
+                                      _passwordError = "";
+                                      _loginError = "";
+                                    });
+                                  }
+                                });
                               },
                               child: Text(
                                 'Sign Up',
@@ -255,53 +339,7 @@ class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
               ),
             ),
           ),
-
-          // Notification Widgets
-          if (_showSuccess)
-            SlideTransition(
-              position: _successOffset,
-              child: _buildSuccessNotification(blue),
-            ),
-
-          if (_showError)
-            SlideTransition(
-              position: _errorOffset,
-              child: _buildErrorNotification(),
-            ),
         ],
-      ),
-    );
-  }
-
-  Widget _buildSuccessNotification(Color color) {
-    return Container(
-      margin: const EdgeInsets.only(top: 60),
-      padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(
-        color: color,
-        shape: BoxShape.circle,
-        boxShadow: [
-          BoxShadow(color: color.withValues(alpha: 0.4), blurRadius: 12, spreadRadius: 2),
-        ],
-      ),
-      child: const Icon(Icons.check, color: Colors.white, size: 40),
-    );
-  }
-
-  Widget _buildErrorNotification() {
-    return Container(
-      margin: const EdgeInsets.only(top: 60),
-      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
-      decoration: BoxDecoration(
-        color: Colors.red.shade600,
-        borderRadius: BorderRadius.circular(40),
-        boxShadow: [
-          BoxShadow(color: Colors.red.withValues(alpha: 0.4), blurRadius: 10, spreadRadius: 2),
-        ],
-      ),
-      child: Text(
-        _errorText,
-        style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600, fontSize: 15),
       ),
     );
   }

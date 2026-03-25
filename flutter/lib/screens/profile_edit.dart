@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:studently/models/user.dart';
 import 'package:studently/repositories/user.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:studently/screens/interests.dart';
 
 class EditProfilePage extends StatefulWidget {
   final User user;
@@ -20,11 +22,9 @@ class _EditProfilePageState extends State<EditProfilePage> {
   List<String> interests = [];
   final List<String> departments = ['Computer Science', 'IT', 'ECE', 'Mechanical'];
   final List<String> batches = ['2022', '2023', '2024', '2025'];
-  final TextEditingController _interestController = TextEditingController();
   bool isSaving = false;
   String? _departmentError;
   String? _batchError;
-  String? _interestsError;
 
   @override
   void initState() {
@@ -38,7 +38,6 @@ class _EditProfilePageState extends State<EditProfilePage> {
   @override
   void dispose() {
     nameController.dispose();
-    _interestController.dispose();
     super.dispose();
   }
 
@@ -56,18 +55,24 @@ class _EditProfilePageState extends State<EditProfilePage> {
     } else {
       setState(() => _batchError = null);
     }
-    if (interests.isEmpty) {
-      setState(() => _interestsError = 'Add at least one interest');
-      return;
-    } else {
-      setState(() => _interestsError = null);
-    }
+
+    // Navigate to interests selection page
+    final selectedInterests = await Navigator.of(context).push<List<String>>(
+      MaterialPageRoute(
+        builder: (_) => InterestsSelectionPage(
+          initialInterests: interests,
+        ),
+      ),
+    );
+
+    if (selectedInterests == null || !mounted) return;
+
     setState(() => isSaving = true);
     final updatedData = {
       'name': nameController.text.trim(),
       'department': selectedDepartment,
       'batch': selectedBatch,
-      'interests': interests,
+      'interests': selectedInterests,
     };
     try {
       final updatedUser = await UserRepository().updateUserProfile(updatedData);
@@ -88,7 +93,6 @@ class _EditProfilePageState extends State<EditProfilePage> {
 
   @override
   Widget build(BuildContext context) {
-    final Color blue = const Color(0xFF1976D2);
     return Scaffold(
       backgroundColor: Colors.white,
       appBar: AppBar(
@@ -215,65 +219,44 @@ class _EditProfilePageState extends State<EditProfilePage> {
               Align(
                 alignment: Alignment.centerLeft,
                 child: Text(
-                  'Add your interests (e.g. Flutter, AI, Design)',
+                  'Manage your interests (max 5)',
                   style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
                 ),
               ),
               const SizedBox(height: 12),
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: [
-                  ...interests.map((interest) => Chip(
-                    label: Text(interest),
-                    deleteIcon: const Icon(Icons.close, size: 18),
-                    backgroundColor: blue.withValues(alpha: 0.1),
-                    onDeleted: () {
-                      setState(() {
-                        interests.remove(interest);
-                        if (interests.isNotEmpty) _interestsError = null;
-                      });
-                    },
-                  )),
-                  GestureDetector(
-                    onTap: () async {
-                      await showDialog(
-                        context: context,
-                        builder: (ctx) => AlertDialog(
-                          title: const Text('Add Interest'),
-                          content: TextField(
-                            controller: _interestController,
-                            decoration: const InputDecoration(hintText: 'Enter new interest'),
-                            autofocus: true,
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: () async {
+                    final selectedInterests = await Navigator.of(context).push<List<String>>(
+                      MaterialPageRoute(
+                        builder: (_) => ProviderScope(
+                          child: InterestsSelectionPage(
+                            initialInterests: interests,
                           ),
-                          actions: [
-                            TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
-                            TextButton(onPressed: () {
-                              setState(() {
-                                if (_interestController.text.trim().isNotEmpty) {
-                                  interests.add(_interestController.text.trim());
-                                  _interestsError = null;
-                                }
-                                _interestController.clear();
-                              });
-                              Navigator.pop(ctx);
-                            }, child: const Text('Add')),
-                          ],
                         ),
-                      );
-                    },
-                    child: CircleAvatar(
-                      radius: 16,
-                      backgroundColor: blue.withValues(alpha: 0.1),
-                      child: Icon(Icons.add, color: blue, size: 20),
-                    ),
-                  ),
-                ],
+                      ),
+                    );
+                    if (selectedInterests != null) {
+                      setState(() {
+                        interests = selectedInterests;
+                      });
+                    }
+                  },
+                  child: const Text('Change Interests'),
+                ),
               ),
-              if (_interestsError != null) Padding(
-                padding: const EdgeInsets.only(top: 6),
-                child: Text(_interestsError!, style: const TextStyle(color: Colors.redAccent, fontSize: 12)),
-              ),
+              if (interests.isNotEmpty) ...[
+                const SizedBox(height: 12),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: interests.map((interest) => Chip(
+                    label: Text(interest),
+                    backgroundColor: const Color(0xFF1976D2).withValues(alpha: 0.1),
+                  )).toList(),
+                ),
+              ],
               const SizedBox(height: 36),
               SizedBox(
                 width: double.infinity,

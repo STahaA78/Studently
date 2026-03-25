@@ -3,7 +3,7 @@ from fastapi.responses import FileResponse
 import os
 from fastapi import APIRouter, HTTPException, Depends, Query, Body, UploadFile, File, Request
 from datetime import datetime
-from database import users_collection
+from database import users_collection, config_collection
 from models.user_model import *
 from utils.auth import get_current_user
 import logging
@@ -47,6 +47,17 @@ def register(user: UserCreate):
     user_dict["created_at"] = datetime.now(timezone.utc).replace(tzinfo=None)
     user_dict["email"] = user.email.lower()
     user_dict["birthday"] = datetime.combine(user.birthday, datetime.min.time())
+    # interest validation 
+    app_config = config_collection.find_one({}, {"_id": 0})
+    if not app_config:
+        LOGGER.warning("No app configuration found in the database.")
+        raise HTTPException(status_code=500, detail="App configuration not found")
+    interests = app_config.get("interests", [])
+    for interest in user_dict.get("interests", []):
+        if not any(interest in category.get("data", []) for category in interests):
+            LOGGER.warning(f"Invalid interest '{interest}' provided during registration", extra={"uid": user_id})
+            raise HTTPException(status_code=400, detail=f"Invalid interest: {interest}")
+    ###
     user_dict["friendsCount"] = 0
     if "uid" in user_dict:
         del user_dict["uid"]
