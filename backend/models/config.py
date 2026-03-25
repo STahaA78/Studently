@@ -14,11 +14,11 @@ class InterestCategory(BaseModel):
     data: List[Interest]
 
 class BatchRange(BaseModel):
-    min: int
-    max: int
+    start: int
+    end: int
 class BatchRangeUpdate(BaseModel):
-    min: Optional[int] = None
-    max: Optional[int] = None
+    start: Optional[int] = None
+    end: Optional[int] = None
 
 class CurrentTerm(BaseModel):
     semester: Literal["Spring", "Summer", "Fall"]

@@ -22,7 +22,7 @@ if not LOGGER.handlers:
 # Config General
 ########################
 @router.get("", response_model=Config)
-def get_config(if_modified_since: str = Header()):
+def get_config(if_modified_since: str = Header(None)):
     """
     Pollable app configuration endpoint.
     Clients can pass `If-Modified-Since` header to get 304 if unchanged.
