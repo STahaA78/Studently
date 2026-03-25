@@ -4,7 +4,8 @@ import 'package:studently/models/user.dart';
 import 'package:studently/repositories/user.dart';
 import 'package:studently/logger.dart';
 import 'package:studently/screens/profile_edit.dart';
-
+import 'package:studently/services/api.dart';
+import 'dart:convert';
 class ProfilePage extends StatefulWidget {
   final String? userId;
 
@@ -16,30 +17,15 @@ class ProfilePage extends StatefulWidget {
 
 class _ProfilePageState extends State<ProfilePage> {
   final Color blue = const Color(0xFF1976D2);
-
-  final List<Map<String, dynamic>> posts = [
-    {
-      "title": "Join me for Group Study Session",
-      "image": "assets/images/group_study.jpg",
-      "likes": 123,
-      "comments": 2,
-      "isLiked": false,
-    },
-    {
-      "title": "AI Research Collaboration",
-      "image": "assets/images/group_study.jpg",
-      "likes": 98,
-      "comments": 5,
-      "isLiked": false,
-    },
-  ];
+  final apiService = ApiService();
+  List<Map<String, dynamic>> posts = [];
+  bool hasLoadedPosts = false;
 
   User? user;
   bool isLoading = true;
   String connectionStatus = "none";
   bool isStatusLoading = true;
   final userRepository = UserRepository();
-  final String currentUserId = "6989b03caf678f41033614ea";
 
   @override
   void initState() {
@@ -57,6 +43,7 @@ class _ProfilePageState extends State<ProfilePage> {
         user = fetchedUser;
         isLoading = false;
       });
+      _loadUserPosts();
     } catch (e) {
       setState(() => isLoading = false);
     }
@@ -76,7 +63,32 @@ class _ProfilePageState extends State<ProfilePage> {
       setState(() => isStatusLoading = false);
     }
   }
+  Future<void> _loadUserPosts() async {
+    try {
+      final response = await apiService.get('/feed?limit=50&skip=0');
 
+      final List<dynamic> data = jsonDecode(response.body);
+
+      final String userId = widget.userId ?? user?.id ?? "";
+print("CURRENT USER ID: $userId");
+
+for (var post in data) {
+  print("POST AUTHOR: ${post['author_id']}");
+}
+      final filteredPosts = data.where((post) {
+        return post['author_id'] == userId;
+      }).toList();
+
+      setState(() {
+        posts = List<Map<String, dynamic>>.from(filteredPosts);
+        hasLoadedPosts = true;
+      });
+
+    } catch (e) {
+      print("Error loading posts: $e");
+      setState(() => hasLoadedPosts = true);
+    }
+  }
   Future<void> _sendConnectionRequest() async {
     try {
       await userRepository.sendConnectionRequest(widget.userId!);
@@ -246,20 +258,25 @@ class _ProfilePageState extends State<ProfilePage> {
                         ),
                       ),
                       const SizedBox(height: 12),
-                      GridView.builder(
-                        shrinkWrap: true,
-                        physics: const NeverScrollableScrollPhysics(),
-                        itemCount: posts.length,
-                        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                          crossAxisCount: 2,
-                          crossAxisSpacing: 12,
-                          mainAxisSpacing: 12,
-                          childAspectRatio: 0.85,
+                      if (!hasLoadedPosts)
+                        const Center(child: CircularProgressIndicator())
+                      else if (posts.isEmpty)
+                        const Text("No posts yet")
+                      else
+                        GridView.builder(
+                          shrinkWrap: true,
+                          physics: const NeverScrollableScrollPhysics(),
+                          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                            crossAxisCount: 2,
+                            crossAxisSpacing: 10,
+                            mainAxisSpacing: 10,
+                            childAspectRatio: 0.75, // 🔥 dynamic height
+                          ),
+                          itemCount: posts.length,
+                          itemBuilder: (context, index) {
+                            return _buildPostCard(context, posts[index]);
+                          },
                         ),
-                        itemBuilder: (context, index) {
-                          return _buildPostCard(context, posts[index]);
-                        },
-                      ),
                     ],
                   ),
                 ),
@@ -338,52 +355,75 @@ class _ProfilePageState extends State<ProfilePage> {
   }
 
   Widget _buildPostCard(BuildContext context, Map<String, dynamic> post) {
-    return GestureDetector(
-      onTap: () async {
-        // await Navigator.push(
-        //   context,
-        //   MaterialPageRoute(
-        //     builder: (_) => PostDetailsPage(postData: post),
-        //   ),
-        // );
-      },
-      child: Container(
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(16),
-          color: Colors.white,
-          boxShadow: [
-            BoxShadow(
-              color: Colors.grey.withValues(alpha: 0.15),
-              blurRadius: 8,
-              offset: const Offset(0, 3),
-            ),
-          ],
-        ),
-        child: Column(
-          children: [
-            ClipRRect(
-              borderRadius:
-                  const BorderRadius.vertical(top: Radius.circular(16)),
-              child: Image.asset(
-                post["image"],
-                height: 100,
-                width: double.infinity,
-                fit: BoxFit.cover,
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.all(8),
-              child: Text(
-                post["title"],
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-                style:
-                    const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
-              ),
-            ),
-          ],
-        ),
+    final mediaUrls = post["media_urls"];
+
+    String imageUrl = "";
+    if (mediaUrls != null && mediaUrls is List && mediaUrls.isNotEmpty) {
+      imageUrl = mediaUrls[0] ?? "";
+    }
+
+    final String caption = post["content"] ?? post["title"] ?? "";
+    final bool hasImage = imageUrl.isNotEmpty;
+
+    return Container(
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(16),
+        color: Colors.white,
+        boxShadow: [
+          BoxShadow(
+            color: Colors.grey.withValues(alpha: 0.12),
+            blurRadius: 6,
+            offset: const Offset(0, 3),
+          ),
+        ],
       ),
+      child: hasImage
+
+          /// 🔥 IMAGE POST (FIXED HEIGHT → NO OVERFLOW)
+          ? Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                ClipRRect(
+                  borderRadius:
+                      const BorderRadius.vertical(top: Radius.circular(16)),
+                  child: SizedBox(
+                    height: 140, // ✅ FIXED HEIGHT
+                    width: double.infinity,
+                    child: Image.network(
+                      apiService.getCompleteUrl(imageUrl),
+                      fit: BoxFit.cover,
+                    ),
+                  ),
+                ),
+
+                if (caption.isNotEmpty)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 10, vertical: 6),
+                    child: Text(
+                      caption,
+                      maxLines: 1, // ✅ PREVENT OVERFLOW
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(fontSize: 13),
+                    ),
+                  ),
+              ],
+            )
+
+          /// 🔥 TEXT-ONLY POST (COMPACT + CENTERED)
+          : Container(
+              padding: const EdgeInsets.all(12),
+              alignment: Alignment.centerLeft,
+              child: Text(
+                caption.isNotEmpty ? caption : "No content",
+                maxLines: 4,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ),
     );
   }
 }
