@@ -3,10 +3,8 @@ from fastapi.responses import FileResponse
 import os
 from fastapi import APIRouter, HTTPException, Depends, Query, Body, UploadFile, File, Request
 from datetime import datetime
-from utils.auth import hash_password
-from database import users_collection
+from database import users_collection, config_collection
 from models.user_model import *
-from utils.auth import verify_password
 from utils.auth import get_current_user
 import logging
 import uuid
@@ -41,6 +39,7 @@ def register(user: UserCreate):
     # Check if email is already taken
     if users_collection.find_one({"email": user.email.lower()}):
         raise HTTPException(status_code=400, detail="Email already registered")
+    
     user_dict = user.model_dump()
     # Change: Use the provided uid or generate a new one if empty
     # We map this to '_id' so MongoDB uses it as the primary key
@@ -49,6 +48,50 @@ def register(user: UserCreate):
     user_dict["created_at"] = datetime.now(timezone.utc).replace(tzinfo=None)
     user_dict["email"] = user.email.lower()
     user_dict["birthday"] = datetime.combine(user.birthday, datetime.min.time())
+    # interest validation 
+    LOGGER.info(f"Validating interests for USER ID: {user_id} ", extra={"uid": user_id})
+    user_interests = user_dict.get("interests", [])
+    LOGGER.debug(f"User provided interests: {user_interests}", extra={"uid": user_id})
+    if len(user_interests) > 5:
+        LOGGER.warning(f"Too many interests: {len(user_interests)}", extra={"uid": user_id})
+        raise HTTPException(status_code=400, detail="You can select up to 5 interests")
+    app_config = config_collection.find_one({}, {"interests": 1, "_id": 0})
+    LOGGER.debug(f"App config interests for validation: {app_config.get('interests', [])}", extra={"uid": user_id})
+    if not app_config:
+        raise HTTPException(status_code=500, detail="App configuration not found")
+    
+    # Build valid interests map (name -> emoji) for O(1) lookups
+    valid_interests_map = {}
+    for category in app_config.get("interests", []):
+        for item in category.get("data", []):
+            name = item.get("name")
+            emoji = item.get("emoji")
+            if name:
+                valid_interests_map[name] = emoji
+    
+    verified_interests = []
+    for interest in user_interests:
+        # Extract interest name and emoji (handle both dict and object formats)
+        interest_name = interest.get('name') if isinstance(interest, dict) else interest.name if hasattr(interest, 'name') else interest
+        interest_emoji = interest.get('emoji') if isinstance(interest, dict) else interest.emoji if hasattr(interest, 'emoji') else None
+        
+        # Check for duplicates
+        if interest_name in verified_interests:
+            LOGGER.warning(f"Duplicate interest: {interest_name}", extra={"uid": user_id})
+            raise HTTPException(status_code=400, detail=f"Duplicate interest: {interest_name}")
+        
+        # Validate name exists
+        if interest_name not in valid_interests_map:
+            LOGGER.warning(f"Invalid interest: {interest_name}", extra={"uid": user_id})
+            raise HTTPException(status_code=400, detail=f"Invalid interest: {interest_name}")
+        
+        # Validate emoji matches
+        if interest_emoji != valid_interests_map[interest_name]:
+            LOGGER.warning(f"Invalid emoji for interest {interest_name}: got {interest_emoji}, expected {valid_interests_map[interest_name]}", extra={"uid": user_id})
+            raise HTTPException(status_code=400, detail=f"Invalid emoji for interest: {interest_name}")
+        
+        verified_interests.append(interest_name)
+    ###
     user_dict["friendsCount"] = 0
     if "uid" in user_dict:
         del user_dict["uid"]
@@ -434,7 +477,7 @@ def remove_friend(user_id: str, action_data: FriendRemoveAction, USER: str = Dep
 
 # Update User Profile
 @router.patch("/{user_id}/update", response_model=UserProfileData)
-def update_user_profile(user_id: str, updated_data: dict = Body(...), USER: str = Depends(get_current_user)):
+def update_user_profile(user_id: str, updated_data: EditProfileData, USER: str = Depends(get_current_user)):
     LOGGER.info(f"USER {USER} updating profile for USER ID: {user_id}", extra={"uid": USER})
     if user_id != "0":
         if is_admin(USER):
@@ -452,12 +495,54 @@ def update_user_profile(user_id: str, updated_data: dict = Body(...), USER: str 
         raise HTTPException(status_code=404, detail="User not found")
 
     # Only allow updating certain fields
-    allowed_fields = {"name", "department", "batch", "interests"}
-    update_fields = {k: v for k, v in updated_data.items() if k in allowed_fields}
-    if not update_fields:
+    if not updated_data:
         raise HTTPException(status_code=400, detail="No valid fields to update")
 
-    users_collection.update_one({"_id": user_id}, {"$set": update_fields})
+    # If interests are being updated, validate them
+    if "interests" in updated_data:
+    # interest validation 
+        LOGGER.info(f"Validating interests for USER ID: {user_id} ", extra={"uid": user_id})
+        user_interests = updated_data.get("interests", [])
+        LOGGER.debug(f"User provided interests: {user_interests}", extra={"uid": user_id})
+        if len(user_interests) > 5:
+            LOGGER.warning(f"Too many interests: {len(user_interests)}", extra={"uid": user_id})
+            raise HTTPException(status_code=400, detail="You can select up to 5 interests")
+        app_config = config_collection.find_one({}, {"interests": 1, "_id": 0})
+        if not app_config:
+            raise HTTPException(status_code=500, detail="App configuration not found")
+        # Build valid interests map (name -> emoji) for O(1) lookups
+        valid_interests_map = {}
+        for category in app_config.get("interests", []):
+            for item in category.get("data", []):
+                name = item.get("name")
+                emoji = item.get("emoji")
+                if name:
+                    valid_interests_map[name] = emoji
+        
+        verified_interests = []
+        for interest in user_interests:
+            # Extract interest name and emoji (handle both dict and object formats)
+            interest_name = interest.get('name') if isinstance(interest, dict) else interest.name if hasattr(interest, 'name') else interest
+            interest_emoji = interest.get('emoji') if isinstance(interest, dict) else interest.emoji if hasattr(interest, 'emoji') else None
+            
+            # Check for duplicates
+            if interest_name in verified_interests:
+                LOGGER.warning(f"Duplicate interest: {interest_name}", extra={"uid": user_id})
+                raise HTTPException(status_code=400, detail=f"Duplicate interest: {interest_name}")
+            
+            # Validate name exists
+            if interest_name not in valid_interests_map:
+                LOGGER.warning(f"Invalid interest: {interest_name}", extra={"uid": user_id})
+                raise HTTPException(status_code=400, detail=f"Invalid interest: {interest_name}")
+            
+            # Validate emoji matches
+            if interest_emoji != valid_interests_map[interest_name]:
+                LOGGER.warning(f"Invalid emoji for interest {interest_name}: got {interest_emoji}, expected {valid_interests_map[interest_name]}", extra={"uid": user_id})
+                raise HTTPException(status_code=400, detail=f"Invalid emoji for interest: {interest_name}")
+            
+            verified_interests.append(interest_name)
+            
+    users_collection.update_one({"_id": user_id}, {"$set": updated_data.model_dump(exclude_unset=True)})
     LOGGER.info(f"Profile updated successfully for user ID: {user_id}", extra={"uid": USER})
     # Return updated profile
     updated_user = users_collection.find_one({"_id": user_id}, {
@@ -466,9 +551,9 @@ def update_user_profile(user_id: str, updated_data: dict = Body(...), USER: str 
         "interests": 1,
         "department": 1,
         "batch": 1,
+        "friendsCount": 1
     })
     updated_user["id"] = user_id
-    updated_user["friendsCount"] = len(updated_user.get("friends", []))
     return updated_user
 
 @router.get("/{user_id}/friends_list", response_model=list[UserOut])

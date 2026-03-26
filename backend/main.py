@@ -13,9 +13,7 @@ from routes.user_routes import router as user_router
 from routes.post_routes import router as post_router
 from routes.chat_routes import router as chat_router
 from routes.knowledge_hub import router as hub_router
-
-
-
+from routes.config import router as config_router
 # Suppress noisy loggers
 logging.getLogger("pymongo").setLevel(logging.WARNING)
 logging.getLogger("motor").setLevel(logging.WARNING)
@@ -60,6 +58,7 @@ app.include_router(user_router, prefix="/users", tags=["Authentication & User Op
 app.include_router(post_router, prefix="/feed", tags=["Community Feed"])
 app.include_router(chat_router, prefix="/chat", tags=["Direct Messages"])
 app.include_router(hub_router, prefix="/hub", tags=["Knowledge Hub"])
+app.include_router(config_router, prefix="/config", tags=["Config"])
 
 # WEBSOCKET ENDPOINT
 @app.websocket("/ws/{token}")

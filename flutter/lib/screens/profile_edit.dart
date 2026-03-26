@@ -1,7 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:studently/models/user.dart';
+import 'package:studently/models/backend_config.dart';
 import 'package:studently/repositories/user.dart';
+import 'package:studently/providers/backend_config_provider.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:studently/screens/interests.dart';
 
 class EditProfilePage extends StatefulWidget {
   final User user;
@@ -17,14 +21,12 @@ class _EditProfilePageState extends State<EditProfilePage> {
   late TextEditingController nameController;
   String? selectedDepartment;
   String? selectedBatch;
-  List<String> interests = [];
+  List<Interest> interests = [];
   final List<String> departments = ['Computer Science', 'IT', 'ECE', 'Mechanical'];
   final List<String> batches = ['2022', '2023', '2024', '2025'];
-  final TextEditingController _interestController = TextEditingController();
   bool isSaving = false;
   String? _departmentError;
   String? _batchError;
-  String? _interestsError;
 
   @override
   void initState() {
@@ -32,14 +34,29 @@ class _EditProfilePageState extends State<EditProfilePage> {
     nameController = TextEditingController(text: widget.user.name);
     selectedDepartment = widget.user.department;
     selectedBatch = widget.user.batch;
-    interests = List<String>.from(widget.user.interests);
+    interests = List<Interest>.from(widget.user.interests);
   }
 
   @override
   void dispose() {
     nameController.dispose();
-    _interestController.dispose();
     super.dispose();
+  }
+
+  void _openInterestsPage() async {
+    final selectedInterests = await Navigator.of(context).push<List<Interest>>(
+      MaterialPageRoute(
+        builder: (_) => InterestsSelectionPage(
+          initialInterests: interests,
+          completeSignup: false,
+        ),
+      ),
+    );
+    if (selectedInterests != null) {
+      setState(() {
+        interests = selectedInterests;
+      });
+    }
   }
 
   Future<void> saveProfile() async {
@@ -56,12 +73,7 @@ class _EditProfilePageState extends State<EditProfilePage> {
     } else {
       setState(() => _batchError = null);
     }
-    if (interests.isEmpty) {
-      setState(() => _interestsError = 'Add at least one interest');
-      return;
-    } else {
-      setState(() => _interestsError = null);
-    }
+
     setState(() => isSaving = true);
     final updatedData = {
       'name': nameController.text.trim(),
@@ -88,7 +100,6 @@ class _EditProfilePageState extends State<EditProfilePage> {
 
   @override
   Widget build(BuildContext context) {
-    final Color blue = const Color(0xFF1976D2);
     return Scaffold(
       backgroundColor: Colors.white,
       appBar: AppBar(
@@ -109,222 +120,321 @@ class _EditProfilePageState extends State<EditProfilePage> {
           onPressed: () => Navigator.pop(context),
         ),
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
-        child: Form(
-          key: _formKey,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
+      body: Column(
+        children: [
+          Expanded(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
+              child: Form(
+                key: _formKey,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
               // Profile Photo
-              Stack(
-                alignment: Alignment.bottomRight,
-                children: [
-                  CircleAvatar(
-                    radius: 52,
-                    backgroundColor: Colors.grey.shade300,
-                    backgroundImage: _hasPhoto
-                        ? NetworkImage(widget.user.profilePhotoUrl!)
-                        : null,
-                    child: !_hasPhoto
-                        ? const Icon(Icons.person, size: 48, color: Colors.white)
-                        : null,
-                  ),
-                  GestureDetector(
-                    onTap: _showEditPhotoOptions,
-                    child: Container(
-                      padding: const EdgeInsets.all(6),
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        shape: BoxShape.circle,
-                        border: Border.all(color: Colors.grey.shade300),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withValues(alpha: 0.08),
-                            blurRadius: 4,
-                            offset: const Offset(0, 2),
+              Center(
+                child: Column(
+                  children: [
+                    Stack(
+                      alignment: Alignment.bottomRight,
+                      children: [
+                        CircleAvatar(
+                          radius: 52,
+                          backgroundColor: Colors.grey.shade300,
+                          backgroundImage: _hasPhoto
+                              ? NetworkImage(widget.user.profilePhotoUrl!)
+                              : null,
+                          child: !_hasPhoto
+                              ? const Icon(Icons.person, size: 48, color: Colors.white)
+                              : null,
+                        ),
+                        GestureDetector(
+                          onTap: _showEditPhotoOptions,
+                          child: Container(
+                            padding: const EdgeInsets.all(6),
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              shape: BoxShape.circle,
+                              border: Border.all(color: Colors.grey.shade300),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withValues(alpha: 0.08),
+                                  blurRadius: 4,
+                                  offset: const Offset(0, 2),
+                                ),
+                              ],
+                            ),
+                            child: const Icon(Icons.edit, size: 16, color: Colors.black87),
                           ),
-                        ],
-                      ),
-                      child: const Icon(Icons.edit, size: 16, color: Colors.black87),
+                        ),
+                      ],
                     ),
-                  ),
-                ],
+                    const SizedBox(height: 8),
+                    TextButton(
+                      onPressed: _showEditPhotoOptions,
+                      child: const Text('Change Profile Photo'),
+                    ),
+                  ],
+                ),
               ),
-              const SizedBox(height: 8),
-              TextButton(
-                onPressed: _showEditPhotoOptions,
-                child: const Text('Change Profile Photo'),
-              ),
-              const SizedBox(height: 28),
-              _sectionLabel('Personal Info'),
+              const SizedBox(height: 12),
+              Divider(height: 1, color: Colors.grey.shade300),
               const SizedBox(height: 12),
               // Name
-              TextFormField(
-                controller: nameController,
-                textCapitalization: TextCapitalization.words,
-                decoration: const InputDecoration(
-                  labelText: 'Full Name',
-                  prefixIcon: Icon(Icons.person_outline),
+              const Text('Full Name', style: TextStyle(fontWeight: FontWeight.w500, fontSize: 15)),
+              const SizedBox(height: 6),
+              SizedBox(
+                height: 50,
+                child: TextFormField(
+                  controller: nameController,
+                  textCapitalization: TextCapitalization.words,
+                  decoration: InputDecoration(
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
+                    filled: true,
+                    fillColor: Colors.grey.shade100,
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(25),
+                      borderSide: BorderSide.none,
+                    ),
+                  ),
+                  validator: (v) => v == null || v.trim().isEmpty ? 'Enter your name' : null,
                 ),
-                validator: (v) => v == null || v.trim().isEmpty ? 'Enter your name' : null,
               ),
-              const SizedBox(height: 16),
+              const SizedBox(height: 20),
               // Department Dropdown
-              DropdownButtonFormField<String>(
-                initialValue: selectedDepartment,
-                decoration: InputDecoration(
-                  labelText: 'Department',
-                  prefixIcon: const Icon(Icons.school_outlined),
-                  errorText: _departmentError,
+              const Text('Department', style: TextStyle(fontWeight: FontWeight.w500, fontSize: 15)),
+              const SizedBox(height: 6),
+              Container(
+                height: 50,
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade100,
+                  borderRadius: BorderRadius.circular(25),
                 ),
-                items: departments.map((dept) => DropdownMenuItem(
-                  value: dept,
-                  child: Text(dept),
-                )).toList(),
-                onChanged: (val) {
-                  setState(() {
-                    selectedDepartment = val;
-                    _departmentError = null;
-                  });
-                },
+                child: DropdownButtonFormField<String>(
+                  initialValue: selectedDepartment,
+                  decoration: InputDecoration(
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 8),
+                    border: InputBorder.none,
+                    errorText: _departmentError,
+                  ),
+                  isExpanded: true,
+                  dropdownColor: Colors.white,
+                  icon: const Icon(Icons.keyboard_arrow_down_rounded, color: Colors.grey),
+                  items: departments.map((dept) => DropdownMenuItem(
+                    value: dept,
+                    child: Text(dept),
+                  )).toList(),
+                  onChanged: (val) {
+                    setState(() {
+                      selectedDepartment = val;
+                      _departmentError = null;
+                    });
+                  },
+                  borderRadius: BorderRadius.circular(20),
+                  menuMaxHeight: 220,
+                ),
               ),
-              const SizedBox(height: 16),
+              if (_departmentError != null) Padding(
+                padding: const EdgeInsets.only(top: 6, left: 8),
+                child: Text(_departmentError!, style: const TextStyle(color: Colors.redAccent, fontSize: 12)),
+              ),
+              const SizedBox(height: 20),
               // Batch Dropdown
-              DropdownButtonFormField<String>(
-                initialValue: selectedBatch,
-                decoration: InputDecoration(
-                  labelText: 'Batch',
-                  prefixIcon: const Icon(Icons.calendar_today_outlined),
-                  errorText: _batchError,
+              const Text('Batch', style: TextStyle(fontWeight: FontWeight.w500, fontSize: 15)),
+              const SizedBox(height: 6),
+              Container(
+                height: 50,
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade100,
+                  borderRadius: BorderRadius.circular(25),
                 ),
-                items: batches.map((batch) => DropdownMenuItem(
-                  value: batch,
-                  child: Text(batch),
-                )).toList(),
-                onChanged: (val) {
-                  setState(() {
-                    selectedBatch = val;
-                    _batchError = null;
-                  });
-                },
+                child: DropdownButtonFormField<String>(
+                  initialValue: selectedBatch,
+                  decoration: InputDecoration(
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 8),
+                    border: InputBorder.none,
+                    errorText: _batchError,
+                  ),
+                  isExpanded: true,
+                  dropdownColor: Colors.white,
+                  icon: const Icon(Icons.keyboard_arrow_down_rounded, color: Colors.grey),
+                  items: batches.map((batch) => DropdownMenuItem(
+                    value: batch,
+                    child: Text(batch),
+                  )).toList(),
+                  onChanged: (val) {
+                    setState(() {
+                      selectedBatch = val;
+                      _batchError = null;
+                    });
+                  },
+                  borderRadius: BorderRadius.circular(20),
+                  menuMaxHeight: 220,
+                ),
+              ),
+              if (_batchError != null) Padding(
+                padding: const EdgeInsets.only(top: 6, left: 8),
+                child: Text(_batchError!, style: const TextStyle(color: Colors.redAccent, fontSize: 12)),
               ),
               const SizedBox(height: 28),
-              _sectionLabel('Interests'),
-              const SizedBox(height: 8),
-              Align(
-                alignment: Alignment.centerLeft,
-                child: Text(
-                  'Add your interests (e.g. Flutter, AI, Design)',
-                  style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
-                ),
-              ),
-              const SizedBox(height: 12),
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: [
-                  ...interests.map((interest) => Chip(
-                    label: Text(interest),
-                    deleteIcon: const Icon(Icons.close, size: 18),
-                    backgroundColor: blue.withValues(alpha: 0.1),
-                    onDeleted: () {
-                      setState(() {
-                        interests.remove(interest);
-                        if (interests.isNotEmpty) _interestsError = null;
-                      });
-                    },
-                  )),
-                  GestureDetector(
-                    onTap: () async {
-                      await showDialog(
-                        context: context,
-                        builder: (ctx) => AlertDialog(
-                          title: const Text('Add Interest'),
-                          content: TextField(
-                            controller: _interestController,
-                            decoration: const InputDecoration(hintText: 'Enter new interest'),
-                            autofocus: true,
-                          ),
-                          actions: [
-                            TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
-                            TextButton(onPressed: () {
-                              setState(() {
-                                if (_interestController.text.trim().isNotEmpty) {
-                                  interests.add(_interestController.text.trim());
-                                  _interestsError = null;
-                                }
-                                _interestController.clear();
-                              });
-                              Navigator.pop(ctx);
-                            }, child: const Text('Add')),
+              const Text('Interests', style: TextStyle(fontWeight: FontWeight.w500, fontSize: 15)),
+              const SizedBox(height: 6),
+              GestureDetector(
+                onTap: _openInterestsPage,
+                child: Container(
+                  decoration: BoxDecoration(
+                    border: Border.all(color: Colors.grey.shade300),
+                    borderRadius: BorderRadius.circular(12),
+                    color: Colors.white,
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            const Text(
+                              'Change your interests',
+                              style: TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w600,
+                                color: Colors.black87,
+                              ),
+                            ),
+                            IconButton(
+                              icon: const Icon(Icons.add, size: 24),
+                              onPressed: _openInterestsPage,
+                              padding: EdgeInsets.zero,
+                              constraints: const BoxConstraints(),
+                            ),
                           ],
                         ),
-                      );
-                    },
-                    child: CircleAvatar(
-                      radius: 16,
-                      backgroundColor: blue.withValues(alpha: 0.1),
-                      child: Icon(Icons.add, color: blue, size: 20),
-                    ),
-                  ),
-                ],
-              ),
-              if (_interestsError != null) Padding(
-                padding: const EdgeInsets.only(top: 6),
-                child: Text(_interestsError!, style: const TextStyle(color: Colors.redAccent, fontSize: 12)),
-              ),
-              const SizedBox(height: 36),
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton(
-                  onPressed: isSaving ? null : saveProfile,
-                  style: ElevatedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(vertical: 14),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                  ),
-                  child: isSaving
-                      ? const SizedBox(
-                          height: 20,
-                          width: 20,
-                          child: CircularProgressIndicator(
-                            color: Colors.white,
-                            strokeWidth: 2,
-                          ),
+                      ),
+                      Divider(height: 1, color: Colors.grey.shade300),
+                      if (interests.isNotEmpty)
+                        Consumer(
+                          builder: (context, ref, _) =>
+                            ref.watch(backendConfigProvider).when(
+                              loading: () => const Padding(
+                                padding: EdgeInsets.all(12),
+                                child: CircularProgressIndicator(),
+                              ),
+                              error: (_, _) => Padding(
+                                padding: const EdgeInsets.all(12),
+                                child: Wrap(
+                                  spacing: 8,
+                                  runSpacing: 8,
+                                  children: interests.map((interest) {
+                                    return Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                                      decoration: BoxDecoration(
+                                        color: Colors.grey.shade100,
+                                        borderRadius: BorderRadius.circular(20),
+                                        border: Border.all(
+                                          color: const Color(0xFFE0E6ED),
+                                        ),
+                                      ),
+                                      child: Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          if (interest.emoji.isNotEmpty) ...[Text(interest.emoji, style: const TextStyle(fontSize: 14)), const SizedBox(width: 6),
+                                          ],
+                                          Text(
+                                            interest.name,
+                                            style: const TextStyle(
+                                              color: Color(0xFF334155),
+                                              fontSize: 12,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    );
+                                  }).toList(),
+                                ),
+                              ),
+                              data: (config) => Padding(
+                                padding: const EdgeInsets.all(12),
+                                child: Wrap(
+                                  spacing: 8,
+                                  runSpacing: 8,
+                                  children: interests.map((interest) {
+                                    return Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                                      decoration: BoxDecoration(
+                                        color: Colors.grey.shade100,
+                                        borderRadius: BorderRadius.circular(20),
+                                        border: Border.all(
+                                          color: const Color(0xFFE0E6ED),
+                                        ),
+                                      ),
+                                      child: Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          Text(interest.emoji, style: const TextStyle(fontSize: 14)),
+                                          const SizedBox(width: 6),
+                                          Text(
+                                            interest.name,
+                                            style: const TextStyle(
+                                              color: Color(0xFF334155),
+                                              fontSize: 12,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    );
+                                  }).toList(),
+                                ),
+                              ),
+                            ),
                         )
-                      : const Text(
-                          'Save Changes',
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w600,
+                      else
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                          child: Text(
+                            'No interests selected yet',
+                            style: TextStyle(fontSize: 13, color: Colors.grey.shade600),
                           ),
                         ),
+                    ],
+                  ),
                 ),
               ),
-              const SizedBox(height: 24),
             ],
           ),
         ),
       ),
-    );
-  }
-
-  Widget _sectionLabel(String label) {
-    return Align(
-      alignment: Alignment.centerLeft,
-      child: Text(
-        label,
-        style: const TextStyle(
-          fontSize: 13,
-          fontWeight: FontWeight.w600,
-          letterSpacing: 0.5,
-          color: Colors.black54,
+    ),
+    Padding(
+      padding: const EdgeInsets.only(left: 20, right: 20, bottom: 20, top: 10),
+      child: SizedBox(
+        width: double.infinity,
+        height: 56,
+        child: ElevatedButton(
+          onPressed: isSaving ? null : saveProfile,
+          child: isSaving
+              ? const SizedBox(
+                  height: 24,
+                  width: 24,
+                  child: CircularProgressIndicator(
+                    valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                    strokeWidth: 2.5,
+                  ),
+                )
+              : const Text(
+                  'Save Changes',
+                  style: TextStyle(
+                    fontSize: 16,
+                    color: Colors.white,
+                  ),
+                ),
         ),
       ),
-    );
-  }
+    ),
+    ],
+    ),
+  );
+}
 
   void _showEditPhotoOptions() async {
     final action = await showModalBottomSheet<String>(

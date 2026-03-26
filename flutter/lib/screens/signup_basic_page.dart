@@ -153,6 +153,15 @@ class _SignupBasicPageState extends State<SignupBasicPage> {
   @override
   void initState() {
     super.initState();
+    // Clear all errors and text fields when page loads
+    _nameError = null;
+    _emailError = null;
+    _passwordError = null;
+    _completionError = null;
+    _nameController.clear();
+    _emailController.clear();
+    _passwordController.clear();
+    
     _emailFocus.addListener(() {
       if (!_emailFocus.hasFocus) _validateEmail();
     });
@@ -174,7 +183,6 @@ class _SignupBasicPageState extends State<SignupBasicPage> {
 
     return Scaffold(
       backgroundColor: Colors.white,
-
       body: SafeArea(
         child: SingleChildScrollView(
           padding: const EdgeInsets.symmetric(vertical: 20),
@@ -213,7 +221,7 @@ class _SignupBasicPageState extends State<SignupBasicPage> {
                             'Welcome to',
                             style: GoogleFonts.poppins(
                               fontSize: AppStyle.signUpPageHeadingFontSize,
-                              fontWeight: FontWeight.w700,
+                              fontWeight: FontWeight.w800,
                               color: Colors.black,
                               letterSpacing: 0.5,
                             ),
@@ -271,22 +279,36 @@ class _SignupBasicPageState extends State<SignupBasicPage> {
                           fontWeight: FontWeight.w500, fontSize: 15),
                     ),
                     const SizedBox(height: 6),
-                    TextField(
-                      controller: _nameController,
-                      focusNode: _nameFocus,
-                      decoration: InputDecoration(
-                        hintText: 'John Doe',
-                        errorText: _nameError,
-                        contentPadding: const EdgeInsets.symmetric(
-                            horizontal: 18, vertical: 14),
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(25),
+                    SizedBox(
+                      height: 50,
+                      child: TextField(
+                        controller: _nameController,
+                        focusNode: _nameFocus,
+                        decoration: InputDecoration(
+                          hintText: 'John Doe',
+                          contentPadding: const EdgeInsets.symmetric(
+                              horizontal: 18, vertical: 14),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(25),
+                          ),
+                        ),
+                        onChanged: (_) {
+                          if (_nameError != null) setState(() => _nameError = null);
+                        },
+                      ),
+                    ),
+                    if (_nameError != null)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 2, left: 4),
+                        child: Text(
+                          _nameError!,
+                          style: const TextStyle(
+                            color: Colors.redAccent,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w500,
+                          ),
                         ),
                       ),
-                      onChanged: (_) {
-                        if (_nameError != null) setState(() => _nameError = null);
-                      },
-                    ),
                     const SizedBox(height: 16),
         
                     // Email
@@ -296,24 +318,38 @@ class _SignupBasicPageState extends State<SignupBasicPage> {
                           fontWeight: FontWeight.w500, fontSize: 15),
                     ),
                     const SizedBox(height: 6),
-                    TextField(
-                      controller: _emailController,
-                      focusNode: _emailFocus,
-                      keyboardType: TextInputType.emailAddress,
-                      decoration: InputDecoration(
-                        hintText: 'john.doe@lhr.nu.edu.pk',
-                        errorText: _emailError,
-                        contentPadding: const EdgeInsets.symmetric(
-                            horizontal: 18, vertical: 14),
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(25),
+                    SizedBox(
+                      height: 50,
+                      child: TextField(
+                        controller: _emailController,
+                        focusNode: _emailFocus,
+                        keyboardType: TextInputType.emailAddress,
+                        decoration: InputDecoration(
+                          hintText: 'john.doe@lhr.nu.edu.pk',
+                          contentPadding: const EdgeInsets.symmetric(
+                              horizontal: 18, vertical: 14),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(25),
+                          ),
+                        ),
+                        onChanged: (_) {
+                          if (_emailError != null) setState(() => _emailError = null);
+                        },
+                        onEditingComplete: () => FocusScope.of(context).nextFocus(),
+                      ),
+                    ),
+                    if (_emailError != null)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 2, left: 4),
+                        child: Text(
+                          _emailError!,
+                          style: const TextStyle(
+                            color: Colors.redAccent,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w500,
+                          ),
                         ),
                       ),
-                      onChanged: (_) {
-                        if (_emailError != null) setState(() => _emailError = null);
-                      },
-                      onEditingComplete: () => FocusScope.of(context).nextFocus(),
-                    ),
                     const SizedBox(height: 16),
         
                     // Password
@@ -323,40 +359,48 @@ class _SignupBasicPageState extends State<SignupBasicPage> {
                           fontWeight: FontWeight.w500, fontSize: 15),
                     ),
                     const SizedBox(height: 6),
-                    TextField(
-                      controller: _passwordController,
-                      focusNode: _passwordFocus,
-                      obscureText: true,
-                      decoration: InputDecoration(
-                        hintText: '••••••••',
-                        errorText: _passwordError,
-                        contentPadding: const EdgeInsets.symmetric(
-                            horizontal: 18, vertical: 14),
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(25),
+                    SizedBox(
+                      height: 50,
+                      child: TextField(
+                        controller: _passwordController,
+                        focusNode: _passwordFocus,
+                        obscureText: true,
+                        decoration: InputDecoration(
+                          hintText: '••••••••',
+                          contentPadding: const EdgeInsets.symmetric(
+                              horizontal: 18, vertical: 14),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(25),
+                          ),
+                        ),
+                        onChanged: (_) {
+                          if (_passwordError != null) setState(() => _passwordError = null);
+                        },
+                        onEditingComplete: () => FocusScope.of(context).unfocus(),
+                      ),
+                    ),
+                    if (_passwordError != null)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 2, left: 4),
+                        child: Text(
+                          _passwordError!,
+                          style: const TextStyle(
+                            color: Colors.redAccent,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w500,
+                          ),
                         ),
                       ),
-                      onChanged: (_) {
-                        if (_passwordError != null) setState(() => _passwordError = null);
-                      },
-                      onEditingComplete: () => FocusScope.of(context).unfocus(),
-                    ),
                     const SizedBox(height: 30),
         
                     // NEXT BUTTON
                     SizedBox(
+                      height: 45,
                       width: double.infinity,
                       child: ElevatedButton(
                         onPressed: () async {
                           await _handleCompletion();
                         },
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: blue,
-                          padding: const EdgeInsets.symmetric(vertical: 16),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(25),
-                          ),
-                        ),
                         child: const Text(
                           'Next',
                           style: TextStyle(
@@ -375,33 +419,32 @@ class _SignupBasicPageState extends State<SignupBasicPage> {
                         textAlign: TextAlign.center,
                       ),
                     ],
-                    const SizedBox(height: 20),
-        
                     // Login link
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        const Text(
-                          "Already have an account? ",
-                          style: TextStyle(fontSize: 15, color: Colors.black87),
-                        ),
-                        GestureDetector(
-                          onTap: () {
-                            Navigator.pushReplacement(
-                              context,
-                              MaterialPageRoute(builder: (context) => const LoginPage()),
-                            );
-                          },
-                          child: Text(
-                            "Login",
-                            style: TextStyle(
-                              fontSize: 15,
-                              color: blue,
-                              fontWeight: FontWeight.w600,
+                    Padding(
+                      padding: const EdgeInsets.only(top: 2.0),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          const Text(
+                            "Already have an account? ",
+                            style: TextStyle(fontSize: 14, color: Colors.black),
+                          ),
+                          GestureDetector(
+                            onTap: () {
+                              Navigator.pushReplacement(
+                                context,
+                                MaterialPageRoute(builder: (context) => const LoginPage()),
+                              );
+                            },
+                            child: Text(
+                              "Login",
+                              style: TextStyle(
+                                color: blue,
+                              ),
                             ),
                           ),
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
                   ],
                 ),
