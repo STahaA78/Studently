@@ -150,7 +150,7 @@ class _PostDetailsPageState extends State<PostDetailsPage> {
       Navigator.push(
         context,
         MaterialPageRoute(
-          builder: (_) => UserProfilePage(
+          builder: (_) => ProfilePage(
             userId: userId,
           ),
         ),
@@ -365,7 +365,13 @@ class _PostDetailsPageState extends State<PostDetailsPage> {
 
     final currentUid = authService.value.currentUser?.uid;
     final bool isOwner = comment.userId == currentUid;
-    final displayName = isOwner ? "You" : comment.username;
+    final displayName = isOwner
+      ? "You"
+      : (comment.username != null &&
+        comment.username.trim().isNotEmpty &&
+        comment.username.toLowerCase() != "unknown"
+          ? comment.username
+          : "User");
 
     return ListTile(
 

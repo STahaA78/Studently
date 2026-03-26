@@ -206,7 +206,7 @@ def add_comment(post_id: str, comment: CommentCreate, user: str = Depends(get_cu
     comment_dict = comment.model_dump()
 
     comment_dict["user_id"] = user
-    comment_dict["username"] = db_user.get("Name", "Unknown")
+    comment_dict["username"] = db_user.get("name", "Unknown")
     comment_dict["timestamp"] = datetime.now(timezone.utc).isoformat()
 
     posts_collection.update_one(

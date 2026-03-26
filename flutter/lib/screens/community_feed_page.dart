@@ -188,6 +188,12 @@ setState(() {
     if (updatedPost != null && updatedPost is Post) {
       setState(() {
         posts[index] = updatedPost;
+
+        final currentUser = authService.value.currentUser?.uid;
+
+        likeCounts[updatedPost.id] = updatedPost.likes.length;
+        likedPosts[updatedPost.id] =
+            updatedPost.likes.contains(currentUser);
       });
     }
 
@@ -348,7 +354,7 @@ Widget _buildPostCard({
       Navigator.push(
         context,
         MaterialPageRoute(
-          builder: (_) => UserProfilePage(
+          builder: (_) => ProfilePage(
             userId: post.authorId,
           ),
         ),
