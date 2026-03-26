@@ -535,10 +535,15 @@ class _DirectMessagesPageState extends State<DirectMessagesPage>
                             return ListTile(
                               contentPadding:
                                   const EdgeInsets.symmetric(vertical: 5),
-                              leading: CircleAvatar(
-                                backgroundColor: Colors.blue.shade50,
+                             leading: CircleAvatar(
+                                backgroundColor: const Color(0xFFE8F0FE),
                                 child: Text(
-                                    friend['Name']![0].toUpperCase()),
+                                  friend['Name']![0].toUpperCase(),
+                                  style: const TextStyle(
+                                    color: Color(0xFF1976D2), 
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
                               ),
                               title: Text(
                                 friend['Name']!,
