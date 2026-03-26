@@ -27,6 +27,6 @@ class AppStyle {
   static const double verticalSpacingNormal = 16.0;
   static const double verticalSpacingLarge = 24.0;
   static const double verticalSpacingSmall = 14.0;
-  static const EdgeInsets normalVerticalHorizontalPadding = EdgeInsets.symmetric(horizontal: 8, vertical: 16);
-  static const EdgeInsets normalVerticalPadding = EdgeInsets.symmetric(vertical: 16);
+  static const EdgeInsets normalVerticalHorizontalPadding = EdgeInsets.symmetric(horizontal: 8, vertical: 10);
+  static const EdgeInsets normalVerticalPadding = EdgeInsets.symmetric(vertical: 10);
 }
