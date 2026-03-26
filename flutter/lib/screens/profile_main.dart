@@ -171,77 +171,192 @@ class _ProfilePageState extends State<ProfilePage> {
       body: isLoading
           ? const Center(child: CircularProgressIndicator())
           : user == null
-              ? const Center(child: Text("User not found"))
+              ? const Center(child: Text("Error Loading Profile"))
               : SingleChildScrollView(
                   padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
                   child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.center,
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       const SizedBox(height: 12),
-                      _buildProfilePhoto(user!),
-                      const SizedBox(height: 12),
-                      Text(
-                        user!.name,
-                        style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                      // Instagram-style profile header
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          // Profile picture on the left
+                          _buildProfilePhoto(user!),
+                          const SizedBox(width: 16),
+                          // Info column on the right
+                          Expanded(
+                            child: Padding(
+                              padding: const EdgeInsets.only(left: 10.0),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                mainAxisAlignment: MainAxisAlignment.start,
+                                children: [
+                                  // Name
+                                  Text(
+                                    user!.name,
+                                    style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                  const SizedBox(height: 12),
+                                  // Stats row: Posts, Friends
+                                  Row(
+                                    mainAxisAlignment: MainAxisAlignment.start,
+                                    children: [
+                                      _buildStatColumn("Friends", user!.friendsCount.toString()),
+                                      const SizedBox(width: 35),
+                                      _buildStatColumn("Posts", posts.length.toString()),
+                                      const SizedBox(width: 35),
+                                      _buildStatColumn("Resources", "0"),
+                                    ],
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
+                      const SizedBox(height: 16),
+                      // Batch info
                       Text(
                         "${user!.department}, Batch ${user!.batch}",
-                        style: const TextStyle(color: Colors.grey),
+                        style: const TextStyle(color: Colors.grey, fontSize: 12),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
                       ),
-                      const SizedBox(height: 8),
-                      TextButton.icon(
-                        onPressed: null,
-                        icon: const Icon(Icons.people, color: Colors.blue),
-                        label: Text(
-                          "${user!.friendsCount} Friends",
-                          style: const TextStyle(color: Colors.blue),
+                      const SizedBox(height: 12),
+                      // Edit Profile / Connect buttons - full width
+                      if (isMyProfile)
+                        SizedBox(
+                          height: 40,
+                          width: double.infinity,
+                          child: OutlinedButton(
+                            onPressed: () async {
+                              final updatedUser = await Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) => EditProfilePage(user: user!)
+                                ),
+                              );
+                              if (updatedUser != null && mounted) {
+                                setState(() {
+                                  user = updatedUser;
+                                });
+                              }
+                            },
+                            child: Text(
+                              "Edit Profile",
+                              style: TextStyle(color: blue, fontSize: 14),
+                            ),
+                          ),
+                        )
+                      else if (connectionStatus == "friends")
+                        SizedBox(
+                          width: double.infinity,
+                          child: ElevatedButton(
+                            onPressed: null,
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: blue,
+                              padding: const EdgeInsets.symmetric(vertical: 10),
+                            ),
+                            child: const Text("Connected", style: TextStyle(color: Colors.white, fontSize: 13)),
+                          ),
+                        )
+                      else if (connectionStatus == "outgoing_request")
+                        SizedBox(
+                          width: double.infinity,
+                          child: OutlinedButton(
+                            onPressed: _cancelConnectionRequest,
+                            style: OutlinedButton.styleFrom(
+                              side: BorderSide(color: blue),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              padding: const EdgeInsets.symmetric(vertical: 10),
+                            ),
+                            child: Text(
+                              "Pending",
+                              style: TextStyle(color: blue, fontWeight: FontWeight.w600, fontSize: 13),
+                            ),
+                          ),
+                        )
+                      else
+                        SizedBox(
+                          width: double.infinity,
+                          child: ElevatedButton(
+                            onPressed: _sendConnectionRequest,
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: blue,
+                              padding: const EdgeInsets.symmetric(vertical: 10),
+                            ),
+                            child: const Text("Connect", style: TextStyle(color: Colors.white, fontSize: 13)),
+                          ),
                         ),
-                      ),
+                      const SizedBox(height: 16),
+                      // Reject button for incoming requests
+                      if (!isMyProfile && connectionStatus == "incoming_request")
+                        Row(
+                          children: [
+                            Expanded(
+                              child: OutlinedButton(
+                                onPressed: _rejectRequest,
+                                child: const Text("Decline"),
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: ElevatedButton(
+                                onPressed: _acceptRequest,
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: blue,
+                                ),
+                                child: const Text("Accept"),
+                              ),
+                            ),
+                          ],
+                        ),
+                      // Disconnect button for friends
+                      if (!isMyProfile && connectionStatus == "friends")
+                        GestureDetector(
+                          onTap: _showDisconnectDialog,
+                          child: const Text(
+                            "Disconnect",
+                            style: TextStyle(color: Colors.red, fontWeight: FontWeight.w600),
+                          ),
+                        ),
                       const SizedBox(height: 12),
                       Wrap(
                         spacing: 8,
                         runSpacing: 8,
                         children: (user!.interests)
-                            .map((interest) => Chip(
-                                  label: Text(
-                                    interest,
-                                    style: const TextStyle(color: Colors.white),
+                            .map((interest) => Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                                  decoration: BoxDecoration(
+                                    color: Colors.grey.shade100,
+                                    borderRadius: BorderRadius.circular(20),
+                                    border: Border.all(
+                                      color: const Color(0xFFE0E6ED),
+                                    ),
                                   ),
-                                  backgroundColor: blue,
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Text(interest.emoji, style: const TextStyle(fontSize: 14)),
+                                      const SizedBox(width: 6),
+                                      Text(
+                                        interest.name,
+                                        style: const TextStyle(
+                                          color: Color(0xFF334155),
+                                          fontSize: 12,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
                                 ))
                             .toList(),
                       ),
-                      const SizedBox(height: 16),
-                      if (isMyProfile)
-                        OutlinedButton.icon(
-                          onPressed: () async {
-                            final updatedUser = await Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (context) => EditProfilePage(user: user!)
-                              ),
-                            );
-                            if (updatedUser != null && mounted) {
-                              setState(() {
-                                user = updatedUser;
-                              });
-                            }
-                          },
-                          label: Padding(
-                            padding: const EdgeInsets.only(left:4, right: 4),
-                            child: Text(
-                              "Edit Profile",
-                              style: TextStyle(color: blue),
-                            ),
-                          ),
-                          style: OutlinedButton.styleFrom(
-                            side: BorderSide(color: blue),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                          ),
-                        ),
-                      if (!isMyProfile) _buildConnectionActions(),
                       const SizedBox(height: 20),
                       const Align(
                         alignment: Alignment.centerLeft,
@@ -257,7 +372,30 @@ class _ProfilePageState extends State<ProfilePage> {
                       if (!hasLoadedPosts)
                         const Center(child: CircularProgressIndicator())
                       else if (posts.isEmpty)
-                        const Text("No posts yet")
+                        Padding(
+                          padding: const EdgeInsets.all(20.0),
+                          child: Center(
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(
+                                  Icons.image_not_supported_outlined,
+                                  size: 48,
+                                  color: Colors.grey.shade400,
+                                ),
+                                const SizedBox(height: 12),
+                                Text(
+                                  "No posts yet",
+                                  style: TextStyle(
+                                    fontSize: 14,
+                                    color: Colors.grey.shade600,
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        )
                       else
                         GridView.builder(
                           shrinkWrap: true,
@@ -281,54 +419,18 @@ class _ProfilePageState extends State<ProfilePage> {
     );
   }
 
-  Widget _buildConnectionActions() {
-    String buttonText = "Connect";
-    VoidCallback? onPressed = _sendConnectionRequest;
-    bool showReject = false;
-    if (connectionStatus == "incoming_request") {
-      buttonText = "Accept";
-      onPressed = _acceptRequest;
-      showReject = true;
-    } else if (connectionStatus == "outgoing_request") {
-      buttonText = "Pending";
-      onPressed = _cancelConnectionRequest;
-    } else if (connectionStatus == "friends") {
-      buttonText = "Connected";
-      onPressed = null;
-    }
+  Widget _buildStatColumn(String label, String value) {
     return Column(
       children: [
-        Row(
-          children: [
-            if (showReject)
-              Expanded(
-                child: OutlinedButton(
-                  onPressed: _rejectRequest,
-                  child: const Text("Decline"),
-                ),
-              ),
-            if (showReject) const SizedBox(width: 12),
-            Expanded(
-              child: ElevatedButton(
-                onPressed: isStatusLoading ? null : onPressed,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: blue,
-                ),
-                child: Text(buttonText),
-              ),
-            ),
-          ],
+        Text(
+          value,
+          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
         ),
-        if (connectionStatus == "friends") ...[
-          const SizedBox(height: 14),
-          GestureDetector(
-            onTap: _showDisconnectDialog,
-            child: const Text(
-              "Disconnect",
-              style: TextStyle(color: Colors.red, fontWeight: FontWeight.w600),
-            ),
-          ),
-        ],
+        const SizedBox(height: 4),
+        Text(
+          label,
+          style: const TextStyle(fontSize: 12, color: Colors.grey),
+        ),
       ],
     );
   }

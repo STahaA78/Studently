@@ -23,7 +23,7 @@ class InterestOption {
 }
 
 class InterestsSelectionPage extends ConsumerStatefulWidget {
-  final List<String> initialInterests;
+  final List<Interest> initialInterests;
   final User? user;
   final bool completeSignup;
 
@@ -143,7 +143,7 @@ class _InterestsSelectionPageState extends ConsumerState<InterestsSelectionPage>
         sections[category.category] = category.data
             .map<InterestOption>((interest) => InterestOption(
                   interest: interest,
-                  selected: widget.initialInterests.contains(interest.name),
+                  selected: widget.initialInterests.any((initial) => initial.name == interest.name),
                 ))
             .toList();
       }
@@ -160,12 +160,12 @@ class _InterestsSelectionPageState extends ConsumerState<InterestsSelectionPage>
     return count;
   }
 
-  List<String> get selectedInterests {
-    List<String> selected = [];
+  List<Interest> get selectedInterests {
+    List<Interest> selected = [];
     for (var section in sections.values) {
       for (var item in section) {
         if (item.selected) {
-          selected.add(item.name);
+          selected.add(item.interest);
         }
       }
     }

@@ -1,8 +1,7 @@
 from pydantic import BaseModel, EmailStr, field_validator,Field
 from datetime import date, datetime
 from typing import Optional, List
-import uuid
-
+from models.config import Interest
 class UserCreate(BaseModel):
     uid: str = ""  # New: Field for custom or generated UID
     name: str
@@ -10,7 +9,7 @@ class UserCreate(BaseModel):
     birthday: date  
     department: str
     batch: str
-    interests: List[str] = []
+    interests: List[Interest] = []
     university: str = "FAST"
     profilePhotoUrl: Optional[str] = None
     bio: Optional[str] = None
@@ -64,8 +63,14 @@ class UserProfileData(BaseModel):
     id: str
     name: str
     email: EmailStr
-    interests: List[str]
+    interests: List[Interest]
     department: str
     batch: str
     profilePhotoUrl: Optional[str] = None
     friendsCount: int
+
+class EditProfileData(BaseModel):
+    name: Optional[str] = None
+    department: Optional[str] = None
+    batch: Optional[str] = None
+    interests: Optional[List[Interest]] = None

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:studently/models/user.dart';
+import 'package:studently/models/backend_config.dart';
 import 'package:studently/repositories/user.dart';
 import 'package:studently/providers/backend_config_provider.dart';
 import 'package:image_picker/image_picker.dart';
@@ -20,7 +21,7 @@ class _EditProfilePageState extends State<EditProfilePage> {
   late TextEditingController nameController;
   String? selectedDepartment;
   String? selectedBatch;
-  List<String> interests = [];
+  List<Interest> interests = [];
   final List<String> departments = ['Computer Science', 'IT', 'ECE', 'Mechanical'];
   final List<String> batches = ['2022', '2023', '2024', '2025'];
   bool isSaving = false;
@@ -33,7 +34,7 @@ class _EditProfilePageState extends State<EditProfilePage> {
     nameController = TextEditingController(text: widget.user.name);
     selectedDepartment = widget.user.department;
     selectedBatch = widget.user.batch;
-    interests = List<String>.from(widget.user.interests);
+    interests = List<Interest>.from(widget.user.interests);
   }
 
   @override
@@ -42,24 +43,8 @@ class _EditProfilePageState extends State<EditProfilePage> {
     super.dispose();
   }
 
-  String? _getEmojiForInterest(String interestName, dynamic config) {
-    if (config == null) return null;
-    try {
-      for (var category in config.interests) {
-        for (var interest in category.data) {
-          if (interest.name == interestName) {
-            return interest.emoji;
-          }
-        }
-      }
-    } catch (e) {
-      // If config parsing fails, return null
-    }
-    return null;
-  }
-
   void _openInterestsPage() async {
-    final selectedInterests = await Navigator.of(context).push<List<String>>(
+    final selectedInterests = await Navigator.of(context).push<List<Interest>>(
       MaterialPageRoute(
         builder: (_) => InterestsSelectionPage(
           initialInterests: interests,
@@ -350,12 +335,19 @@ class _EditProfilePageState extends State<EditProfilePage> {
                                           color: const Color(0xFFE0E6ED),
                                         ),
                                       ),
-                                      child: Text(
-                                        interest,
-                                        style: const TextStyle(
-                                          color: Color(0xFF334155),
-                                          fontSize: 12,
-                                        ),
+                                      child: Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          if (interest.emoji.isNotEmpty) ...[Text(interest.emoji, style: const TextStyle(fontSize: 14)), const SizedBox(width: 6),
+                                          ],
+                                          Text(
+                                            interest.name,
+                                            style: const TextStyle(
+                                              color: Color(0xFF334155),
+                                              fontSize: 12,
+                                            ),
+                                          ),
+                                        ],
                                       ),
                                     );
                                   }).toList(),
@@ -367,7 +359,6 @@ class _EditProfilePageState extends State<EditProfilePage> {
                                   spacing: 8,
                                   runSpacing: 8,
                                   children: interests.map((interest) {
-                                    final emoji = _getEmojiForInterest(interest, config);
                                     return Container(
                                       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                                       decoration: BoxDecoration(
@@ -380,12 +371,10 @@ class _EditProfilePageState extends State<EditProfilePage> {
                                       child: Row(
                                         mainAxisSize: MainAxisSize.min,
                                         children: [
-                                          if (emoji != null) ...[
-                                            Text(emoji, style: const TextStyle(fontSize: 14)),
-                                            const SizedBox(width: 6),
-                                          ],
+                                          Text(interest.emoji, style: const TextStyle(fontSize: 14)),
+                                          const SizedBox(width: 6),
                                           Text(
-                                            interest,
+                                            interest.name,
                                             style: const TextStyle(
                                               color: Color(0xFF334155),
                                               fontSize: 12,

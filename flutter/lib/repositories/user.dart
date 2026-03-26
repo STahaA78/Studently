@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'package:studently/models/user.dart';
+import 'package:studently/models/backend_config.dart';
 import 'package:studently/services/api.dart';
 import 'package:studently/logger.dart';
 import 'dart:io';
@@ -15,7 +16,7 @@ class UserRepository {
 		required String birthday,
 		required String department,
 		required String batch,
-		required List<String> interests,
+		required List<Interest> interests,
 	}) async {
 		logger.i("[$runtimeType] Register User Initiated for email: $email");
 		final Map<String, dynamic> payload = {
@@ -25,7 +26,7 @@ class UserRepository {
 			"birthday": birthday,
 			"department": department,
 			"batch": batch,
-			"interests": interests,
+			"interests": interests.map((e) => e.toJson()).toList(),
 		};
 		try {
 			final response = await _apiService.post(

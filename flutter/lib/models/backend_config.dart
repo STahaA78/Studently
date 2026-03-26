@@ -7,6 +7,18 @@ class Interest {
   final String name;
   final String emoji;
   Interest({required this.name, required this.emoji});
+  factory Interest.fromJson(Map<String, dynamic> json) {
+    return Interest(
+      name: json['name'] ?? '',
+      emoji: json['emoji'] ?? '',
+    );
+  }
+  Map<String, dynamic> toJson() {
+    return {
+      'name': name,
+      'emoji': emoji,
+    };
+  }
 }
 
 class InterestCategory {

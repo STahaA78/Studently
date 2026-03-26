@@ -1,3 +1,5 @@
+import 'package:studently/models/backend_config.dart';
+
 class User {
   final String id;
   String name;
@@ -7,7 +9,7 @@ class User {
   String? birthday; // MM/DD/YYYY
   String? department;
   String? batch;
-  List<String> interests;
+  List<Interest> interests;
   String? university;
   String? profilePhotoUrl;
   String? bio;
@@ -21,7 +23,7 @@ class User {
     this.birthday,
     this.department,
     this.batch,
-    List<String>? interests,
+    List<Interest>? interests,
     this.university,
     this.profilePhotoUrl,
     this.bio,
@@ -37,7 +39,7 @@ class User {
       birthday: json['birthday'],
       department: json['department'],
       batch: json['batch'],
-      interests: List<String>.from(json['interests'] ?? []),
+      interests: (json['interests'] as List<dynamic>?)?.map((e) => Interest.fromJson(e)).toList() ?? [],
       university: json['university'],
       profilePhotoUrl: json['profilePhotoUrl'],
       bio: json['bio'],
