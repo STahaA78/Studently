@@ -402,9 +402,9 @@ class _ProfilePageState extends State<ProfilePage> {
                           physics: const NeverScrollableScrollPhysics(),
                           gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
                             crossAxisCount: 2,
-                            crossAxisSpacing: 10,
-                            mainAxisSpacing: 10,
-                            childAspectRatio: 0.75, // 🔥 dynamic height
+                            crossAxisSpacing: 8,
+                            mainAxisSpacing: 8,
+                            childAspectRatio: 1, // 🔥 dynamic height
                           ),
                           itemCount: posts.length,
                           itemBuilder: (context, index) {
@@ -463,61 +463,59 @@ class _ProfilePageState extends State<ProfilePage> {
     final String caption = post["content"] ?? post["title"] ?? "";
     final bool hasImage = imageUrl.isNotEmpty;
 
-    return Container(
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(16),
-        color: Colors.white,
-        boxShadow: [
-          BoxShadow(
-            color: Colors.grey.withValues(alpha: 0.12),
-            blurRadius: 6,
-            offset: const Offset(0, 3),
-          ),
-        ],
-      ),
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(12),
       child: hasImage
 
-          /// 🔥 IMAGE POST (FIXED HEIGHT → NO OVERFLOW)
-          ? Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+          /// 🔥 IMAGE TILE WITH CAPTION OVERLAY
+          ? Stack(
               children: [
-                ClipRRect(
-                  borderRadius:
-                      const BorderRadius.vertical(top: Radius.circular(16)),
-                  child: SizedBox(
-                    height: 140, // ✅ FIXED HEIGHT
-                    width: double.infinity,
-                    child: Image.network(
-                      apiService.getCompleteUrl(imageUrl),
-                      fit: BoxFit.cover,
-                    ),
+                Positioned.fill(
+                  child: Image.network(
+                    apiService.getCompleteUrl(imageUrl),
+                    fit: BoxFit.cover,
                   ),
                 ),
 
+                /// 🔥 CAPTION OVERLAY (Instagram style)
                 if (caption.isNotEmpty)
-                  Padding(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 10, vertical: 6),
-                    child: Text(
-                      caption,
-                      maxLines: 1, // ✅ PREVENT OVERFLOW
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(fontSize: 13),
+                  Positioned(
+                    bottom: 6,
+                    left: 6,
+                    right: 6,
+                    child: Container(
+                      padding:
+                          const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                      decoration: BoxDecoration(
+                        color: Colors.black.withOpacity(0.5),
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: Text(
+                        caption,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 11,
+                        ),
+                      ),
                     ),
                   ),
               ],
             )
 
-          /// 🔥 TEXT-ONLY POST (COMPACT + CENTERED)
+          /// 🔥 TEXT-ONLY TILE (CLEAN GRID STYLE)
           : Container(
-              padding: const EdgeInsets.all(12),
-              alignment: Alignment.centerLeft,
+              color: Colors.grey.shade200,
+              alignment: Alignment.center,
+              padding: const EdgeInsets.all(10),
               child: Text(
                 caption.isNotEmpty ? caption : "No content",
+                textAlign: TextAlign.center,
                 maxLines: 4,
                 overflow: TextOverflow.ellipsis,
                 style: const TextStyle(
-                  fontSize: 14,
+                  fontSize: 13,
                   fontWeight: FontWeight.w500,
                 ),
               ),

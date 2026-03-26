@@ -6,7 +6,7 @@ import 'package:studently/repositories/chat.dart';
 import 'package:studently/screens/chat_page.dart';
 import 'package:studently/services/firebase_auth.dart';
 import 'package:studently/services/socket.dart'; // Ensure this is imported
-
+import 'package:studently/logger.dart';
 class DirectMessagesPage extends StatefulWidget {
   const DirectMessagesPage({super.key});
 
@@ -14,7 +14,7 @@ class DirectMessagesPage extends StatefulWidget {
   State<DirectMessagesPage> createState() => _DirectMessagesPageState();
 }
 
-class _DirectMessagesPageState extends State<DirectMessagesPage> {
+class _DirectMessagesPageState extends State<DirectMessagesPage> with WidgetsBindingObserver {
   final TextEditingController _searchController = TextEditingController();
 
   List<ChatConversation> _allConversations = [];
@@ -27,16 +27,27 @@ class _DirectMessagesPageState extends State<DirectMessagesPage> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _fetchChats();
     _searchController.addListener(_onSearchChanged);
     _initWebSocket(); // Initialize real-time updates
   }
-
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      logger.i("[DirectMessagesPage] App Resumed - Reconnecting WebSocket");
+      socketService.connect();
+    } else if (state == AppLifecycleState.paused) {
+      // App was minimized -> Disconnect cleanly to save Railway resources
+      logger.i("[DirectMessagesPage] App Paused - Disconnecting WebSocket");
+      socketService.disconnect();
+    }
+  }
   Future<void> _initWebSocket() async {
     await socketService.connect();
     
     // REAL-TIME: Refresh list (unread counts/last message) on any incoming message
-    _socketSubscription = socketService.stream?.listen((event) {
+    _socketSubscription ??= socketService.stream?.listen((event) {
       final payload = jsonDecode(event);
       if (payload['type'] == 'NEW_MESSAGE') {
         _fetchChats(); // Triggers a full list refresh
@@ -46,6 +57,8 @@ class _DirectMessagesPageState extends State<DirectMessagesPage> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    socketService.disconnect();
     _socketSubscription?.cancel(); // Important to prevent memory leaks
     _searchController.dispose();
     super.dispose();
