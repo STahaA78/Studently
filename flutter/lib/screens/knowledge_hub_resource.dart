@@ -26,6 +26,11 @@ class _PdfGalleryScreenState extends State<PdfGalleryScreen> {
   @override
   void initState() {
     super.initState();
+    _headers = {}; // Initialize with empty map first
+    _currentIndex = widget.initialIndex;
+    _pageController = PageController(initialPage: widget.initialIndex);
+    
+    // Fetch token and update headers
     authService.value.getIdToken().then((token) {
       setState(() {
         _headers = {
@@ -33,8 +38,6 @@ class _PdfGalleryScreenState extends State<PdfGalleryScreen> {
         };
       });
     });
-    _currentIndex = widget.initialIndex;
-    _pageController = PageController(initialPage: widget.initialIndex);
   }
 
   @override
