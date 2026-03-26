@@ -1,3 +1,5 @@
+from venv import logger
+
 from fastapi import APIRouter, HTTPException, Depends, Query, UploadFile, File, Form
 from database import posts_collection, users_collection
 from models.post_model import PostCreate, PostOut, CommentCreate, PostUpdate
@@ -151,7 +153,26 @@ def get_post_details(
 
     paginated_comments = comments[comment_skip: comment_skip + comment_limit]
 
-    post["comments"] = paginated_comments
+    updated_comments = []
+
+    for c in paginated_comments:
+        user_id = c.get("user_id")
+
+        db_user = users_collection.find_one({
+            "$or": [
+                {"_id": user_id},
+                {"_id": ObjectId(user_id)} if ObjectId.is_valid(user_id) else {"_id": None}
+            ]
+        })
+
+        if db_user and db_user.get("name"):
+            c["username"] = db_user["name"]
+        else:
+            c["username"] = "User"
+
+        updated_comments.append(c)
+
+    post["comments"] = updated_comments
 
     return fix_id(post)
 
@@ -198,22 +219,32 @@ def add_comment(post_id: str, comment: CommentCreate, user: str = Depends(get_cu
     if not ObjectId.is_valid(post_id):
         raise HTTPException(status_code=400, detail="Invalid Post ID")
 
-    db_user = users_collection.find_one({"_id": user})
+    db_user = users_collection.find_one({
+    "$or": [
+        {"_id": user}
+        # {"_id": ObjectId(user)} if ObjectId.is_valid(user) else {"_id": None}
+    ]
+})
 
     if not db_user:
         raise HTTPException(status_code=404, detail="User not found")
-
     comment_dict = comment.model_dump()
-
     comment_dict["user_id"] = user
-    comment_dict["username"] = db_user.get("name", "Unknown")
+    logger.info(f"Adding comment for user {user} on post {post_id}")
+    user_name = db_user.get("name")
+
+    if not user_name or not user_name.strip():
+        raise HTTPException(status_code=400, detail="User name missing")
+
+    comment_dict["username"] = user_name
+
     comment_dict["timestamp"] = datetime.now(timezone.utc).isoformat()
 
     posts_collection.update_one(
         {"_id": ObjectId(post_id)},
         {"$push": {"comments": comment_dict}}
     )
-
+    
     return {"success": True, "comment": comment_dict}
 
 
