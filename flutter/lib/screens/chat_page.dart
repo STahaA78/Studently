@@ -57,7 +57,7 @@ class _ChatPageState extends State<ChatPage> {
   void initState() {
     super.initState();
     _fetchMessages();
-    
+    socketService.connect();
     ChatRepository().markChatAsRead(widget.conversationId);
 
     _messageController.addListener(() {

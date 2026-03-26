@@ -67,7 +67,6 @@ async def websocket_endpoint(websocket: WebSocket, token: str):
     # 1. Validate Token & Get User ID
     try:
         payload = auth.verify_id_token(token)
-        # Fix 1: Use 'uid' instead of 'user_id'
         user_id = payload.get("user_id") 
         
         if not user_id:
