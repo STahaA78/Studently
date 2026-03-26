@@ -50,7 +50,7 @@ class MyApp extends StatelessWidget {
 
     return MaterialApp(
       debugShowCheckedModeBanner: false,
-      home: (authService.value.currentUser != null) ? const CommunityFeedPage() : const LoginPage(),
+      home: const LoginPage(),//(authService.value.currentUser != null) ? const CommunityFeedPage() : const LoginPage(),
       builder: (context, child) {
         return MediaQuery(
           data: MediaQuery.of(context).copyWith(

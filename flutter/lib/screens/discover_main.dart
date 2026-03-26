@@ -9,6 +9,7 @@ import 'package:studently/models/backend_config.dart';
 import 'package:studently/repositories/user.dart';
 import 'package:studently/logger.dart';
 import 'package:studently/providers/backend_config_provider.dart';
+import 'dart:async';
 
 class ConnectDiscoverPage extends StatefulWidget {
   const ConnectDiscoverPage({super.key});
@@ -30,6 +31,7 @@ class _ConnectDiscoverPageState extends State<ConnectDiscoverPage> {
   String? selectedDepartmentName;
   String? selectedBatchYear;
   int _topCardIndex = 0;
+  Timer? _searchDebounceTimer;
 
   // ---------------- SAFE SETSTATE ----------------
   void _safeSetState(VoidCallback fn) {
@@ -55,6 +57,7 @@ class _ConnectDiscoverPageState extends State<ConnectDiscoverPage> {
   @override
   void dispose() {
     _searchController.dispose();
+    _searchDebounceTimer?.cancel();
     super.dispose();
   }
 
@@ -64,7 +67,20 @@ class _ConnectDiscoverPageState extends State<ConnectDiscoverPage> {
     
     // Fetch connection statuses for all users and filter out those with "error" status
     final statuses = await _fetchConnectionStatusesForUsers(users);
-    final validUsers = users.where((user) => statuses.containsKey(user.id)).toList();
+    // Filter to only show users with "none" status (no existing connection, no outgoing request)
+    var validUsers = users.where((user) => 
+      statuses.containsKey(user.id) && statuses[user.id] == "none"
+    ).toList();
+    
+    // Apply department filter if selected
+    if (selectedDepartmentName != null) {
+      validUsers = validUsers.where((user) => user.department == selectedDepartmentName).toList();
+    }
+    
+    // Apply batch year filter if selected
+    if (selectedBatchYear != null) {
+      validUsers = validUsers.where((user) => user.batch.toString() == selectedBatchYear).toList();
+    }
     
     _safeSetState(() {
       students = validUsers;
@@ -77,10 +93,19 @@ class _ConnectDiscoverPageState extends State<ConnectDiscoverPage> {
   // ---------------- SEARCH ----------------
   void _onSearchChanged() {
     final query = _searchController.text.trim();
-    if (query.isNotEmpty) {
-      _safeSetState(() => isSearchFocused = true);
-      if (query.length >= 2) _performSearch(query);
+    _searchDebounceTimer?.cancel();
+    
+    if (query.isEmpty) {
+      _safeSetState(() => isSearchFocused = false);
+      return;
     }
+    
+    _safeSetState(() => isSearchFocused = true);
+    
+    // Debounce the search with 500ms delay
+    _searchDebounceTimer = Timer(const Duration(milliseconds: 500), () {
+      if (query.isNotEmpty) _performSearch(query);
+    });
   }
 
   void _performSearch(String query) async {
@@ -94,28 +119,39 @@ class _ConnectDiscoverPageState extends State<ConnectDiscoverPage> {
       }
     });
 
-    final results = await _userRepository.searchUsers(query);
-    if (!mounted) return;
-    
-    // Fetch connection statuses for all results and filter out those with "error" status
-    final statuses = await _fetchConnectionStatusesForUsers(results);
-    final validUsers = results.where((user) => statuses.containsKey(user.id)).toList();
-    
-    _safeSetState(() {
-      students = validUsers;
-      connectionStatus = statuses;
-      _topCardIndex = 0;
-    });
+    try {
+      final results = await _userRepository.searchUsers(query);
+      if (!mounted) return;
+      
+      _safeSetState(() {
+        students = results;
+        _topCardIndex = 0;
+      });
+    } catch (e) {
+      logger.e("[ConnectDiscoverPage] _performSearch failed: $e");
+    }
   }
 
   void _clearSearch() {
     _searchController.clear();
+    _searchDebounceTimer?.cancel();
     _safeSetState(() {
       isSearchFocused = false;
       students.clear();
       _topCardIndex = 0;
     });
     _discoverFuture = _loadDiscoverUsers();
+  }
+
+  // Handle swipe right - send friend request
+  void _onSwipeRight(User student) async {
+    try {
+      await sendConnectionRequest(student.id);
+      _advanceCard();
+    } catch (e) {
+      logger.e("[ConnectDiscoverPage] _onSwipeRight failed: $e");
+      _advanceCard();
+    }
   }
 
   // Batch fetch connection statuses for multiple users
@@ -177,6 +213,7 @@ class _ConnectDiscoverPageState extends State<ConnectDiscoverPage> {
 
     showModalBottomSheet(
       context: context,
+      backgroundColor: Colors.white,
       builder: (context) => StatefulBuilder(
         builder: (context, setSheetState) => Consumer(
           builder: (context, ref, child) =>
@@ -190,25 +227,30 @@ class _ConnectDiscoverPageState extends State<ConnectDiscoverPage> {
                     config.batchRange.end - config.batchRange.start + 1,
                     (i) => (config.batchRange.start + i).toString(),
                   );
-                  return SingleChildScrollView(
+                  return Container(
+                    color: Colors.white,
                     child: Padding(
-                      padding: const EdgeInsets.all(16),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+                      child: ScrollConfiguration(
+                        behavior: ScrollConfiguration.of(context).copyWith(scrollbars: false),
+                        child: SingleChildScrollView(
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Text("Filter",
-                                  style: Theme.of(context)
-                                      .textTheme
-                                      .titleLarge
-                                      ?.copyWith(
-                                          fontWeight: FontWeight.bold)),
-                              IconButton(
-                                icon: const Icon(Icons.close),
-                                onPressed: () => Navigator.pop(context),
-                                padding: EdgeInsets.zero,
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                children: [
+                                  Text("Filter",
+                                      style: Theme.of(context)
+                                          .textTheme
+                                          .titleLarge
+                                          ?.copyWith(
+                                              fontWeight: FontWeight.bold)),
+                                  IconButton(
+                                    icon: const Icon(Icons.close),
+                                    onPressed: () => Navigator.pop(context),
+                                    padding: EdgeInsets.zero,
                                 constraints: const BoxConstraints(),
                               ),
                             ],
@@ -227,6 +269,13 @@ class _ConnectDiscoverPageState extends State<ConnectDiscoverPage> {
                               return FilterChip(
                                 label: Text(dept.name),
                                 selected: tempDept == dept.name,
+                                showCheckmark: false,
+                                backgroundColor: Colors.white,
+                                selectedColor: const Color(0xFF0F74C5),
+                                checkmarkColor: Colors.white,
+                                labelStyle: TextStyle(
+                                  color: tempDept == dept.name ? Colors.white : Colors.black,
+                                ),
                                 onSelected: (selected) =>
                                     setSheetState(() {
                                   tempDept = selected ? dept.name : null;
@@ -248,6 +297,13 @@ class _ConnectDiscoverPageState extends State<ConnectDiscoverPage> {
                               return FilterChip(
                                 label: Text(batch),
                                 selected: tempBatch == batch,
+                                showCheckmark: false,
+                                backgroundColor: Colors.white,
+                                selectedColor: const Color(0xFF0F74C5),
+                                checkmarkColor: Colors.white,
+                                labelStyle: TextStyle(
+                                  color: tempBatch == batch ? Colors.white : Colors.black,
+                                ),
                                 onSelected: (selected) =>
                                     setSheetState(() {
                                   tempBatch = selected ? batch : null;
@@ -260,10 +316,20 @@ class _ConnectDiscoverPageState extends State<ConnectDiscoverPage> {
                             children: [
                               Expanded(
                                 child: OutlinedButton(
-                                  onPressed: () => setSheetState(() {
-                                    tempDept = null;
-                                    tempBatch = null;
-                                  }),
+                                  onPressed: () {
+                                    Navigator.pop(context);
+                                    WidgetsBinding.instance
+                                        .addPostFrameCallback((_) {
+                                      if (mounted) {
+                                        setState(() {
+                                          selectedDepartmentName = null;
+                                          selectedBatchYear = null;
+                                          _topCardIndex = 0;
+                                        });
+                                        _discoverFuture = _loadDiscoverUsers();
+                                      }
+                                    });
+                                  },
                                   child: const Text("Reset"),
                                 ),
                               ),
@@ -278,7 +344,9 @@ class _ConnectDiscoverPageState extends State<ConnectDiscoverPage> {
                                         setState(() {
                                           selectedDepartmentName = tempDept;
                                           selectedBatchYear = tempBatch;
+                                          _topCardIndex = 0;
                                         });
+                                        _discoverFuture = _loadDiscoverUsers();
                                       }
                                     });
                                   },
@@ -289,6 +357,8 @@ class _ConnectDiscoverPageState extends State<ConnectDiscoverPage> {
                           ),
                           const SizedBox(height: 16),
                         ],
+                        ),
+                        ),
                       ),
                     ),
                   );
@@ -369,25 +439,22 @@ class _ConnectDiscoverPageState extends State<ConnectDiscoverPage> {
                         _safeSetState(() => isSearchFocused = true),
                     decoration: InputDecoration(
                       hintText: "Search students",
-                      prefixIcon: const Icon(Icons.search),
-                      suffixIcon: isSearchFocused
-                          ? IconButton(
-                              icon: const Icon(Icons.close),
-                              onPressed: _clearSearch,
-                            )
-                          : null,
+                      prefixIcon: const Icon(Icons.search),  
                     ),
                   ),
                 ),
-                SizedBox(
-                  width: !isSearchFocused ? 48 : 0,
-                  child: !isSearchFocused
-                      ? IconButton(
-                          icon: const Icon(Icons.tune),
-                          onPressed: () => _showFilterPanel(context),
-                          padding: EdgeInsets.zero,
-                        )
-                      : null,
+                Padding(
+                  padding: const EdgeInsets.only(left: 8.0),
+                  child: SizedBox(
+                    width: !isSearchFocused ? 25 : 0,
+                    child: !isSearchFocused
+                        ? IconButton(
+                            icon: const Icon(Icons.tune),
+                            onPressed: () => _showFilterPanel(context),
+                            padding: EdgeInsets.zero,
+                          )
+                        : null,
+                  ),
                 ),
               ],
             ),
@@ -396,19 +463,118 @@ class _ConnectDiscoverPageState extends State<ConnectDiscoverPage> {
             child: Stack(
               children: [
                 Visibility(
-                  visible: !(isSearchFocused &&
-                      _searchController.text.isEmpty),
+                  visible: !isSearchFocused ||
+                      (_searchController.text.isEmpty),
                   maintainState: true,
                   child: _buildCardStack(),
                 ),
                 if (isSearchFocused && _searchController.text.isEmpty)
                   _buildRecentSearches(),
+                if (isSearchFocused && _searchController.text.isNotEmpty)
+                  _buildSearchResults(),
               ],
             ),
           ),
         ],
       ),
       bottomNavigationBar: const CustomNavBar(currentIndex: 1),
+    );
+  }
+
+  // ---------------- SEARCH RESULTS LIST ----------------
+  Widget _buildSearchResults() {
+    if (students.isEmpty) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(32),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(Icons.person_search, size: 80, color: Colors.grey[300]),
+              const SizedBox(height: 16),
+              Text(
+                "No Students Found",
+                style: Theme.of(context).textTheme.titleMedium,
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    return ListView.builder(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
+      itemCount: students.length,
+      itemBuilder: (context, index) {
+        final user = students[index];
+        return _buildSearchResultItem(user);
+      },
+    );
+  }
+
+  Widget _buildSearchResultItem(User user) {
+    return GestureDetector(
+      onTap: () async {
+        final result = await Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => ProfilePage(userId: user.id)),
+        );
+        if (result == true && mounted) {
+          _performSearch(_searchController.text);
+        }
+      },
+      child: Container(
+        height: 65,
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 5),
+        child: Row(
+          children: [
+            // Avatar
+            CircleAvatar(
+              radius: 25,
+              backgroundColor: Colors.grey[300],
+              backgroundImage: user.profilePhotoUrl != null &&
+                      user.profilePhotoUrl!.isNotEmpty
+                  ? NetworkImage(user.profilePhotoUrl!)
+                  : null,
+              child: user.profilePhotoUrl == null ||
+                      user.profilePhotoUrl!.isEmpty
+                  ? const Icon(Icons.person, size: 32, color: Colors.grey)
+                  : null,
+            ),
+            const SizedBox(width: 12),
+            // Primary and Secondary text
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.only(top: 5.0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      user.name,
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w500,
+                        fontSize: 15,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      "${user.department} • Batch ${user.batch}",
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Colors.grey[600],
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 
@@ -422,11 +588,26 @@ class _ConnectDiscoverPageState extends State<ConnectDiscoverPage> {
           if (recentSearches.isNotEmpty)
             Padding(
               padding: const EdgeInsets.symmetric(vertical: 16),
-              child: Text("Recent Searches",
-                  style: Theme.of(context)
-                      .textTheme
-                      .titleMedium
-                      ?.copyWith(fontWeight: FontWeight.w600)),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text("Recent Searches",
+                      style: Theme.of(context)
+                          .textTheme
+                          .titleMedium
+                          ?.copyWith(fontWeight: FontWeight.w600)),
+                  GestureDetector(
+                    onTap: () => _safeSetState(() => recentSearches.clear()),
+                    child: Text(
+                      "Clear all",
+                      style: TextStyle(
+                        color: primaryBlue,
+                        fontSize: 12,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
             ),
           ...recentSearches.map((search) => GestureDetector(
                 onTap: () {
@@ -440,8 +621,18 @@ class _ConnectDiscoverPageState extends State<ConnectDiscoverPage> {
                       const Icon(Icons.history,
                           color: Colors.grey, size: 20),
                       const SizedBox(width: 12),
-                      Text(search,
-                          style: Theme.of(context).textTheme.bodyLarge),
+                      Expanded(
+                        child: Text(search,
+                            style: Theme.of(context).textTheme.bodyLarge),
+                      ),
+                      GestureDetector(
+                        onTap: () => _safeSetState(() => recentSearches.remove(search)),
+                        child: Icon(
+                          Icons.close,
+                          color: Colors.grey[400],
+                          size: 18,
+                        ),
+                      ),
                     ],
                   ),
                 ),
@@ -465,7 +656,7 @@ class _ConnectDiscoverPageState extends State<ConnectDiscoverPage> {
         }
         if (students.isEmpty &&
             snapshot.connectionState == ConnectionState.done) {
-          return _buildEmptyState("No students found");
+          return _buildEmptyState("All Caught Up!");
         }
         if (_topCardIndex >= students.length) {
           return Center(
@@ -477,11 +668,6 @@ class _ConnectDiscoverPageState extends State<ConnectDiscoverPage> {
                 const SizedBox(height: 16),
                 Text("You've seen everyone!",
                     style: Theme.of(context).textTheme.titleMedium),
-                const SizedBox(height: 12),
-                TextButton(
-                  onPressed: () => _safeSetState(() => _topCardIndex = 0),
-                  child: const Text("Start over"),
-                ),
               ],
             ),
           );
@@ -512,7 +698,7 @@ class _ConnectDiscoverPageState extends State<ConnectDiscoverPage> {
                 child: _DraggableCard(
                   key: ValueKey(students[_topCardIndex].id),
                   onSwipedLeft: _advanceCard,
-                  onSwipedRight: _advanceCard,
+                  onSwipedRight: () => _onSwipeRight(students[_topCardIndex]),
                   child: _buildSwipeCard(students[_topCardIndex],
                       interactive: true),
                 ),
@@ -569,27 +755,32 @@ class _ConnectDiscoverPageState extends State<ConnectDiscoverPage> {
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Padding(
-                  padding: const EdgeInsets.all(20),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        student.name,
-                        style: const TextStyle(
-                          fontSize: 28,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.white,
+                  padding: const EdgeInsets.only(top: 10,  left: 20),
+                  child: SizedBox(
+                    width: double.infinity,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          student.name,
+                          style: const TextStyle(
+                            fontSize: 28,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.white,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          textAlign: TextAlign.left,
                         ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        "${student.department} • Batch ${student.batch}",
-                        style: const TextStyle(
-                            fontSize: 14, color: Colors.white),
-                      ),
-                    ],
+                        const SizedBox(height: 4),
+                        Text(
+                          "${student.department} • Batch ${student.batch}",
+                          style: const TextStyle(
+                              fontSize: 14, color: Colors.white),
+                          textAlign: TextAlign.left,
+                        ),
+                      ],
+                    ),
                   ),
                 ),
                 if (student.interests.isNotEmpty)

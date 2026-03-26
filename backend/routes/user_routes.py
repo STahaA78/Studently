@@ -226,18 +226,23 @@ async def add_profile_photo(request: Request,user_id: str, photo: UploadFile = F
 def search_users(limit: int = Query(10, ge=1, le=50),query: str = Query(..., min_length=1), USER: str = Depends(get_current_user)):
     LOGGER.info(f"Searching users with: {query}", extra={"uid": USER})
     regex_query = {"$regex": query, "$options": "i"}
+    
+    # Build search criteria - can search by name, department, interests, or roll number
+    search_conditions = [
+        {"name": regex_query},
+        {"department": regex_query},
+        {"interests": regex_query},
+        {"email": {"$regex": f"^{query}", "$options": "i"}},  # Search by roll number (prefix of email)
+    ]
+    
     users = list(users_collection.find(
         {
             "_id": {"$ne": USER},   # exclude current user
-            "$or": [
-                {"name": regex_query},
-                {"department": regex_query},
-                {"interests": regex_query}
-            ]
+            "$or": search_conditions
         },
         {
-            "_id": 0,
-            "id": "$_id",
+            "_id": 1,
+            "email": 1,
             "name": 1,
             "department": 1,
             "batch": 1,
@@ -290,6 +295,8 @@ def check_connection_status(user_id: str, request: ConnectionStatusRequest, USER
             friend_statuses.append(FriendStatus(id=target_id, status="friends"))
         elif target_id in user.get("friend_requests", []):
             friend_statuses.append(FriendStatus(id=target_id, status="incoming_request"))
+        elif user_id in target_user.get("friend_requests", []):
+            friend_statuses.append(FriendStatus(id=target_id, status="outgoing_request"))
         else:
             friend_statuses.append(FriendStatus(id=target_id, status="none"))
     
@@ -333,7 +340,7 @@ def discover_users(
     return users
 
 @router.post("/{user_id}/request")
-def send_friend_request(user_id: str, target_id: str, USER: str = Depends(get_current_user)):
+def send_friend_request(user_id: str, target_id: str = Query(...), USER: str = Depends(get_current_user)):
     LOGGER.info(f"Sending friend request from {user_id} to {target_id}", extra={"uid": USER})
     if user_id != "0":
         if is_admin(USER):

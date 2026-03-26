@@ -69,7 +69,7 @@ class EditProfileData(BaseModel):
 
 class FriendStatus(BaseModel):
     id: str
-    status: Literal["friends","incoming_request","none","error"]
+    status: Literal["friends","incoming_request","outgoing_request","none","error"]
 
 class ConnectionStatusRequest(BaseModel):
     target_ids: List[str]

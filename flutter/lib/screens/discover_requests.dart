@@ -62,7 +62,7 @@ class _RequestsPageState extends State<RequestsPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF2F2F7),
+      backgroundColor: Colors.white,
       appBar: AppBar(
         backgroundColor: Colors.white,
         elevation: 0,
@@ -137,7 +137,7 @@ class _RequestsPageState extends State<RequestsPage> {
             );
           }
           return ListView.builder(
-            padding: const EdgeInsets.all(16),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
             itemCount: requests.length,
             itemBuilder: (context, index) {
               return _buildRequestCard(requests[index]);
@@ -168,79 +168,75 @@ class _RequestsPageState extends State<RequestsPage> {
         }
       },
       child: Container(
-        margin: const EdgeInsets.only(bottom: 16),
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: Colors.grey.shade200),
-        ),
-        child: Column(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        child: Row(
           children: [
-            Row(
-              children: [
-                CircleAvatar(
-                  radius: 28,
-                  backgroundColor: Colors.grey.shade300,
-                  child: Text(
-                    getInitials(user.name),
-                    style: const TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 18,
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      user.name,
-                      style: const TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                    Text(
-                      user.department!,
-                      style: const TextStyle(fontSize: 13),
-                    ),
-                    Text(
-                      "Batch ${user.batch}",
-                      style: const TextStyle(fontSize: 12),
-                    ),
-                  ],
-                ),
-              ],
+            // Avatar
+            CircleAvatar(
+              radius: 25,
+              backgroundColor: Colors.grey[300],
+              backgroundImage: user.profilePhotoUrl != null &&
+                      user.profilePhotoUrl!.isNotEmpty
+                  ? NetworkImage(user.profilePhotoUrl!)
+                  : null,
+              child: user.profilePhotoUrl == null ||
+                      user.profilePhotoUrl!.isEmpty
+                  ? const Icon(Icons.person, size: 32, color: Colors.grey)
+                  : null,
             ),
-            const SizedBox(height: 16),
-            Row(
-              children: [
-                Expanded(
-                  child: OutlinedButton(
-                    onPressed: () => respondRequest(user.id, "reject"),
-                    style: OutlinedButton.styleFrom(
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(14),
-                      ),
+            const SizedBox(width: 12),
+            // Name and Department/Batch
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    user.name,
+                    style: const TextStyle(
+                      fontWeight: FontWeight.w500,
+                      fontSize: 15,
                     ),
-                    child: const Text("Decline"),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                   ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: ElevatedButton(
-                    onPressed: () => respondRequest(user.id, "accept"),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: primaryBlue,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(14),
-                      ),
+                  const SizedBox(height: 4),
+                  Text(
+                    "${user.department} • Batch ${user.batch}",
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: Colors.grey[600],
                     ),
-                    child: const Text("Accept"),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                   ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 8),
+            // Decline button (X)
+            GestureDetector(
+              onTap: () => respondRequest(user.id, "reject"),
+              child: Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  border: Border.all(color: Colors.red, width: 2),
                 ),
-              ],
+                child: const Icon(Icons.close, color: Colors.red, size: 18),
+              ),
+            ),
+            const SizedBox(width: 8),
+            // Accept button (checkmark)
+            GestureDetector(
+              onTap: () => respondRequest(user.id, "accept"),
+              child: Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: primaryBlue,
+                ),
+                child: const Icon(Icons.check, color: Colors.white, size: 18),
+              ),
             ),
           ],
         ),

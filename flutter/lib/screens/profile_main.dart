@@ -103,6 +103,8 @@ class _ProfilePageState extends State<ProfilePage> {
     try {
       await userRepository.respondRequest(widget.userId!, "accept");
       setState(() => connectionStatus = "friends");
+      if (!mounted) return;
+      Navigator.pop(context, true);
     } catch (_) {}
   }
 
@@ -110,6 +112,8 @@ class _ProfilePageState extends State<ProfilePage> {
     try {
       await userRepository.respondRequest(widget.userId!, "reject");
       setState(() => connectionStatus = "none");
+      if (!mounted) return;
+      Navigator.pop(context, true);
     } catch (_) {}
   }
 
@@ -124,17 +128,39 @@ class _ProfilePageState extends State<ProfilePage> {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (_) => AlertDialog(
-        title: const Text("Disconnect"),
-        content: const Text("Are you sure you want to remove this connection?"),
+        backgroundColor: Colors.white,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text(
+          "Remove Friend",
+          style: TextStyle(fontWeight: FontWeight.w600, fontSize: 18),
+        ),
+        content: const Text(
+          "Are you sure you want to remove this connection?",
+          style: TextStyle(fontSize: 14, color: Colors.grey),
+        ),
+        actionsAlignment: MainAxisAlignment.spaceBetween,
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: const Text("Cancel"),
+            style: TextButton.styleFrom(
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+            ),
+            child: const Text(
+              "Cancel",
+              style: TextStyle(color: Colors.grey, fontWeight: FontWeight.w500),
+            ),
           ),
           ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 10),
+            ),
             onPressed: () => Navigator.pop(context, true),
-            child: const Text("Disconnect"),
+            child: const Text(
+              "Unfriend",
+              style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
+            ),
           ),
         ],
       ),
@@ -254,14 +280,14 @@ class _ProfilePageState extends State<ProfilePage> {
                         )
                       else if (connectionStatus == "friends")
                         SizedBox(
+                          height: 40,
                           width: double.infinity,
                           child: ElevatedButton(
-                            onPressed: null,
+                            onPressed: !isMyProfile ? _showDisconnectDialog : null,
                             style: ElevatedButton.styleFrom(
-                              backgroundColor: blue,
-                              padding: const EdgeInsets.symmetric(vertical: 10),
+                              backgroundColor: Colors.red,
                             ),
-                            child: const Text("Connected", style: TextStyle(color: Colors.white, fontSize: 13)),
+                            child: const Text("Unfriend", style: TextStyle(color: Colors.white, fontSize: 13)),
                           ),
                         )
                       else if (connectionStatus == "outgoing_request")
@@ -282,7 +308,7 @@ class _ProfilePageState extends State<ProfilePage> {
                             ),
                           ),
                         )
-                      else
+                      else if (!isMyProfile && connectionStatus != "incoming_request")
                         SizedBox(
                           width: double.infinity,
                           child: ElevatedButton(
@@ -291,7 +317,7 @@ class _ProfilePageState extends State<ProfilePage> {
                               backgroundColor: blue,
                               padding: const EdgeInsets.symmetric(vertical: 10),
                             ),
-                            child: const Text("Connect", style: TextStyle(color: Colors.white, fontSize: 13)),
+                            child: const Text("Add Friend", style: TextStyle(color: Colors.white, fontSize: 13)),
                           ),
                         ),
                       const SizedBox(height: 16),
@@ -317,15 +343,7 @@ class _ProfilePageState extends State<ProfilePage> {
                             ),
                           ],
                         ),
-                      // Disconnect button for friends
-                      if (!isMyProfile && connectionStatus == "friends")
-                        GestureDetector(
-                          onTap: _showDisconnectDialog,
-                          child: const Text(
-                            "Disconnect",
-                            style: TextStyle(color: Colors.red, fontWeight: FontWeight.w600),
-                          ),
-                        ),
+
                       const SizedBox(height: 12),
                       Wrap(
                         spacing: 8,
