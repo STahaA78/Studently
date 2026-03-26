@@ -43,6 +43,7 @@ class _InterestsSelectionPageState extends ConsumerState<InterestsSelectionPage>
 
   late Map<String, List<InterestOption>> sections;
   String? _completionError;
+  bool _isLoading = false;
 
   @override
   void initState() {
@@ -62,7 +63,7 @@ class _InterestsSelectionPageState extends ConsumerState<InterestsSelectionPage>
     } catch (e) {
       logger.e("[InterestsSelectionPage] Firebase Registration Failed", error: e);
       setState(() {
-        _completionError = 'Authentication failed. Please try again.';
+        _completionError = 'Firebase authentication failed. Please try again.';
       });
       return null;
     }
@@ -96,22 +97,34 @@ class _InterestsSelectionPageState extends ConsumerState<InterestsSelectionPage>
   }
 
   Future<void> _completeRegistration() async {
+    setState(() => _isLoading = true);
+    
     final firebaseUser = await _registerFirebase();
 
     if (firebaseUser != null) {
       final backendSuccess = await _registerBackend(firebaseUser.uid);
-
-      if (mounted && backendSuccess) {
+      if (!mounted) return; // Ensure widget is still mounted before updating state or navigating
+      if (backendSuccess) {
+        logger.i("[InterestsSelectionPage] Registration Completed Successfully, navigating to CommunityFeedPage");
         Navigator.pushAndRemoveUntil(
           context,
           MaterialPageRoute(
-            builder: (_) => ProviderScope(
-              child: const CommunityFeedPage(),
-            ),
+            builder: (_) => const CommunityFeedPage(),
           ),
           (route) => false,
         );
+      } else {
+        logger.w("[InterestsSelectionPage] Backend registration failed, deleting Firebase user to prevent orphaned account");
+        logger.i("[InterestsSelectionPage] Deleting Firebase user with UID: ${firebaseUser.uid}");
+        try {
+          await firebaseUser.delete();
+        } catch (e) {
+          logger.e("[InterestsSelectionPage] Error deleting Firebase user", error: e);
+        }
+        if (mounted) setState(() => _isLoading = false);
       }
+    } else {
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 
@@ -128,7 +141,7 @@ class _InterestsSelectionPageState extends ConsumerState<InterestsSelectionPage>
       sections = {};
       for (var category in config.interests) {
         sections[category.category] = category.data
-            .map((interest) => InterestOption(
+            .map<InterestOption>((interest) => InterestOption(
                   interest: interest,
                   selected: widget.initialInterests.contains(interest.name),
                 ))
@@ -346,19 +359,19 @@ class _InterestsSelectionPageState extends ConsumerState<InterestsSelectionPage>
                                   ),
                                 ),
                               ),
-                              const SizedBox(height: 12),
+                              const SizedBox(height: 10),
                               Row(
                                 children: [
                                   Text(
                                     '$selectedCount/5 selected',
                                     style: TextStyle(
                                       fontSize: 12,
-                                      color: Colors.grey.shade700,
+                                      color: Colors.black,
                                     ),
                                   ),
                                 ],
                               ),
-                              const SizedBox(height: 16),
+                              const SizedBox(height: 10),
                               Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: sections.entries
@@ -382,18 +395,27 @@ class _InterestsSelectionPageState extends ConsumerState<InterestsSelectionPage>
                     width: double.infinity,
                     height: 56,
                     child: ElevatedButton(
-                      onPressed: selectedCount > 0
+                      onPressed: (selectedCount > 0 && !_isLoading)
                           ? () {
                               _handleCompletion();
                             }
                           : null,
-                      child: Text(
-                        'Complete Signup ($selectedCount/5)',
-                        style: const TextStyle(
-                          fontSize: 16,
-                          color: Colors.white,
-                        ),
-                      ),
+                      child: _isLoading
+                          ? SizedBox(
+                              height: 24,
+                              width: 24,
+                              child: CircularProgressIndicator(
+                                valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                                strokeWidth: 2.5,
+                              ),
+                            )
+                          : Text(
+                              widget.completeSignup ? 'Complete Signup ($selectedCount/5)' : 'Save ($selectedCount/5)',
+                              style: const TextStyle(
+                                fontSize: 16,
+                                color: Colors.white,
+                              ),
+                            ),
                     ),
                   ),
                   if (_completionError != null) ...[

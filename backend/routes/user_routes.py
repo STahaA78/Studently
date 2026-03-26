@@ -39,6 +39,7 @@ def register(user: UserCreate):
     # Check if email is already taken
     if users_collection.find_one({"email": user.email.lower()}):
         raise HTTPException(status_code=400, detail="Email already registered")
+    
     user_dict = user.model_dump()
     # Change: Use the provided uid or generate a new one if empty
     # We map this to '_id' so MongoDB uses it as the primary key
@@ -48,15 +49,33 @@ def register(user: UserCreate):
     user_dict["email"] = user.email.lower()
     user_dict["birthday"] = datetime.combine(user.birthday, datetime.min.time())
     # interest validation 
-    app_config = config_collection.find_one({}, {"_id": 0})
+    LOGGER.info(f"Validating interests for USER ID: {user_id} ", extra={"uid": user_id})
+    user_interests = user_dict.get("interests", [])
+    LOGGER.debug(f"User provided interests: {user_interests}", extra={"uid": user_id})
+    # 1. Quick length check before hitting the DB
+    if len(user_interests) > 5:
+        LOGGER.warning(f"Too many interests: {len(user_interests)}", extra={"uid": user_id})
+        raise HTTPException(status_code=400, detail="You can select up to 5 interests")
+
+    # 2. Fetch config (Consider caching this!)
+    app_config = config_collection.find_one({}, {"interests": 1, "_id": 0})
     if not app_config:
-        LOGGER.warning("No app configuration found in the database.")
         raise HTTPException(status_code=500, detail="App configuration not found")
-    interests = app_config.get("interests", [])
-    for interest in user_dict.get("interests", []):
-        if not any(interest in category.get("data", []) for category in interests):
-            LOGGER.warning(f"Invalid interest '{interest}' provided during registration", extra={"uid": user_id})
-            raise HTTPException(status_code=400, detail=f"Invalid interest: {interest}")
+
+    # 3. Flatten valid interests into a Set for O(1) lookup
+    valid_interest_names = {
+        item.get("name") 
+        for category in app_config.get("interests", []) 
+        for item in category.get("data", [])
+    }
+    # 4. Check for invalid interests
+    invalid_found = [i for i in user_interests if i not in valid_interest_names]
+    if invalid_found:
+        LOGGER.warning(f"Invalid interests: {invalid_found}", extra={"uid": user_id})
+        raise HTTPException(
+            status_code=400, 
+            detail=f"Invalid interests: {', '.join(invalid_found)}"
+        )
     ###
     user_dict["friendsCount"] = 0
     if "uid" in user_dict:
@@ -466,6 +485,34 @@ def update_user_profile(user_id: str, updated_data: dict = Body(...), USER: str 
     if not update_fields:
         raise HTTPException(status_code=400, detail="No valid fields to update")
 
+    # If interests are being updated, validate them
+    if "interests" in updated_data:
+        user_interests = updated_data.get("interests", [])
+        # 1. Quick length check before hitting the DB
+        if len(user_interests) > 5:
+            LOGGER.warning(f"Too many interests: {len(user_interests)}", extra={"uid": user_id})
+            raise HTTPException(status_code=400, detail="You can select up to 5 interests")
+
+        # 2. Fetch config (Consider caching this!)
+        app_config = config_collection.find_one({}, {"interests": 1, "_id": 0})
+        if not app_config:
+            raise HTTPException(status_code=500, detail="App configuration not found")
+
+        # 3. Flatten valid interests into a Set for O(1) lookup
+        valid_interest_names = {
+            item.get("name") 
+            for category in app_config.get("interests", []) 
+            for item in category.get("data", [])
+        }
+        # 4. Check for invalid interests
+        invalid_found = [i for i in user_interests if i not in valid_interest_names]
+        if invalid_found:
+            LOGGER.warning(f"Invalid interests: {invalid_found}", extra={"uid": user_id})
+            raise HTTPException(
+                status_code=400, 
+                detail=f"Invalid interests: {', '.join(invalid_found)}"
+            )
+            
     users_collection.update_one({"_id": user_id}, {"$set": update_fields})
     LOGGER.info(f"Profile updated successfully for user ID: {user_id}", extra={"uid": USER})
     # Return updated profile
@@ -475,9 +522,9 @@ def update_user_profile(user_id: str, updated_data: dict = Body(...), USER: str 
         "interests": 1,
         "department": 1,
         "batch": 1,
+        "friendsCount": 1
     })
     updated_user["id"] = user_id
-    updated_user["friendsCount"] = len(updated_user.get("friends", []))
     return updated_user
 
 @router.get("/{user_id}/friends_list", response_model=list[UserOut])

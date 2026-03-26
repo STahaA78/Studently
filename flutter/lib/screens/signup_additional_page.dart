@@ -114,10 +114,16 @@ class _SignupAdditionalPageState extends ConsumerState<SignupAdditionalPage> {
                 ),
               ),
               const SizedBox(height: 8),
-              Text(
-                'Help us personalize your experience by\nproviding a few more details.',
-                style: TextStyle(fontSize: 14, color: Colors.black),
-                textAlign: TextAlign.left,
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: AppStyle.signUpPageTitleLeftPadding),
+                child: Align(
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    'We need your basics to build your profile.',
+                    style: TextStyle(fontSize: 14, color: Colors.black),
+                    textAlign: TextAlign.left,
+                  ),
+                ),
               ),
               const SizedBox(height: 30),
               configAsyncValue.when(
@@ -159,7 +165,7 @@ class _SignupAdditionalPageState extends ConsumerState<SignupAdditionalPage> {
                             child: Row(
                               mainAxisAlignment: MainAxisAlignment.spaceBetween,
                               children: [
-                                Text(selectedDate ?? 'Pick a date', style: const TextStyle(fontSize: 15, color: Colors.grey)),
+                                Text(selectedDate ?? 'Select your birthday', style: TextStyle(fontSize: 15, color: selectedDate == null ? Colors.grey : Colors.black)),
                                 const Icon(Icons.calendar_today, color: Colors.black),
                               ],
                             ),
@@ -222,12 +228,10 @@ class _SignupAdditionalPageState extends ConsumerState<SignupAdditionalPage> {
                               if (_validateAdditional()) {
                                 Navigator.of(context).push(
                                   MaterialPageRoute(
-                                    builder: (context) => ProviderScope(
-                                      child: InterestsSelectionPage(
-                                        initialInterests: widget.user.interests,
-                                        user: widget.user,
-                                        completeSignup: true,
-                                      ),
+                                    builder: (context) => InterestsSelectionPage(
+                                      initialInterests: widget.user.interests,
+                                      user: widget.user,
+                                      completeSignup: true,
                                     ),
                                   ),
                                 );

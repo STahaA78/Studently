@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:device_preview/device_preview.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:studently/utils/constants.dart';
 // Firebase imports
 import 'package:firebase_core/firebase_core.dart';
@@ -24,9 +25,11 @@ void main() async {
       options: DefaultFirebaseOptions.currentPlatform,
     );
     runApp(
-      DevicePreview(
-        enabled: true , // Set to false to disable Device Preview
-        builder: (context) => MyApp(), // Wrap your app
+      ProviderScope(
+        child: DevicePreview(
+          enabled: true , // Set to false to disable Device Preview
+          builder: (context) => const MyApp(), // Wrap your app
+        ),
       ),
     );
     // runApp(const MyApp());
@@ -47,6 +50,14 @@ class MyApp extends StatelessWidget {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
       home: LoginPage(), // directly show the login page
+      builder: (context, child) {
+        return MediaQuery(
+          data: MediaQuery.of(context).copyWith(
+            boldText: false,
+          ),
+          child: child!,
+        );
+      },
       //home: CommunityFeedPage(),
       // home: AddResourcePage(
       //   course: Course(

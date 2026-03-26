@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:studently/models/user.dart';
 import 'package:studently/repositories/user.dart';
+import 'package:studently/providers/backend_config_provider.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:studently/screens/interests.dart';
 
@@ -41,6 +42,38 @@ class _EditProfilePageState extends State<EditProfilePage> {
     super.dispose();
   }
 
+  String? _getEmojiForInterest(String interestName, dynamic config) {
+    if (config == null) return null;
+    try {
+      for (var category in config.interests) {
+        for (var interest in category.data) {
+          if (interest.name == interestName) {
+            return interest.emoji;
+          }
+        }
+      }
+    } catch (e) {
+      // If config parsing fails, return null
+    }
+    return null;
+  }
+
+  void _openInterestsPage() async {
+    final selectedInterests = await Navigator.of(context).push<List<String>>(
+      MaterialPageRoute(
+        builder: (_) => InterestsSelectionPage(
+          initialInterests: interests,
+          completeSignup: false,
+        ),
+      ),
+    );
+    if (selectedInterests != null) {
+      setState(() {
+        interests = selectedInterests;
+      });
+    }
+  }
+
   Future<void> saveProfile() async {
     if (!_formKey.currentState!.validate()) return;
     if (selectedDepartment == null || selectedDepartment!.isEmpty) {
@@ -56,23 +89,12 @@ class _EditProfilePageState extends State<EditProfilePage> {
       setState(() => _batchError = null);
     }
 
-    // Navigate to interests selection page
-    final selectedInterests = await Navigator.of(context).push<List<String>>(
-      MaterialPageRoute(
-        builder: (_) => InterestsSelectionPage(
-          initialInterests: interests,
-        ),
-      ),
-    );
-
-    if (selectedInterests == null || !mounted) return;
-
     setState(() => isSaving = true);
     final updatedData = {
       'name': nameController.text.trim(),
       'department': selectedDepartment,
       'batch': selectedBatch,
-      'interests': selectedInterests,
+      'interests': interests,
     };
     try {
       final updatedUser = await UserRepository().updateUserProfile(updatedData);
@@ -113,201 +135,317 @@ class _EditProfilePageState extends State<EditProfilePage> {
           onPressed: () => Navigator.pop(context),
         ),
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
-        child: Form(
-          key: _formKey,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
+      body: Column(
+        children: [
+          Expanded(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
+              child: Form(
+                key: _formKey,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
               // Profile Photo
-              Stack(
-                alignment: Alignment.bottomRight,
-                children: [
-                  CircleAvatar(
-                    radius: 52,
-                    backgroundColor: Colors.grey.shade300,
-                    backgroundImage: _hasPhoto
-                        ? NetworkImage(widget.user.profilePhotoUrl!)
-                        : null,
-                    child: !_hasPhoto
-                        ? const Icon(Icons.person, size: 48, color: Colors.white)
-                        : null,
-                  ),
-                  GestureDetector(
-                    onTap: _showEditPhotoOptions,
-                    child: Container(
-                      padding: const EdgeInsets.all(6),
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        shape: BoxShape.circle,
-                        border: Border.all(color: Colors.grey.shade300),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withValues(alpha: 0.08),
-                            blurRadius: 4,
-                            offset: const Offset(0, 2),
+              Center(
+                child: Column(
+                  children: [
+                    Stack(
+                      alignment: Alignment.bottomRight,
+                      children: [
+                        CircleAvatar(
+                          radius: 52,
+                          backgroundColor: Colors.grey.shade300,
+                          backgroundImage: _hasPhoto
+                              ? NetworkImage(widget.user.profilePhotoUrl!)
+                              : null,
+                          child: !_hasPhoto
+                              ? const Icon(Icons.person, size: 48, color: Colors.white)
+                              : null,
+                        ),
+                        GestureDetector(
+                          onTap: _showEditPhotoOptions,
+                          child: Container(
+                            padding: const EdgeInsets.all(6),
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              shape: BoxShape.circle,
+                              border: Border.all(color: Colors.grey.shade300),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withValues(alpha: 0.08),
+                                  blurRadius: 4,
+                                  offset: const Offset(0, 2),
+                                ),
+                              ],
+                            ),
+                            child: const Icon(Icons.edit, size: 16, color: Colors.black87),
                           ),
-                        ],
-                      ),
-                      child: const Icon(Icons.edit, size: 16, color: Colors.black87),
+                        ),
+                      ],
                     ),
-                  ),
-                ],
+                    const SizedBox(height: 8),
+                    TextButton(
+                      onPressed: _showEditPhotoOptions,
+                      child: const Text('Change Profile Photo'),
+                    ),
+                  ],
+                ),
               ),
-              const SizedBox(height: 8),
-              TextButton(
-                onPressed: _showEditPhotoOptions,
-                child: const Text('Change Profile Photo'),
-              ),
-              const SizedBox(height: 28),
-              _sectionLabel('Personal Info'),
+              const SizedBox(height: 12),
+              Divider(height: 1, color: Colors.grey.shade300),
               const SizedBox(height: 12),
               // Name
-              TextFormField(
-                controller: nameController,
-                textCapitalization: TextCapitalization.words,
-                decoration: const InputDecoration(
-                  labelText: 'Full Name',
-                  prefixIcon: Icon(Icons.person_outline),
-                ),
-                validator: (v) => v == null || v.trim().isEmpty ? 'Enter your name' : null,
-              ),
-              const SizedBox(height: 16),
-              // Department Dropdown
-              DropdownButtonFormField<String>(
-                initialValue: selectedDepartment,
-                decoration: InputDecoration(
-                  labelText: 'Department',
-                  prefixIcon: const Icon(Icons.school_outlined),
-                  errorText: _departmentError,
-                ),
-                items: departments.map((dept) => DropdownMenuItem(
-                  value: dept,
-                  child: Text(dept),
-                )).toList(),
-                onChanged: (val) {
-                  setState(() {
-                    selectedDepartment = val;
-                    _departmentError = null;
-                  });
-                },
-              ),
-              const SizedBox(height: 16),
-              // Batch Dropdown
-              DropdownButtonFormField<String>(
-                initialValue: selectedBatch,
-                decoration: InputDecoration(
-                  labelText: 'Batch',
-                  prefixIcon: const Icon(Icons.calendar_today_outlined),
-                  errorText: _batchError,
-                ),
-                items: batches.map((batch) => DropdownMenuItem(
-                  value: batch,
-                  child: Text(batch),
-                )).toList(),
-                onChanged: (val) {
-                  setState(() {
-                    selectedBatch = val;
-                    _batchError = null;
-                  });
-                },
-              ),
-              const SizedBox(height: 28),
-              _sectionLabel('Interests'),
-              const SizedBox(height: 8),
-              Align(
-                alignment: Alignment.centerLeft,
-                child: Text(
-                  'Manage your interests (max 5)',
-                  style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
-                ),
-              ),
-              const SizedBox(height: 12),
+              const Text('Full Name', style: TextStyle(fontWeight: FontWeight.w500, fontSize: 15)),
+              const SizedBox(height: 6),
               SizedBox(
-                width: double.infinity,
-                child: ElevatedButton(
-                  onPressed: () async {
-                    final selectedInterests = await Navigator.of(context).push<List<String>>(
-                      MaterialPageRoute(
-                        builder: (_) => ProviderScope(
-                          child: InterestsSelectionPage(
-                            initialInterests: interests,
-                          ),
-                        ),
-                      ),
-                    );
-                    if (selectedInterests != null) {
-                      setState(() {
-                        interests = selectedInterests;
-                      });
-                    }
-                  },
-                  child: const Text('Change Interests'),
-                ),
-              ),
-              if (interests.isNotEmpty) ...[
-                const SizedBox(height: 12),
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  children: interests.map((interest) => Chip(
-                    label: Text(interest),
-                    backgroundColor: const Color(0xFF1976D2).withValues(alpha: 0.1),
-                  )).toList(),
-                ),
-              ],
-              const SizedBox(height: 36),
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton(
-                  onPressed: isSaving ? null : saveProfile,
-                  style: ElevatedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(vertical: 14),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
+                height: 50,
+                child: TextFormField(
+                  controller: nameController,
+                  textCapitalization: TextCapitalization.words,
+                  decoration: InputDecoration(
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
+                    filled: true,
+                    fillColor: Colors.grey.shade100,
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(25),
+                      borderSide: BorderSide.none,
                     ),
                   ),
-                  child: isSaving
-                      ? const SizedBox(
-                          height: 20,
-                          width: 20,
-                          child: CircularProgressIndicator(
-                            color: Colors.white,
-                            strokeWidth: 2,
-                          ),
-                        )
-                      : const Text(
-                          'Save Changes',
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
+                  validator: (v) => v == null || v.trim().isEmpty ? 'Enter your name' : null,
                 ),
               ),
-              const SizedBox(height: 24),
+              const SizedBox(height: 20),
+              // Department Dropdown
+              const Text('Department', style: TextStyle(fontWeight: FontWeight.w500, fontSize: 15)),
+              const SizedBox(height: 6),
+              Container(
+                height: 50,
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade100,
+                  borderRadius: BorderRadius.circular(25),
+                ),
+                child: DropdownButtonFormField<String>(
+                  initialValue: selectedDepartment,
+                  decoration: InputDecoration(
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 8),
+                    border: InputBorder.none,
+                    errorText: _departmentError,
+                  ),
+                  isExpanded: true,
+                  dropdownColor: Colors.white,
+                  icon: const Icon(Icons.keyboard_arrow_down_rounded, color: Colors.grey),
+                  items: departments.map((dept) => DropdownMenuItem(
+                    value: dept,
+                    child: Text(dept),
+                  )).toList(),
+                  onChanged: (val) {
+                    setState(() {
+                      selectedDepartment = val;
+                      _departmentError = null;
+                    });
+                  },
+                  borderRadius: BorderRadius.circular(20),
+                  menuMaxHeight: 220,
+                ),
+              ),
+              if (_departmentError != null) Padding(
+                padding: const EdgeInsets.only(top: 6, left: 8),
+                child: Text(_departmentError!, style: const TextStyle(color: Colors.redAccent, fontSize: 12)),
+              ),
+              const SizedBox(height: 20),
+              // Batch Dropdown
+              const Text('Batch', style: TextStyle(fontWeight: FontWeight.w500, fontSize: 15)),
+              const SizedBox(height: 6),
+              Container(
+                height: 50,
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade100,
+                  borderRadius: BorderRadius.circular(25),
+                ),
+                child: DropdownButtonFormField<String>(
+                  initialValue: selectedBatch,
+                  decoration: InputDecoration(
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 8),
+                    border: InputBorder.none,
+                    errorText: _batchError,
+                  ),
+                  isExpanded: true,
+                  dropdownColor: Colors.white,
+                  icon: const Icon(Icons.keyboard_arrow_down_rounded, color: Colors.grey),
+                  items: batches.map((batch) => DropdownMenuItem(
+                    value: batch,
+                    child: Text(batch),
+                  )).toList(),
+                  onChanged: (val) {
+                    setState(() {
+                      selectedBatch = val;
+                      _batchError = null;
+                    });
+                  },
+                  borderRadius: BorderRadius.circular(20),
+                  menuMaxHeight: 220,
+                ),
+              ),
+              if (_batchError != null) Padding(
+                padding: const EdgeInsets.only(top: 6, left: 8),
+                child: Text(_batchError!, style: const TextStyle(color: Colors.redAccent, fontSize: 12)),
+              ),
+              const SizedBox(height: 28),
+              const Text('Interests', style: TextStyle(fontWeight: FontWeight.w500, fontSize: 15)),
+              const SizedBox(height: 6),
+              GestureDetector(
+                onTap: _openInterestsPage,
+                child: Container(
+                  decoration: BoxDecoration(
+                    border: Border.all(color: Colors.grey.shade300),
+                    borderRadius: BorderRadius.circular(12),
+                    color: Colors.white,
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            const Text(
+                              'Change your interests',
+                              style: TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w600,
+                                color: Colors.black87,
+                              ),
+                            ),
+                            IconButton(
+                              icon: const Icon(Icons.add, size: 24),
+                              onPressed: _openInterestsPage,
+                              padding: EdgeInsets.zero,
+                              constraints: const BoxConstraints(),
+                            ),
+                          ],
+                        ),
+                      ),
+                      Divider(height: 1, color: Colors.grey.shade300),
+                      if (interests.isNotEmpty)
+                        Consumer(
+                          builder: (context, ref, _) =>
+                            ref.watch(backendConfigProvider).when(
+                              loading: () => const Padding(
+                                padding: EdgeInsets.all(12),
+                                child: CircularProgressIndicator(),
+                              ),
+                              error: (_, _) => Padding(
+                                padding: const EdgeInsets.all(12),
+                                child: Wrap(
+                                  spacing: 8,
+                                  runSpacing: 8,
+                                  children: interests.map((interest) {
+                                    return Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                                      decoration: BoxDecoration(
+                                        color: Colors.grey.shade100,
+                                        borderRadius: BorderRadius.circular(20),
+                                        border: Border.all(
+                                          color: const Color(0xFFE0E6ED),
+                                        ),
+                                      ),
+                                      child: Text(
+                                        interest,
+                                        style: const TextStyle(
+                                          color: Color(0xFF334155),
+                                          fontSize: 12,
+                                        ),
+                                      ),
+                                    );
+                                  }).toList(),
+                                ),
+                              ),
+                              data: (config) => Padding(
+                                padding: const EdgeInsets.all(12),
+                                child: Wrap(
+                                  spacing: 8,
+                                  runSpacing: 8,
+                                  children: interests.map((interest) {
+                                    final emoji = _getEmojiForInterest(interest, config);
+                                    return Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                                      decoration: BoxDecoration(
+                                        color: Colors.grey.shade100,
+                                        borderRadius: BorderRadius.circular(20),
+                                        border: Border.all(
+                                          color: const Color(0xFFE0E6ED),
+                                        ),
+                                      ),
+                                      child: Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          if (emoji != null) ...[
+                                            Text(emoji, style: const TextStyle(fontSize: 14)),
+                                            const SizedBox(width: 6),
+                                          ],
+                                          Text(
+                                            interest,
+                                            style: const TextStyle(
+                                              color: Color(0xFF334155),
+                                              fontSize: 12,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    );
+                                  }).toList(),
+                                ),
+                              ),
+                            ),
+                        )
+                      else
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                          child: Text(
+                            'No interests selected yet',
+                            style: TextStyle(fontSize: 13, color: Colors.grey.shade600),
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+              ),
             ],
           ),
         ),
       ),
-    );
-  }
-
-  Widget _sectionLabel(String label) {
-    return Align(
-      alignment: Alignment.centerLeft,
-      child: Text(
-        label,
-        style: const TextStyle(
-          fontSize: 13,
-          fontWeight: FontWeight.w600,
-          letterSpacing: 0.5,
-          color: Colors.black54,
+    ),
+    Padding(
+      padding: const EdgeInsets.only(left: 20, right: 20, bottom: 20, top: 10),
+      child: SizedBox(
+        width: double.infinity,
+        height: 56,
+        child: ElevatedButton(
+          onPressed: isSaving ? null : saveProfile,
+          child: isSaving
+              ? const SizedBox(
+                  height: 24,
+                  width: 24,
+                  child: CircularProgressIndicator(
+                    valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                    strokeWidth: 2.5,
+                  ),
+                )
+              : const Text(
+                  'Save Changes',
+                  style: TextStyle(
+                    fontSize: 16,
+                    color: Colors.white,
+                  ),
+                ),
         ),
       ),
-    );
-  }
+    ),
+    ],
+    ),
+  );
+}
 
   void _showEditPhotoOptions() async {
     final action = await showModalBottomSheet<String>(
