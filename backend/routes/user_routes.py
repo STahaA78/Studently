@@ -248,9 +248,10 @@ def search_users(limit: int = Query(10, ge=1, le=50),query: str = Query(..., min
     LOGGER.info(f"Search completed with {len(users)} results for query: {query}",extra={"uid": USER})
     return users
 
-@router.get("/{users_id}/status")
-def check_connection_status(user_id: str,target_id, USER: str = Depends(get_current_user)):
-    LOGGER.info(f"Checking connection with {target_id}", extra={"uid": USER})
+@router.post("/{user_id}/status", response_model=List[FriendStatus])
+def check_connection_status(user_id: str, request: ConnectionStatusRequest, USER: str = Depends(get_current_user)):
+    target_ids = request.target_ids
+    LOGGER.info(f"Checking connection with {target_ids}", extra={"uid": USER})
     if user_id != "0":
         if is_admin(USER):
             LOGGER.info(f"Admin accessing  profile of USER ID: {user_id}", extra={"uid": USER})
@@ -260,24 +261,39 @@ def check_connection_status(user_id: str,target_id, USER: str = Depends(get_curr
     else:
         LOGGER.info(f"USER accessing own profile", extra={"uid": USER})
         user_id = USER  # Override to fetch own profile when user_id is "0"
+    
     user = users_collection.find_one({"_id": user_id})  # Ensure the requesting user exists in the database
-    target = users_collection.find_one({"_id": target_id})   # Ensure the target user exists in the database
-
-    if not user or not target:
-        LOGGER.warning(f"User not found for either USER {USER} or target {target_id}", extra={"uid": USER})
+    if not user:
         raise HTTPException(status_code=404, detail="User not found")
+    
+    # 1. Fetch all targets into a list or dict immediately
+    # This "drains" the cursor once and stores it in memory
+    target_docs = list(users_collection.find({"_id": {"$in": target_ids}}))
 
-    if target_id in user.get("friends", []):
-        LOGGER.info(f"Already friends with {target_id}", extra={"uid": USER})
-        return {"status": "friends"}
-    if target_id in user.get("friend_requests", []):
-        LOGGER.info(f"Incoming friend request found with {target_id}", extra={"uid": USER})
-        return {"status": "incoming_request"}
-    if USER in target.get("friend_requests", []):
-        LOGGER.info(f"Outgoing friend request found with {target_id}", extra={"uid": USER})
-        return {"status": "outgoing_request"}
-    LOGGER.info(f"No connection found with {target_id}", extra={"uid": USER})
-    return {"status": "none"}
+    # 2. Create a lookup map for O(1) speed
+    # This maps: {'id_123': {user_data}, 'id_456': {user_data}}
+    target_map = {str(doc["_id"]): doc for doc in target_docs}
+
+    friend_statuses = []
+
+    # 3. Iterate through your IDs once and check the map
+    for target_id in target_ids:
+        target_user = target_map.get(target_id)
+        
+        if not target_user:
+            LOGGER.warning(f"Target user not found: {target_id}")
+            friend_statuses.append(FriendStatus(id=target_id, status="error"))
+            continue
+        
+        # If found, check friendship status
+        if target_id in user.get("friends", []):
+            friend_statuses.append(FriendStatus(id=target_id, status="friends"))
+        elif target_id in user.get("friend_requests", []):
+            friend_statuses.append(FriendStatus(id=target_id, status="incoming_request"))
+        else:
+            friend_statuses.append(FriendStatus(id=target_id, status="none"))
+    
+    return friend_statuses
 
 @router.get("/discover", response_model=list[UserOut])
 def discover_users(
@@ -367,6 +383,7 @@ def get_pending_requests(user_id:str, USER: str = Depends(get_current_user)):
         user_id = USER  # Override to fetch own profile when user_id is "0"
     
     user = users_collection.find_one({"_id": user_id})
+
     request_ids = user.get("friend_requests", [])
     if not request_ids:
         LOGGER.info(f"No pending friend requests for USER {USER}", extra={"uid": USER})

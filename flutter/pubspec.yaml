@@ -33,6 +33,7 @@ dependencies:
   url_launcher: ^6.3.2
   open_filex: ^4.7.0
   flutter_riverpod: ^3.3.1
+  appinio_swiper: ^2.0.0
 
   
 

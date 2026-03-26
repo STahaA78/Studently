@@ -1,5 +1,23 @@
 import 'package:studently/models/backend_config.dart';
 
+
+class FriendStatus {
+  final String id;
+  final String status; // "friends", "incoming_request", "none"
+
+  FriendStatus({
+    required this.id,
+    required this.status,
+  });
+
+  factory FriendStatus.fromJson(Map<String, dynamic> json) {
+    return FriendStatus(
+      id: json['id'] ?? '',
+      status: json['status'] ?? 'none',
+    );
+  }
+}
+
 class User {
   final String id;
   String name;

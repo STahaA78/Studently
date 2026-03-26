@@ -145,13 +145,39 @@ class UserRepository {
 		}
 	}
 
+	Future<Map<String, String>> fetchConnectionStatuses(List<String> targetIds) async {
+		logger.i("[$runtimeType] Fetch Connection Statuses Initiated for ${targetIds.length} targets");
+		try {
+			final response = await _apiService.post(
+				'/users/0/status',
+				body: {"target_ids": targetIds},
+			);
+			final List<dynamic> data = jsonDecode(response.body);
+			final Map<String, String> statusMap = {};
+			
+			for (var item in data) {
+				final friendStatus = FriendStatus.fromJson(item);
+				// Filter out "error" status - these users should not be displayed
+				if (friendStatus.status != "error") {
+					statusMap[friendStatus.id] = friendStatus.status;
+				}
+			}
+			
+			logger.i("[$runtimeType] Fetch Connection Statuses Completed Successfully");
+			return statusMap;
+		} catch (e) {
+			logger.e("[$runtimeType] Fetch Connection Statuses Failed with error: $e");
+			rethrow;
+		}
+	}
+
+	// Single fetch wrapper for backward compatibility
 	Future<String> fetchConnectionStatus(String targetId) async {
 		logger.i("[$runtimeType] Fetch Connection Status Initiated for targetId: $targetId");
 		try {
-			final response = await _apiService.get('/users/0/status?target_id=$targetId');
-			final data = jsonDecode(response.body);
+			final statuses = await fetchConnectionStatuses([targetId]);
 			logger.i("[$runtimeType] Fetch Connection Status Completed Successfully");
-			return data["status"];
+			return statuses[targetId] ?? "error";
 		} catch (e) {
 			logger.e("[$runtimeType] Fetch Connection Status Failed with error: $e");
 			rethrow;

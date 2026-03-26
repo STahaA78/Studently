@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:device_preview/device_preview.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:studently/services/firebase_auth.dart';
 import 'package:studently/utils/constants.dart';
 // Firebase imports
 import 'package:firebase_core/firebase_core.dart';
@@ -49,7 +50,7 @@ class MyApp extends StatelessWidget {
 
     return MaterialApp(
       debugShowCheckedModeBanner: false,
-      home: LoginPage(), // directly show the login page
+      home: (authService.value.currentUser != null) ? const CommunityFeedPage() : const LoginPage(),
       builder: (context, child) {
         return MediaQuery(
           data: MediaQuery.of(context).copyWith(

@@ -1,6 +1,6 @@
 from pydantic import BaseModel, EmailStr, field_validator,Field
 from datetime import date, datetime
-from typing import Optional, List
+from typing import Optional, List, Literal
 from models.config import Interest
 class UserCreate(BaseModel):
     uid: str = ""  # New: Field for custom or generated UID
@@ -29,21 +29,13 @@ class UserCreate(BaseModel):
 class UserLogin(BaseModel):
     email: EmailStr
 
-class UserUpdate(BaseModel):
-    name: Optional[str] = None
-    department: Optional[str] = None
-    batch: Optional[str] = None
-    interests: Optional[List[str]] = None
-    profile_picture: Optional[str] = None
-    bio: Optional[str] = None
-
 class UserOut(BaseModel):
     id: str = Field(alias="_id")  # This maps to the internal MongoDB _id (which is now our uid)
     name: str
     email: EmailStr
     department: str
     batch: str
-    interests: List[str] = []
+    interests: List[Interest] = []
     profilePhotoUrl: Optional[str] = None
     bio: Optional[str] = None
     friends: List[str] = []
@@ -74,3 +66,10 @@ class EditProfileData(BaseModel):
     department: Optional[str] = None
     batch: Optional[str] = None
     interests: Optional[List[Interest]] = None
+
+class FriendStatus(BaseModel):
+    id: str
+    status: Literal["friends","incoming_request","none","error"]
+
+class ConnectionStatusRequest(BaseModel):
+    target_ids: List[str]

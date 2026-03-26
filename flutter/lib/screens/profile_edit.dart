@@ -321,7 +321,7 @@ class _EditProfilePageState extends State<EditProfilePage> {
                                 child: CircularProgressIndicator(),
                               ),
                               error: (_, _) => Padding(
-                                padding: const EdgeInsets.all(12),
+                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
                                 child: Wrap(
                                   spacing: 8,
                                   runSpacing: 8,
@@ -354,7 +354,7 @@ class _EditProfilePageState extends State<EditProfilePage> {
                                 ),
                               ),
                               data: (config) => Padding(
-                                padding: const EdgeInsets.all(12),
+                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
                                 child: Wrap(
                                   spacing: 8,
                                   runSpacing: 8,
