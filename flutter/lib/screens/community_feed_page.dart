@@ -566,6 +566,9 @@ Widget _buildPostCard({
             child: Image.network(
               api.getCompleteUrl(post.mediaUrls.first),
               fit: BoxFit.cover,
+              errorBuilder: (context, error, stackTrace) {
+                return const SizedBox(); // hides broken image
+              },
             ),
           ),
 
