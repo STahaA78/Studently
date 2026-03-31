@@ -42,7 +42,6 @@ class _InterestsSelectionPageState extends ConsumerState<InterestsSelectionPage>
 
   late Map<String, List<InterestOption>> sections;
   String? _completionError;
-  bool _isLoading = false;
 
   @override
   void initState() {
@@ -191,6 +190,14 @@ class _InterestsSelectionPageState extends ConsumerState<InterestsSelectionPage>
     final authState = ref.watch(authProvider);
     final isAuthLoading = authState.isLoading;
     ref.listen(authProvider, (previous, next) {
+      // 1. Handle Success: If we now have a user, clear the signup stack
+      if (next is AsyncData && next.value != null) {
+        logger.i("[$runtimeType] Signup successful, clearing navigation stack.");
+        // This removes all signup screens and reveals the CommunityFeedPage at the root
+        Navigator.of(context).popUntil((route) => route.isFirst);
+      }
+
+      // 2. Handle Errors (Your existing code)
       if (next is AsyncError) {
         setState(() {
           _completionError = next.error.toString().replaceAll('Exception: ', '');

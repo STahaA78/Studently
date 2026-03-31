@@ -1,68 +1,83 @@
+import 'dart:convert';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart'; // Import storage
 import 'package:studently/services/firebase_auth.dart'; 
 import 'package:studently/repositories/user.dart'; 
 import 'package:studently/models/user.dart'; 
 import 'package:studently/models/backend_config.dart'; 
-import 'package:studently/logger.dart'; // <-- Imported your logger
-
-// 1. Expose your Repository via Riverpod
+import 'package:studently/logger.dart';
 final userRepositoryProvider = Provider<UserRepository>((ref) {
   return UserRepository();
 });
-
-// 2. The Auth State Manager
 class AuthNotifier extends AsyncNotifier<User?> {
-  
+  // 1. Initialize Storage and Keys inside the provider
+  final _storage = const FlutterSecureStorage();
+  static const _userKey = 'cached_user_profile';
+
   @override
   Future<User?> build() async {
-    logger.i("[$runtimeType] build() started - Checking for existing Firebase session");
+    logger.i("[$runtimeType] build() started - Checking local disk and Firebase");
+    
+    // 2. Try to get user from local disk first (for instant UI)
+    final String? localJson = await _storage.read(key: _userKey);
+    User? cachedUser;
+    
+    if (localJson != null) {
+      cachedUser = User.fromJson(jsonDecode(localJson));
+      logger.d("[$runtimeType] Cached user found: ${cachedUser.name}");
+    }
+
+    // 3. Check Firebase session
     final firebaseUser = authService.value.currentUser;
 
     if (firebaseUser != null) {
-      try {
-        logger.d("[$runtimeType] Firebase user found (UID: ${firebaseUser.uid}). Fetching profile from backend...");
-        final userRepo = ref.read(userRepositoryProvider);
-        
-        final userProfile = await userRepo.fetchUserProfile(firebaseUser.uid);
-        logger.i("[$runtimeType] Profile fetched successfully for ${firebaseUser.uid}. User is logged in.");
-        
-        return userProfile;
-      } catch (e, stackTrace) {
-        logger.e("[$runtimeType] Failed to fetch profile during build. Logging out locally.", error: e, stackTrace: stackTrace);
-        await logout();
-        return null;
+      if (cachedUser != null) {
+        // INSTANT UI: Return cached data but trigger a refresh in the background
+        _refreshProfileInBackground(firebaseUser.uid);
+        return cachedUser;
       }
+      
+      // No cache found, but logged into Firebase: Fetch fresh from FastAPI
+      return await _fetchAndSaveFreshProfile(firebaseUser.uid);
     }
     
-    logger.i("[$runtimeType] No existing session found. User is logged out.");
-    return null; 
+    return null; // Not logged in
   }
 
-  Future<void> login(String email, String password) async {
-    logger.i("[$runtimeType] login() started for email: $email");
-    state = const AsyncValue.loading();
-    
-    try {
-      // 1. Log into Firebase 
-      await authService.value.signIn(email: email, password: password);
-      
-      // 2. Verify Firebase User
-      final firebaseUser = authService.value.currentUser;
-      if (firebaseUser == null) throw Exception("Firebase login failed - currentUser is null");
-      
-      logger.d("[$runtimeType] Firebase login successful (UID: ${firebaseUser.uid}). Fetching backend profile...");
+  // --- Helper Methods ---
 
-      // 3. Use the repository to fetch the Studently User Profile
-      final userRepo = ref.read(userRepositoryProvider);
-      final user = await userRepo.fetchUserProfile(firebaseUser.uid);
+  Future<User> _fetchAndSaveFreshProfile(String uid) async {
+    final userRepo = ref.read(userRepositoryProvider);
+    final freshUser = await userRepo.fetchUserProfile(uid);
+    
+    // Write to local disk
+    await _storage.write(key: _userKey, value: jsonEncode(freshUser.toJson()));
+    return freshUser;
+  }
+
+  Future<void> _refreshProfileInBackground(String uid) async {
+    try {
+      final freshUser = await _fetchAndSaveFreshProfile(uid);
+      state = AsyncValue.data(freshUser); // Update the state silently
+      logger.d("[$runtimeType] Background profile refresh complete");
+    } catch (e) {
+      logger.w("[$runtimeType] Background refresh failed: $e");
+    }
+  }
+
+  // --- Actions ---
+
+  Future<void> login(String email, String password) async {
+    state = const AsyncValue.loading();
+    try {
+      await authService.value.signIn(email: email, password: password);
+      final firebaseUser = authService.value.currentUser;
       
-      logger.i("[$runtimeType] Backend profile fetched. login() completed successfully.");
-      
-      // 4. Update UI state instantly
+      final user = await _fetchAndSaveFreshProfile(firebaseUser!.uid);
       state = AsyncValue.data(user);
       
     } catch (e, stack) {
-      logger.e("[$runtimeType] login() failed", error: e, stackTrace: stack);
+      logger.e("[$runtimeType] Login failed", error: e, stackTrace: stack);
       state = AsyncValue.error(e, stack);
     }
   }
@@ -76,23 +91,14 @@ class AuthNotifier extends AsyncNotifier<User?> {
     required String batch,
     required List<Interest> interests, 
   }) async {
-    logger.i("[$runtimeType] signUp() started for email: $email");
     state = const AsyncValue.loading();
-    
     try {
-      // 1. Create Firebase Account
       await authService.value.createAccount(email: email, password: password);
-      
-      // 2. Verify Firebase User
       final firebaseUser = authService.value.currentUser;
-      if (firebaseUser == null) throw Exception("Firebase signup failed - currentUser is null");
 
-      logger.d("[$runtimeType] Firebase account created (UID: ${firebaseUser.uid}). Registering in backend...");
-
-      // 3. Use the repository to handle the exact payload expected by FastAPI
       final userRepo = ref.read(userRepositoryProvider);
       final success = await userRepo.registerUser(
-        uid: firebaseUser.uid,
+        uid: firebaseUser!.uid,
         name: name,
         email: email,
         birthday: birthday,
@@ -102,37 +108,25 @@ class AuthNotifier extends AsyncNotifier<User?> {
       );
       
       if (success) {
-        logger.d("[$runtimeType] Backend registration successful. Fetching new profile...");
-        // Fetch the newly created profile so the app state has all default fields
-        final user = await userRepo.fetchUserProfile(firebaseUser.uid);
-        
-        logger.i("[$runtimeType] signUp() completed successfully.");
+        final user = await _fetchAndSaveFreshProfile(firebaseUser.uid);
         state = AsyncValue.data(user);
       } else {
-        throw Exception("Backend registration returned false.");
+        throw Exception("Backend registration failed");
       }
-      
     } catch (e, stack) {
-      logger.e("[$runtimeType] signUp() failed", error: e, stackTrace: stack);
+      logger.e("[$runtimeType] SignUp failed", error: e, stackTrace: stack);
       state = AsyncValue.error(e, stack);
     }
   }
 
   Future<void> logout() async {
-    logger.i("[$runtimeType] logout() started");
-    try {
-      await authService.value.signOut();
-      state = const AsyncValue.data(null);
-      logger.i("[$runtimeType] logout() completed successfully");
-    } catch (e, stack) {
-      logger.e("[$runtimeType] logout() failed", error: e, stackTrace: stack);
-      // Even if it fails, we usually want to clear the local state so the user isn't stuck
-      state = const AsyncValue.data(null);
-    }
+    logger.i("[$runtimeType] Logging out...");
+    await authService.value.signOut();
+    await _storage.delete(key: _userKey); // Clear the disk
+    state = const AsyncValue.data(null);
   }
 }
 
-// 3. The provider your UI screens will actually watch
 final authProvider = AsyncNotifierProvider<AuthNotifier, User?>(() {
   return AuthNotifier();
 });

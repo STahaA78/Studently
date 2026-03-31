@@ -63,4 +63,18 @@ class User {
       bio: json['bio'],
     );
   }
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'name': name,
+      'email': email,
+      'password': password,
+      'birthday': birthday,
+      'department': department,
+      'batch': batch,
+      'profile_photo_url': profilePhotoUrl,
+      // Ensure your Interest model also has a toJson() method!
+      'interests': interests.map((i) => i.toJson()).toList(),
+    };
+  }
 }

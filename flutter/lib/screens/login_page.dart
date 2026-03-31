@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_auth/firebase_auth.dart' as firebase_auth;
 import 'signup_basic_page.dart';
 import 'community_feed_page.dart';
 import 'package:flutter_svg/flutter_svg.dart';
@@ -8,6 +8,7 @@ import 'package:studently/utils/constants.dart';
 import 'package:studently/logger.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:studently/providers/auth_provider.dart';
+import 'package:studently/models/user.dart'; // Add this line!
 class LoginPage extends ConsumerStatefulWidget {
   const LoginPage({super.key});
 
@@ -30,7 +31,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
     super.initState();
     _emailFocusNode.addListener(_onEmailFocusChange);
   }
-
+  
   void _onEmailFocusChange() {
     if (!_emailFocusNode.hasFocus) {
       setState(() => _emailFieldTouched = true);
@@ -61,7 +62,28 @@ class _LoginPageState extends ConsumerState<LoginPage> {
       }
     });
   }
-
+  String _getFriendlyErrorMessage(Object error) {
+    if (error is firebase_auth.FirebaseAuthException) {
+      switch (error.code) {
+        case 'user-not-found':
+        case 'wrong-password':
+        case 'invalid-credential':
+          return "Invalid email or password.";
+        case 'invalid-email':
+          return "The email address is badly formatted.";
+        case 'user-disabled':
+          return "This account has been disabled.";
+        case 'too-many-requests':
+          return "Too many attempts. Please try again later.";
+        case 'network-request-failed':
+          return "Network error. Check your internet connection.";
+        default:
+          return error.message ?? "An unexpected authentication error occurred.";
+      }
+    }
+    // For backend/FastAPI errors, we strip the 'Exception: ' prefix
+    return error.toString().replaceAll('Exception: ', '');
+  }
   void _login()  {
     String email = _emailController.text.trim();
     String password = _passwordController.text.trim();
@@ -95,13 +117,17 @@ class _LoginPageState extends ConsumerState<LoginPage> {
     final isLoading = authState.isLoading;
 
     // 2. Listen specifically for errors to update your UI's _loginError text
-    ref.listen(authProvider, (previous, next) {
-      if (next is AsyncError && !next.isLoading) {
-        setState(() {
-          // Assuming the provider formats the error cleanly, or we just grab the string
-          _loginError = next.error.toString().replaceAll('Exception: ', '');
-        });
-      }
+    ref.listen<AsyncValue<User?>>(authProvider, (previous, next) {
+      // Use .whenOrNull to specifically target the error state
+      next.whenOrNull(
+        error: (error, stackTrace) {
+          setState(() {
+            _loginError = _getFriendlyErrorMessage(error);
+          });
+          // Log the full error for debugging!
+          logger.e("Login Error: $error");
+        },
+      );
     });
     final Color blue = const Color(0xFF1976D2);
     final Size screenSize = MediaQuery.of(context).size;

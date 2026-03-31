@@ -76,11 +76,23 @@ class MyApp extends ConsumerWidget {
           if (user != null) return const CommunityFeedPage();
           return const LoginPage();
         },
-        loading: () => const Scaffold(
-          backgroundColor: Colors.white,
-          body: Center(child: CircularProgressIndicator(color: Color(0xFF1976D2))),
-        ),
+        // If the provider hits an error (like a wrong password), stay on LoginPage
         error: (err, stack) => const LoginPage(),
+        
+        // Only show the full-screen loader if we have absolutely no data yet (initial app boot)
+        // If we already have 'null' data (meaning we are on the login page), don't show the full screen loader!
+        loading: () {
+          // Check if we are transitioning FROM the login page
+          if (authState.hasValue) {
+            return const LoginPage(); // Keep showing the login page so the button spinner works!
+          }
+          
+          // Otherwise, show the boot-up spinner
+          return const Scaffold(
+            backgroundColor: Colors.white,
+            body: Center(child: CircularProgressIndicator(color: Color(0xFF1976D2))),
+          );
+        },
       ),
 
       // MERGED BUILDER: Combines DevicePreview with your custom MediaQuery
