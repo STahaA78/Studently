@@ -6,17 +6,17 @@ import 'package:studently/repositories/user.dart';
 import 'package:studently/providers/backend_config_provider.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:studently/screens/interests.dart';
-
-class EditProfilePage extends StatefulWidget {
+import 'package:studently/providers/auth_provider.dart';
+class EditProfilePage extends ConsumerStatefulWidget {
   final User user;
 
   const EditProfilePage({super.key, required this.user});
 
   @override
-  State<EditProfilePage> createState() => _EditProfilePageState();
+  ConsumerState<EditProfilePage> createState() => _EditProfilePageState();
 }
 
-class _EditProfilePageState extends State<EditProfilePage> {
+class _EditProfilePageState extends ConsumerState<EditProfilePage> {
   final _formKey = GlobalKey<FormState>();
   late TextEditingController nameController;
   String? selectedDepartment;
@@ -82,9 +82,9 @@ class _EditProfilePageState extends State<EditProfilePage> {
       'interests': interests,
     };
     try {
-      final updatedUser = await UserRepository().updateUserProfile(updatedData);
+      await ref.read(authProvider.notifier).updateProfile(updatedData);
       if (!mounted) return;
-      Navigator.pop(context, updatedUser);
+      Navigator.pop(context); 
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -95,11 +95,11 @@ class _EditProfilePageState extends State<EditProfilePage> {
     }
   }
 
-  bool get _hasPhoto =>
-      (widget.user.profilePhotoUrl?.isNotEmpty ?? false);
 
   @override
   Widget build(BuildContext context) {
+    final currentUser = ref.watch(authProvider).value ?? widget.user;
+    final bool hasPhoto = currentUser.profilePhotoUrl?.isNotEmpty ?? false;
     return Scaffold(
       backgroundColor: Colors.white,
       appBar: AppBar(
@@ -140,10 +140,10 @@ class _EditProfilePageState extends State<EditProfilePage> {
                         CircleAvatar(
                           radius: 52,
                           backgroundColor: Colors.grey.shade300,
-                          backgroundImage: _hasPhoto
-                              ? NetworkImage(widget.user.profilePhotoUrl!)
+                          backgroundImage: hasPhoto
+                              ? NetworkImage(currentUser.profilePhotoUrl!)
                               : null,
-                          child: !_hasPhoto
+                          child: !hasPhoto
                               ? const Icon(Icons.person, size: 48, color: Colors.white)
                               : null,
                         ),
@@ -437,6 +437,10 @@ class _EditProfilePageState extends State<EditProfilePage> {
 }
 
   void _showEditPhotoOptions() async {
+    // NEW: Quickly check the provider state to see if the user currently has a photo
+    final currentUser = ref.read(authProvider).value ?? widget.user;
+    final bool hasPhoto = currentUser.profilePhotoUrl?.isNotEmpty ?? false;
+
     final action = await showModalBottomSheet<String>(
       context: context,
       shape: const RoundedRectangleBorder(
@@ -468,7 +472,7 @@ class _EditProfilePageState extends State<EditProfilePage> {
                   title: const Text('Choose from Gallery'),
                   onTap: () => Navigator.pop(context, 'gallery'),
                 ),
-                if (_hasPhoto) ...[
+                if (hasPhoto) ...[ // FIXED: Using the local 'hasPhoto' variable we just created
                   const Divider(height: 1, indent: 16, endIndent: 16),
                   ListTile(
                     leading: const Icon(Icons.delete_outline, color: Colors.red),
@@ -487,20 +491,17 @@ class _EditProfilePageState extends State<EditProfilePage> {
     );
 
     if (action == 'remove') {
-      await UserRepository().removeProfilePhoto();
-      if (!mounted) return;
-      setState(() {
-        widget.user.profilePhotoUrl = '';
-      });
+      // Provider handles backend deletion AND state clearing
+      await ref.read(authProvider.notifier).removeProfilePhoto();
+      
     } else if (action == 'gallery' || action == 'take') {
       final source =
           action == 'gallery' ? ImageSource.gallery : ImageSource.camera;
       final pickedFile = await ImagePicker().pickImage(source: source);
       if (pickedFile != null) {
-        await UserRepository().uploadProfilePhoto(pickedFile.path);
-        if (!mounted) return;
-        setState(() {});
+        // Provider handles upload AND injects new URL into state
+        await ref.read(authProvider.notifier).updateProfilePhoto(pickedFile.path);
       }
-    }
+    } 
   }
 }

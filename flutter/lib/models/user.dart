@@ -1,6 +1,5 @@
 import 'package:studently/models/backend_config.dart';
 
-
 class FriendStatus {
   final String id;
   final String status; // "friends", "incoming_request", "none"
@@ -63,17 +62,21 @@ class User {
       bio: json['bio'],
     );
   }
+
   Map<String, dynamic> toJson() {
     return {
       'id': id,
+      '_id': id, // Adding this helps if MongoDB expects the ID here
       'name': name,
       'email': email,
+      'friendsCount': friendsCount, // ADDED
       'password': password,
       'birthday': birthday,
       'department': department,
       'batch': batch,
-      'profile_photo_url': profilePhotoUrl,
-      // Ensure your Interest model also has a toJson() method!
+      'university': university, // ADDED
+      'bio': bio, // ADDED
+      'profilePhotoUrl': profilePhotoUrl, // FIXED: Now exactly matches fromJson!
       'interests': interests.map((i) => i.toJson()).toList(),
     };
   }

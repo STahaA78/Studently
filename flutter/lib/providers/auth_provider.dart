@@ -125,6 +125,79 @@ class AuthNotifier extends AsyncNotifier<User?> {
     await _storage.delete(key: _userKey); // Clear the disk
     state = const AsyncValue.data(null);
   }
+
+  Future<void> updateProfile(Map<String, dynamic> updatedData) async {
+    final userRepo = ref.read(userRepositoryProvider);
+    
+    // 1. Wait for FastAPI to confirm the save was successful
+    await userRepo.updateUserProfile(updatedData); 
+    
+    final currentUser = state.value;
+    if (currentUser != null) {
+      // 2. Locally merge the newly saved data with the existing profile
+      final updatedUser = User(
+        id: currentUser.id,
+        email: currentUser.email,
+        password: currentUser.password,
+        birthday: currentUser.birthday,
+        profilePhotoUrl: currentUser.profilePhotoUrl, // Preserves the photo!
+        name: updatedData['name'] ?? currentUser.name,
+        department: updatedData['department'] ?? currentUser.department,
+        batch: updatedData['batch'] ?? currentUser.batch,
+        interests: updatedData['interests'] != null 
+            ? List<Interest>.from(updatedData['interests']) 
+            : currentUser.interests,
+        friendsCount: currentUser.friendsCount,
+        university: currentUser.university,
+        bio: currentUser.bio,
+      );
+
+      // 3. Update RAM and Disk instantly
+      state = AsyncValue.data(updatedUser);
+      await _storage.write(key: _userKey, value: jsonEncode(updatedUser.toJson()));
+    }
+  }
+
+
+  Future<void> updateProfilePhoto(String imagePath) async {
+    final userRepo = ref.read(userRepositoryProvider);
+    await userRepo.uploadProfilePhoto(imagePath); // 1. POST
+    
+    final firebaseUser = authService.value.currentUser;
+    if (firebaseUser != null) {
+      await _refreshProfileInBackground(firebaseUser.uid); // 2. GET
+    }
+  }
+
+  Future<void> removeProfilePhoto() async {
+    final userRepo = ref.read(userRepositoryProvider);
+    
+    // 1. Wait for FastAPI to delete the file
+    await userRepo.removeProfilePhoto();
+    
+    final currentUser = state.value;
+    if (currentUser != null) {
+      // 2. Locally clear the photo URL string
+      final updatedUser = User(
+        id: currentUser.id,
+        name: currentUser.name,
+        email: currentUser.email,
+        password: currentUser.password,
+        birthday: currentUser.birthday,
+        department: currentUser.department,
+        batch: currentUser.batch,
+        interests: currentUser.interests,
+        profilePhotoUrl: '', // Wipe the photo locally
+        friendsCount: currentUser.friendsCount,
+        university: currentUser.university,
+        bio: currentUser.bio,
+      );
+
+      // 3. Update RAM and Disk
+      state = AsyncValue.data(updatedUser);
+      await _storage.write(key: _userKey, value: jsonEncode(updatedUser.toJson()));
+    }
+  }
 }
 
 final authProvider = AsyncNotifierProvider<AuthNotifier, User?>(() {
