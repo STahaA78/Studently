@@ -1,25 +1,26 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../widgets/custom_nav_bar.dart';
 import 'package:studently/models/user.dart';
 import 'package:studently/repositories/user.dart';
 import 'package:studently/logger.dart';
 import 'package:studently/screens/profile_edit.dart';
 import 'package:studently/services/api.dart';
-import 'dart:convert';
-class ProfilePage extends StatefulWidget {
+import '../providers/feed_provider.dart';
+import '../models/post.dart';
+
+class ProfilePage extends ConsumerStatefulWidget {
   final String? userId;
 
   const ProfilePage({super.key, this.userId});
 
   @override
-  State<ProfilePage> createState() => _ProfilePageState();
+  ConsumerState<ProfilePage> createState() => _ProfilePageState();
 }
 
-class _ProfilePageState extends State<ProfilePage> {
+class _ProfilePageState extends ConsumerState<ProfilePage> {
   final Color blue = const Color(0xFF1976D2);
   final apiService = ApiService();
-  List<Map<String, dynamic>> posts = [];
-  bool hasLoadedPosts = false;
 
   User? user;
   bool isLoading = true;
@@ -43,7 +44,6 @@ class _ProfilePageState extends State<ProfilePage> {
         user = fetchedUser;
         isLoading = false;
       });
-      _loadUserPosts();
     } catch (e) {
       setState(() => isLoading = false);
     }
@@ -63,28 +63,7 @@ class _ProfilePageState extends State<ProfilePage> {
       setState(() => isStatusLoading = false);
     }
   }
-  Future<void> _loadUserPosts() async {
-    try {
-      final response = await apiService.get('/feed?limit=50&skip=0');
 
-      final List<dynamic> data = jsonDecode(response.body);
-
-      final String userId = widget.userId ?? user?.id ?? "";
-
-      final filteredPosts = data.where((post) {
-        return post['author_id'] == userId;
-      }).toList();
-
-      setState(() {
-        posts = List<Map<String, dynamic>>.from(filteredPosts);
-        hasLoadedPosts = true;
-      });
-
-    } catch (e) {
-      logger.e("Error loading posts: $e");
-      setState(() => hasLoadedPosts = true);
-    }
-  }
   Future<void> _sendConnectionRequest() async {
     try {
       await userRepository.sendConnectionRequest(widget.userId!);
@@ -173,6 +152,12 @@ class _ProfilePageState extends State<ProfilePage> {
   @override
   Widget build(BuildContext context) {
     final bool isMyProfile = widget.userId == null;
+    final feedState = ref.watch(feedProvider);
+    
+    // Filter posts for this specific user from the global feed provider
+    final String targetUserId = widget.userId ?? user?.id ?? "";
+    final userPosts = feedState.posts.where((p) => p.authorId == targetUserId).toList();
+
     return Scaffold(
       backgroundColor: Colors.white,
       appBar: AppBar(
@@ -198,242 +183,235 @@ class _ProfilePageState extends State<ProfilePage> {
           ? const Center(child: CircularProgressIndicator())
           : user == null
               ? const Center(child: Text("Error Loading Profile"))
-              : SingleChildScrollView(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const SizedBox(height: 12),
-                      // Instagram-style profile header
-                      Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          // Profile picture on the left
-                          _buildProfilePhoto(user!),
-                          const SizedBox(width: 16),
-                          // Info column on the right
-                          Expanded(
-                            child: Padding(
-                              padding: const EdgeInsets.only(left: 10.0),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                mainAxisAlignment: MainAxisAlignment.start,
-                                children: [
-                                  // Name
-                                  Text(
-                                    user!.name,
-                                    style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                  ),
-                                  const SizedBox(height: 12),
-                                  // Stats row: Posts, Friends
-                                  Row(
-                                    mainAxisAlignment: MainAxisAlignment.start,
-                                    children: [
-                                      _buildStatColumn("Friends", user!.friendsCount.toString()),
-                                      const SizedBox(width: 35),
-                                      _buildStatColumn("Posts", posts.length.toString()),
-                                      const SizedBox(width: 35),
-                                      _buildStatColumn("Resources", "0"),
-                                    ],
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 16),
-                      // Batch info
-                      Text(
-                        "${user!.department}, Batch ${user!.batch}",
-                        style: const TextStyle(color: Colors.grey, fontSize: 12),
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                      const SizedBox(height: 12),
-                      // Edit Profile / Connect buttons - full width
-                      if (isMyProfile)
-                        SizedBox(
-                          height: 40,
-                          width: double.infinity,
-                          child: OutlinedButton(
-                            onPressed: () async {
-                              final updatedUser = await Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (context) => EditProfilePage(user: user!)
-                                ),
-                              );
-                              if (updatedUser != null && mounted) {
-                                setState(() {
-                                  user = updatedUser;
-                                });
-                              }
-                            },
-                            child: Text(
-                              "Edit Profile",
-                              style: TextStyle(color: blue, fontSize: 14),
-                            ),
-                          ),
-                        )
-                      else if (connectionStatus == "friends")
-                        SizedBox(
-                          height: 40,
-                          width: double.infinity,
-                          child: ElevatedButton(
-                            onPressed: !isMyProfile ? _showDisconnectDialog : null,
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: Colors.red,
-                            ),
-                            child: const Text("Unfriend", style: TextStyle(color: Colors.white, fontSize: 13)),
-                          ),
-                        )
-                      else if (connectionStatus == "outgoing_request")
-                        SizedBox(
-                          width: double.infinity,
-                          child: OutlinedButton(
-                            onPressed: _cancelConnectionRequest,
-                            style: OutlinedButton.styleFrom(
-                              side: BorderSide(color: blue),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                              padding: const EdgeInsets.symmetric(vertical: 10),
-                            ),
-                            child: Text(
-                              "Pending",
-                              style: TextStyle(color: blue, fontWeight: FontWeight.w600, fontSize: 13),
-                            ),
-                          ),
-                        )
-                      else if (!isMyProfile && connectionStatus != "incoming_request")
-                        SizedBox(
-                          width: double.infinity,
-                          child: ElevatedButton(
-                            onPressed: _sendConnectionRequest,
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: blue,
-                              padding: const EdgeInsets.symmetric(vertical: 10),
-                            ),
-                            child: const Text("Add Friend", style: TextStyle(color: Colors.white, fontSize: 13)),
-                          ),
-                        ),
-                      const SizedBox(height: 16),
-                      // Reject button for incoming requests
-                      if (!isMyProfile && connectionStatus == "incoming_request")
+              : RefreshIndicator(
+                  onRefresh: () => ref.read(feedProvider.notifier).refreshFeed(),
+                  child: SingleChildScrollView(
+                    physics: const AlwaysScrollableScrollPhysics(),
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const SizedBox(height: 12),
                         Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
+                            _buildProfilePhoto(user!),
+                            const SizedBox(width: 16),
                             Expanded(
-                              child: OutlinedButton(
-                                onPressed: _rejectRequest,
-                                child: const Text("Decline"),
-                              ),
-                            ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: ElevatedButton(
-                                onPressed: _acceptRequest,
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: blue,
+                              child: Padding(
+                                padding: const EdgeInsets.only(left: 10.0),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  mainAxisAlignment: MainAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      user!.name,
+                                      style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                    const SizedBox(height: 12),
+                                    Row(
+                                      mainAxisAlignment: MainAxisAlignment.start,
+                                      children: [
+                                        _buildStatColumn("Friends", user!.friendsCount.toString()),
+                                        const SizedBox(width: 35),
+                                        _buildStatColumn("Posts", userPosts.length.toString()),
+                                        const SizedBox(width: 35),
+                                        _buildStatColumn("Resources", "0"),
+                                      ],
+                                    ),
+                                  ],
                                 ),
-                                child: const Text("Accept"),
                               ),
                             ),
                           ],
                         ),
-
-                      const SizedBox(height: 12),
-                      Wrap(
-                        spacing: 8,
-                        runSpacing: 8,
-                        children: (user!.interests)
-                            .map((interest) => Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                                  decoration: BoxDecoration(
-                                    color: Colors.grey.shade100,
-                                    borderRadius: BorderRadius.circular(20),
-                                    border: Border.all(
-                                      color: const Color(0xFFE0E6ED),
-                                    ),
-                                  ),
-                                  child: Row(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      Text(interest.emoji, style: const TextStyle(fontSize: 14)),
-                                      const SizedBox(width: 6),
-                                      Text(
-                                        interest.name,
-                                        style: const TextStyle(
-                                          color: Color(0xFF334155),
-                                          fontSize: 12,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ))
-                            .toList(),
-                      ),
-                      const SizedBox(height: 20),
-                      const Align(
-                        alignment: Alignment.centerLeft,
-                        child: Text(
-                          "Posts",
-                          style: TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.w600,
-                          ),
+                        const SizedBox(height: 16),
+                        Text(
+                          "${user!.department}, Batch ${user!.batch}",
+                          style: const TextStyle(color: Colors.grey, fontSize: 12),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
                         ),
-                      ),
-                      const SizedBox(height: 12),
-                      if (!hasLoadedPosts)
-                        const Center(child: CircularProgressIndicator())
-                      else if (posts.isEmpty)
-                        Padding(
-                          padding: const EdgeInsets.all(20.0),
-                          child: Center(
-                            child: Column(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                Icon(
-                                  Icons.image_not_supported_outlined,
-                                  size: 48,
-                                  color: Colors.grey.shade400,
-                                ),
-                                const SizedBox(height: 12),
-                                Text(
-                                  "No posts yet",
-                                  style: TextStyle(
-                                    fontSize: 14,
-                                    color: Colors.grey.shade600,
-                                    fontWeight: FontWeight.w500,
+                        const SizedBox(height: 12),
+                        if (isMyProfile)
+                          SizedBox(
+                            height: 40,
+                            width: double.infinity,
+                            child: OutlinedButton(
+                              onPressed: () async {
+                                final updatedUser = await Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (context) => EditProfilePage(user: user!)
                                   ),
+                                );
+                                if (updatedUser != null && mounted) {
+                                  setState(() {
+                                    user = updatedUser;
+                                  });
+                                }
+                              },
+                              child: Text(
+                                "Edit Profile",
+                                style: TextStyle(color: blue, fontSize: 14),
+                              ),
+                            ),
+                          )
+                        else if (connectionStatus == "friends")
+                          SizedBox(
+                            height: 40,
+                            width: double.infinity,
+                            child: ElevatedButton(
+                              onPressed: !isMyProfile ? _showDisconnectDialog : null,
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: Colors.red,
+                              ),
+                              child: const Text("Unfriend", style: TextStyle(color: Colors.white, fontSize: 13)),
+                            ),
+                          )
+                        else if (connectionStatus == "outgoing_request")
+                          SizedBox(
+                            width: double.infinity,
+                            child: OutlinedButton(
+                              onPressed: _cancelConnectionRequest,
+                              style: OutlinedButton.styleFrom(
+                                side: BorderSide(color: blue),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(8),
                                 ),
-                              ],
+                                padding: const EdgeInsets.symmetric(vertical: 10),
+                              ),
+                              child: Text(
+                                "Pending",
+                                style: TextStyle(color: blue, fontWeight: FontWeight.w600, fontSize: 13),
+                              ),
+                            ),
+                          )
+                        else if (!isMyProfile && connectionStatus != "incoming_request")
+                          SizedBox(
+                            width: double.infinity,
+                            child: ElevatedButton(
+                              onPressed: _sendConnectionRequest,
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: blue,
+                                padding: const EdgeInsets.symmetric(vertical: 10),
+                              ),
+                              child: const Text("Add Friend", style: TextStyle(color: Colors.white, fontSize: 13)),
                             ),
                           ),
-                        )
-                      else
-                        GridView.builder(
-                          shrinkWrap: true,
-                          physics: const NeverScrollableScrollPhysics(),
-                          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                            crossAxisCount: 2,
-                            crossAxisSpacing: 8,
-                            mainAxisSpacing: 8,
-                            childAspectRatio: 1, // 🔥 dynamic height
+                        const SizedBox(height: 16),
+                        if (!isMyProfile && connectionStatus == "incoming_request")
+                          Row(
+                            children: [
+                              Expanded(
+                                child: OutlinedButton(
+                                  onPressed: _rejectRequest,
+                                  child: const Text("Decline"),
+                                ),
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: ElevatedButton(
+                                  onPressed: _acceptRequest,
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: blue,
+                                  ),
+                                  child: const Text("Accept"),
+                                ),
+                              ),
+                            ],
                           ),
-                          itemCount: posts.length,
-                          itemBuilder: (context, index) {
-                            return _buildPostCard(context, posts[index]);
-                          },
+                        const SizedBox(height: 12),
+                        Wrap(
+                          spacing: 8,
+                          runSpacing: 8,
+                          children: (user!.interests)
+                              .map((interest) => Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                                    decoration: BoxDecoration(
+                                      color: Colors.grey.shade100,
+                                      borderRadius: BorderRadius.circular(20),
+                                      border: Border.all(
+                                        color: const Color(0xFFE0E6ED),
+                                      ),
+                                    ),
+                                    child: Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        Text(interest.emoji, style: const TextStyle(fontSize: 14)),
+                                        const SizedBox(width: 6),
+                                        Text(
+                                          interest.name,
+                                          style: const TextStyle(
+                                            color: Color(0xFF334155),
+                                            fontSize: 12,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ))
+                              .toList(),
                         ),
-                    ],
+                        const SizedBox(height: 20),
+                        const Align(
+                          alignment: Alignment.centerLeft,
+                          child: Text(
+                            "Posts",
+                            style: TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        if (feedState.isLoading && userPosts.isEmpty)
+                          const Center(child: CircularProgressIndicator())
+                        else if (userPosts.isEmpty)
+                          Padding(
+                            padding: const EdgeInsets.all(20.0),
+                            child: Center(
+                              child: Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Icon(
+                                    Icons.image_not_supported_outlined,
+                                    size: 48,
+                                    color: Colors.grey.shade400,
+                                  ),
+                                  const SizedBox(height: 12),
+                                  Text(
+                                    "No posts yet",
+                                    style: TextStyle(
+                                      fontSize: 14,
+                                      color: Colors.grey.shade600,
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          )
+                        else
+                          GridView.builder(
+                            shrinkWrap: true,
+                            physics: const NeverScrollableScrollPhysics(),
+                            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                              crossAxisCount: 2,
+                              crossAxisSpacing: 8,
+                              mainAxisSpacing: 8,
+                              childAspectRatio: 1,
+                            ),
+                            itemCount: userPosts.length,
+                            itemBuilder: (context, index) {
+                              return _buildPostCard(context, userPosts[index]);
+                            },
+                          ),
+                      ],
+                    ),
                   ),
                 ),
-      bottomNavigationBar:
-          isMyProfile ? const CustomNavBar(currentIndex: 4) : null,
     );
   }
 
@@ -470,22 +448,20 @@ class _ProfilePageState extends State<ProfilePage> {
     );
   }
 
-  Widget _buildPostCard(BuildContext context, Map<String, dynamic> post) {
-    final mediaUrls = post["media_urls"];
+  Widget _buildPostCard(BuildContext context, Post post) {
+    final mediaUrls = post.mediaUrls;
 
     String imageUrl = "";
-    if (mediaUrls != null && mediaUrls is List && mediaUrls.isNotEmpty) {
-      imageUrl = mediaUrls[0] ?? "";
+    if (mediaUrls.isNotEmpty) {
+      imageUrl = mediaUrls[0];
     }
 
-    final String caption = post["content"] ?? post["title"] ?? "";
+    final String caption = post.content;
     final bool hasImage = imageUrl.isNotEmpty;
 
     return ClipRRect(
       borderRadius: BorderRadius.circular(12),
       child: hasImage
-
-          /// 🔥 IMAGE TILE WITH CAPTION OVERLAY
           ? Stack(
               children: [
                 Positioned.fill(
@@ -494,8 +470,6 @@ class _ProfilePageState extends State<ProfilePage> {
                     fit: BoxFit.cover,
                   ),
                 ),
-
-                /// 🔥 CAPTION OVERLAY (Instagram style)
                 if (caption.isNotEmpty)
                   Positioned(
                     bottom: 6,
@@ -521,8 +495,6 @@ class _ProfilePageState extends State<ProfilePage> {
                   ),
               ],
             )
-
-          /// 🔥 TEXT-ONLY TILE (CLEAN GRID STYLE)
           : Container(
               color: Colors.grey.shade200,
               alignment: Alignment.center,

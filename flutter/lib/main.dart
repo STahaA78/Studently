@@ -25,20 +25,20 @@ void main() async {
     await Firebase.initializeApp(
       options: DefaultFirebaseOptions.currentPlatform,
     );
-    // runApp(
-    //   ProviderScope(
-    //     child: DevicePreview(
-    //       enabled: true , // Set to false to disable Device Preview
-    //       builder: (context) => const MyApp(), // Wrap your app
-    //     ),
-    //   ),
-    // );
-    // runApp(const MyApp());
     runApp(
-      const ProviderScope(
-        child: MyApp(),
+      ProviderScope(
+        child: DevicePreview(
+          enabled: true , // Set to false to disable Device Preview
+          builder: (context) => const MyApp(), // Wrap your app
+        ),
       ),
     );
+    //runApp(const MyApp());
+    // runApp(
+    //   const ProviderScope(
+    //     child: MyApp(),
+    //   ),
+    // );
 } 
 
 class MyApp extends StatelessWidget {

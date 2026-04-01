@@ -1,80 +1,36 @@
 import 'package:flutter/material.dart';
-import 'package:studently/screens/community_feed_page.dart';
-import 'package:studently/screens/discover_main.dart';
-import 'package:studently/screens/profile_main.dart';
-import 'package:studently/screens/knowledge_hub_main.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:studently/screens/main_screen.dart';
 import 'package:studently/screens/create_post_page.dart';
 
-class CustomNavBar extends StatelessWidget {
+class CustomNavBar extends ConsumerWidget {
   final int currentIndex;
 
   const CustomNavBar({super.key, required this.currentIndex});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     const Color blue = Color(0xFF1976D2);
 
     void onItemTapped(int index) async {
-      if (index == currentIndex) return;
-
-      Widget? destination;
-
-      switch (index) {
-        case 0:
-          destination = const CommunityFeedPage();
-          break;
-
-        case 1:
-          destination = const ConnectDiscoverPage();
-          break;
-
-        case 2:
-          final created = await Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (_) => const CreatePostPage(),
-            ),
-          );
-
-          if (created == true) {
-            if (!context.mounted) return;
-            Navigator.pushAndRemoveUntil(
-              context,
-              PageRouteBuilder(
-                pageBuilder: (_, _, _) => const CommunityFeedPage(),
-                transitionDuration: const Duration(milliseconds: 200),
-                transitionsBuilder: (_, animation, _, child) {
-                  return FadeTransition(opacity: animation, child: child);
-                },
-              ),
-              (route) => false,
-            );
-          }
-          return;
-
-        case 3:
-          destination = const KnowledgeHubPage();
-          break;
-
-        case 4:
-          destination = const ProfilePage();
-          break;
-      }
-
-      if (destination != null) {
-        if (!context.mounted) return;
-        Navigator.pushAndRemoveUntil(
+      // If "Add Post" (middle button) is tapped
+      if (index == 2) {
+        final created = await Navigator.push(
           context,
-          PageRouteBuilder(
-            pageBuilder: (_, _, _) => destination!,
-            transitionDuration: const Duration(milliseconds: 200),
-            transitionsBuilder: (_, animation, _, child) {
-              return FadeTransition(opacity: animation, child: child);
-            },
+          MaterialPageRoute(
+            builder: (_) => const CreatePostPage(),
           ),
-          (route) => false,
         );
+
+        // If a post was created, return to Feed (index 0)
+        if (created == true) {
+          ref.read(navigationIndexProvider.notifier).setIndex(0);
+        }
+        return;
       }
+
+      // For all other tabs, update the navigation index via notifier
+      ref.read(navigationIndexProvider.notifier).setIndex(index);
     }
 
     return BottomNavigationBar(

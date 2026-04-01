@@ -4,142 +4,98 @@ import 'package:image_picker/image_picker.dart';
 import '../models/post.dart';
 import '../services/api.dart';
 import 'package:studently/services/firebase_auth.dart'; 
+import 'package:studently/logger.dart';
 
 class PostRepository {
 
   final ApiService api = ApiService();
 
   /// GET FEED
-Future<List<Post>> getFeed({int skip = 0, int limit = 10}) async {
+  Future<List<Post>> getFeed({int skip = 0, int limit = 10}) async {
 
-  final response = await api.get(
-    '/feed?limit=$limit&skip=$skip',
-  );
+    final response = await api.get(
+      '/feed?limit=$limit&skip=$skip',
+    );
 
-  final List<dynamic> jsonData = jsonDecode(response.body);
-    
-    // 2. Map the raw JSON objects into your strongly-typed Post models
-  return jsonData.map((e) => Post.fromJson(e as Map<String, dynamic>)).toList();
-}
+    final List<dynamic> jsonData = jsonDecode(response.body);
+      
+    return jsonData.map((e) => Post.fromJson(e as Map<String, dynamic>)).toList();
+  }
 
   /// LIKE POST
   Future<void> likePost(String postId) async {
-
-    final token = await authService.value.getIdToken();
-
-    await http.post(
-      Uri.parse(api.getCompleteUrl("/feed/$postId/like")),
-      headers: {
-        "Authorization": "Bearer $token",
-        "Content-Type": "application/json"
-      },
-    );
+    await api.post("/feed/$postId/like");
   }
 
   /// ADD COMMENT
   Future<void> addComment(String postId, String text) async {
-
-    final token = await authService.value.getIdToken();
-
-    await http.post(
-      Uri.parse(api.getCompleteUrl("/feed/$postId/comment")),
-      headers: {
-        "Authorization": "Bearer $token",
-        "Content-Type": "application/json"
-      },
-      body: jsonEncode({
-        "content": text
-      }),
+    await api.post(
+      "/feed/$postId/comment",
+      body: {"content": text},
     );
   }
 
   /// DELETE COMMENT
   Future<void> deleteComment(String postId, int commentIndex) async {
-
-    final token = await authService.value.getIdToken();
-
-    final response = await http.delete(
-      Uri.parse(api.getCompleteUrl("/feed/$postId/comment/$commentIndex")),
-      headers: {
-        "Authorization": "Bearer $token",
-        "Content-Type": "application/json"
-      },
-    );
-
-    if (response.statusCode != 200) {
-      throw Exception("Failed to delete comment");
-    }
+    await api.delete("/feed/$postId/comment/$commentIndex");
   }
 
   /// CREATE POST (TEXT + IMAGE)
-Future<void> createPost(String content, XFile? image) async {
+  Future<Post> createPost(String content, XFile? image, {String? currentUserName, String? currentUserPic}) async {
 
-  final token = await authService.value.getIdToken();
+    final token = await authService.value.getIdToken();
 
-  var request = http.MultipartRequest(
-    "POST",
-    Uri.parse(api.getCompleteUrl("/feed/")),
-  );
+    var request = http.MultipartRequest(
+      "POST",
+      Uri.parse(api.getCompleteUrl("/feed/")),
+    );
 
-  request.headers["Authorization"] = "Bearer $token";
+    request.headers["Authorization"] = "Bearer $token";
 
-  request.fields["content"] = content;
+    request.fields["content"] = content;
 
-  if (image != null) {
-    request.files.add(
-      http.MultipartFile.fromBytes(
-        "file",
-        await image.readAsBytes(),
-        filename: image.name,
-      ),
+    if (image != null) {
+      request.files.add(
+        http.MultipartFile.fromBytes(
+          "file",
+          await image.readAsBytes(),
+          filename: image.name,
+        ),
+      );
+    }
+
+    final response = await request.send();
+
+    final responseData = await http.Response.fromStream(response);
+    
+    if (response.statusCode != 200 && response.statusCode != 201) {
+      logger.e("[$runtimeType] Create Post Failed: ${responseData.body}");
+      throw Exception("Failed to create post: ${response.statusCode}");
+    }
+
+    final Map<String, dynamic> jsonData = jsonDecode(responseData.body);
+    
+    // PATCH: If backend doesn't return author info, use provided current user info
+    if ((jsonData["author_name"] == null || jsonData["author_name"] == "") && currentUserName != null) {
+      jsonData["author_name"] = currentUserName;
+    }
+    if ((jsonData["author_pic"] == null || jsonData["author_pic"] == "") && currentUserPic != null) {
+      jsonData["author_pic"] = currentUserPic;
+    }
+
+    return Post.fromJson(jsonData);
+  }
+
+  /// DELETE POST
+  Future<void> deletePost(String postId) async {
+    await api.delete("/feed/$postId");
+  }
+
+  /// EDIT POST
+  Future<void> editPost(String postId, String content) async {
+    await api.put(
+      "/feed/$postId",
+      body: {"content": content},
     );
   }
-
-  final response = await request.send();
-
-  if (response.statusCode != 200) {
-    await http.Response.fromStream(response);
-    throw Exception("Failed to create post");
-  }
-}
-
-//Delete post 
-Future<void> deletePost(String postId) async {
-
-  final token = await authService.value.getIdToken();
-
-  final response = await http.delete(
-    Uri.parse(api.getCompleteUrl("/feed/$postId")),
-    headers: {
-      "Authorization": "Bearer $token",
-      "Content-Type": "application/json"
-    },
-  );
-
-  if (response.statusCode != 200) {
-    throw Exception("Failed to delete post");
-  }
-
-}
-//Edit post
-Future<void> editPost(String postId, String content) async {
-
-  final token = await authService.value.getIdToken();
-
-  final response = await http.put(
-    Uri.parse(api.getCompleteUrl("/feed/$postId")),
-    headers: {
-      "Authorization": "Bearer $token",
-      "Content-Type": "application/json",
-    },
-    body: jsonEncode({
-      "content": content
-    }),
-  );
-
-  if (response.statusCode != 200) {
-    throw Exception("Failed to update post");
-  }
-
-}
 }

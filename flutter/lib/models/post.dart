@@ -55,17 +55,17 @@ class Post {
 
   factory Post.fromJson(Map<String, dynamic> json) {
     return Post(
-      id: json["_id"],
-      authorId: json["author_id"],
-      authorName: json["author_name"],
+      id: json["_id"] ?? json["id"] ?? "",
+      authorId: json["author_id"] ?? "",
+      authorName: json["author_name"] ?? "",
       authorPic: json["author_pic"],
-      content: json["content"],
+      content: json["content"] ?? "",
       mediaUrls: List<String>.from(json["media_urls"] ?? []),
       likes: List<String>.from(json["likes"] ?? []),
       comments: (json["comments"] as List? ?? [])
           .map((e) => Comment.fromJson(e))
           .toList(),
-      timestamp: DateTime.parse(json["timestamp"].toString()).toLocal(),
+      timestamp: DateTime.parse(json["timestamp"]?.toString() ?? DateTime.now().toIso8601String()).toLocal(),
     );
   }
 

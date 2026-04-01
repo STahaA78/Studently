@@ -6,17 +6,18 @@ import 'package:studently/repositories/user.dart';
 import 'package:studently/providers/backend_config_provider.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:studently/screens/interests.dart';
+import '../providers/feed_provider.dart';
 
-class EditProfilePage extends StatefulWidget {
+class EditProfilePage extends ConsumerStatefulWidget {
   final User user;
 
   const EditProfilePage({super.key, required this.user});
 
   @override
-  State<EditProfilePage> createState() => _EditProfilePageState();
+  ConsumerState<EditProfilePage> createState() => _EditProfilePageState();
 }
 
-class _EditProfilePageState extends State<EditProfilePage> {
+class _EditProfilePageState extends ConsumerState<EditProfilePage> {
   final _formKey = GlobalKey<FormState>();
   late TextEditingController nameController;
   String? selectedDepartment;
@@ -83,6 +84,10 @@ class _EditProfilePageState extends State<EditProfilePage> {
     };
     try {
       final updatedUser = await UserRepository().updateUserProfile(updatedData);
+      
+      // Update the Global Feed State with the new name for all posts by this user
+      ref.read(feedProvider.notifier).updateAuthorName(updatedUser.id, updatedUser.name);
+
       if (!mounted) return;
       Navigator.pop(context, updatedUser);
     } catch (e) {
