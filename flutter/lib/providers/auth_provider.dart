@@ -1,25 +1,28 @@
 import 'dart:convert';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter_secure_storage/flutter_secure_storage.dart'; // Import storage
+import 'package:hive/hive.dart'; // Replaced flutter_secure_storage
 import 'package:studently/services/firebase_auth.dart'; 
 import 'package:studently/repositories/user.dart'; 
 import 'package:studently/models/user.dart'; 
 import 'package:studently/models/backend_config.dart'; 
 import 'package:studently/logger.dart';
+
 final userRepositoryProvider = Provider<UserRepository>((ref) {
   return UserRepository();
 });
+
 class AuthNotifier extends AsyncNotifier<User?> {
-  // 1. Initialize Storage and Keys inside the provider
-  final _storage = const FlutterSecureStorage();
+  // 1. Initialize Hive box reference 
+  // (Ensure Hive.openBox('authBox') is called in main.dart before the app runs)
+  final _authBox = Hive.box('authBox');
   static const _userKey = 'cached_user_profile';
 
   @override
   Future<User?> build() async {
     logger.i("[$runtimeType] build() started - Checking local disk and Firebase");
     
-    // 2. Try to get user from local disk first (for instant UI)
-    final String? localJson = await _storage.read(key: _userKey);
+    // 2. Synchronous read from Hive (No await needed!)
+    final String? localJson = _authBox.get(_userKey);
     User? cachedUser;
     
     if (localJson != null) {
@@ -50,8 +53,8 @@ class AuthNotifier extends AsyncNotifier<User?> {
     final userRepo = ref.read(userRepositoryProvider);
     final freshUser = await userRepo.fetchUserProfile(uid);
     
-    // Write to local disk
-    await _storage.write(key: _userKey, value: jsonEncode(freshUser.toJson()));
+    // 4. Synchronous write to Hive
+    _authBox.put(_userKey, jsonEncode(freshUser.toJson()));
     return freshUser;
   }
 
@@ -122,7 +125,9 @@ class AuthNotifier extends AsyncNotifier<User?> {
   Future<void> logout() async {
     logger.i("[$runtimeType] Logging out...");
     await authService.value.signOut();
-    await _storage.delete(key: _userKey); // Clear the disk
+    
+    // 5. Delete from Hive
+    await _authBox.delete(_userKey); 
     state = const AsyncValue.data(null);
   }
 
@@ -138,9 +143,9 @@ class AuthNotifier extends AsyncNotifier<User?> {
       final updatedUser = User(
         id: currentUser.id,
         email: currentUser.email,
-        password: currentUser.password,
+        // password: currentUser.password, <-- Removed as it's no longer in backend
         birthday: currentUser.birthday,
-        profilePhotoUrl: currentUser.profilePhotoUrl, // Preserves the photo!
+        profilePhotoUrl: currentUser.profilePhotoUrl, 
         name: updatedData['name'] ?? currentUser.name,
         department: updatedData['department'] ?? currentUser.department,
         batch: updatedData['batch'] ?? currentUser.batch,
@@ -154,18 +159,18 @@ class AuthNotifier extends AsyncNotifier<User?> {
 
       // 3. Update RAM and Disk instantly
       state = AsyncValue.data(updatedUser);
-      await _storage.write(key: _userKey, value: jsonEncode(updatedUser.toJson()));
+      _authBox.put(_userKey, jsonEncode(updatedUser.toJson()));
     }
   }
 
 
   Future<void> updateProfilePhoto(String imagePath) async {
     final userRepo = ref.read(userRepositoryProvider);
-    await userRepo.uploadProfilePhoto(imagePath); // 1. POST
+    await userRepo.uploadProfilePhoto(imagePath); 
     
     final firebaseUser = authService.value.currentUser;
     if (firebaseUser != null) {
-      await _refreshProfileInBackground(firebaseUser.uid); // 2. GET
+      await _refreshProfileInBackground(firebaseUser.uid); 
     }
   }
 
@@ -182,7 +187,7 @@ class AuthNotifier extends AsyncNotifier<User?> {
         id: currentUser.id,
         name: currentUser.name,
         email: currentUser.email,
-        password: currentUser.password,
+        // password: currentUser.password, <-- Removed
         birthday: currentUser.birthday,
         department: currentUser.department,
         batch: currentUser.batch,
@@ -195,7 +200,55 @@ class AuthNotifier extends AsyncNotifier<User?> {
 
       // 3. Update RAM and Disk
       state = AsyncValue.data(updatedUser);
-      await _storage.write(key: _userKey, value: jsonEncode(updatedUser.toJson()));
+      _authBox.put(_userKey, jsonEncode(updatedUser.toJson()));
+    }
+  }
+  Future<void> respondToFriendRequest(String requesterId, String action) async {
+    final currentUser = state.value;
+    if (currentUser == null) return;
+
+    // 1. Keep track of original state for rollback
+    final previousUser = currentUser;
+
+    // 2. OPTIMISTIC UPDATE: Only increment friend count if accepting
+    if (action == 'accept') {
+      final updatedUser = User(
+        id: currentUser.id,
+        name: currentUser.name,
+        email: currentUser.email,
+        birthday: currentUser.birthday,
+        department: currentUser.department,
+        batch: currentUser.batch,
+        interests: currentUser.interests,
+        profilePhotoUrl: currentUser.profilePhotoUrl,
+        friendsCount: (currentUser.friendsCount ?? 0) + 1, // Instantly +1
+        university: currentUser.university,
+        bio: currentUser.bio,
+      );
+
+      // Apply to UI and Cache immediately
+      state = AsyncValue.data(updatedUser);
+      _authBox.put(_userKey, jsonEncode(updatedUser.toJson()));
+    }
+
+    // 3. Send network request in the background
+    try {
+      final userRepo = ref.read(userRepositoryProvider);
+      
+      // Send dynamic action ('accept' or 'reject')
+      await userRepo.respondRequest(requesterId, action); 
+      
+      logger.i("[$runtimeType] Friend request $action on backend.");
+    } catch (e) {
+      // 4. ROLLBACK: If API fails, revert state if we changed it
+      logger.e("[$runtimeType] Failed to $action request. Rolling back.", error: e);
+      
+      if (action == 'accept') {
+        state = AsyncValue.data(previousUser);
+        _authBox.put(_userKey, jsonEncode(previousUser.toJson()));
+      }
+      
+      throw Exception("Failed to $action friend request. Please try again."); 
     }
   }
 }

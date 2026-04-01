@@ -16,7 +16,7 @@ import 'package:studently/models/course.dart';
 
 // Import the Auth Provider
 import 'package:studently/providers/auth_provider.dart';
-
+import 'package:hive_flutter/hive_flutter.dart';
 void main() async {
   EmailOTP.config(
     appName: "Studently",
@@ -27,7 +27,11 @@ void main() async {
   );
   
   WidgetsFlutterBinding.ensureInitialized();
+  // Initialize Hive for Web/Mobile
+  await Hive.initFlutter();
   
+  // Open the auth box before the app runs
+  await Hive.openBox('authBox');
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
   );
