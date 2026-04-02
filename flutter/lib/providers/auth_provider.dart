@@ -71,7 +71,7 @@ class AuthNotifier extends AsyncNotifier<User?> {
   // --- Actions ---
 
   Future<void> login(String email, String password) async {
-    state = const AsyncValue.loading();
+    state = const AsyncLoading<User?>().copyWithPrevious(state);
     try {
       await authService.value.signIn(email: email, password: password);
       final firebaseUser = authService.value.currentUser;
@@ -94,7 +94,7 @@ class AuthNotifier extends AsyncNotifier<User?> {
     required String batch,
     required List<Interest> interests, 
   }) async {
-    state = const AsyncValue.loading();
+    state = const AsyncLoading<User?>().copyWithPrevious(state);
     try {
       await authService.value.createAccount(email: email, password: password);
       final firebaseUser = authService.value.currentUser;
