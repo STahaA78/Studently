@@ -4,6 +4,8 @@ import '../models/post.dart';
 import '../repositories/post.dart';
 import 'package:studently/services/firebase_auth.dart';
 
+import '../providers/auth_provider.dart';
+
 class FeedState {
   final List<Post> posts;
   final bool isLoading;
@@ -117,14 +119,34 @@ class FeedNotifier extends Notifier<FeedState> {
     _skip = 0;
     try {
       final posts = await repository.getFeed(skip: _skip, limit: _limit);
+      
+      // Patch author info for current user to handle backend denormalization lag
+      final currentUser = ref.read(authProvider).value;
+      final patchedPosts = posts.map((post) {
+        if (currentUser != null && (post.authorId == currentUser.id || post.authorId.contains(currentUser.id))) {
+          return Post(
+            id: post.id,
+            authorId: post.authorId,
+            authorName: currentUser.name, // Latest name from local profile
+            authorPic: currentUser.profilePhotoUrl, // Latest photo from local profile
+            content: post.content,
+            mediaUrls: post.mediaUrls,
+            likes: post.likes,
+            comments: post.comments,
+            timestamp: post.timestamp,
+          );
+        }
+        return post;
+      }).toList();
+
       state = state.copyWith(
-        posts: posts,
+        posts: patchedPosts,
         isLoading: false,
         hasMore: posts.length >= _limit,
       );
       
       // Sync with Disk
-      _saveToHive(posts);
+      _saveToHive(patchedPosts);
     } catch (e) {
       state = state.copyWith(isLoading: false, error: e.toString());
     }
@@ -138,14 +160,33 @@ class FeedNotifier extends Notifier<FeedState> {
 
     try {
       final List<Post> newPosts = await repository.getFeed(skip: _skip, limit: _limit);
-      final List<Post> allPosts = [...state.posts, ...newPosts];
+      
+      // Patch author info for current user
+      final currentUser = ref.read(authProvider).value;
+      final patchedNewPosts = newPosts.map((post) {
+        if (currentUser != null && (post.authorId == currentUser.id || post.authorId.contains(currentUser.id))) {
+          return Post(
+            id: post.id,
+            authorId: post.authorId,
+            authorName: currentUser.name,
+            authorPic: currentUser.profilePhotoUrl,
+            content: post.content,
+            mediaUrls: post.mediaUrls,
+            likes: post.likes,
+            comments: post.comments,
+            timestamp: post.timestamp,
+          );
+        }
+        return post;
+      }).toList();
+
+      final List<Post> allPosts = [...state.posts, ...patchedNewPosts];
       state = state.copyWith(
         posts: allPosts,
         isFetchingMore: false,
         hasMore: newPosts.length >= _limit,
       );
       
-      // Optionally save first page only to hive to keep it lean
       if (_skip == 0) _saveToHive(allPosts);
     } catch (e) {
       state = state.copyWith(isFetchingMore: false, error: e.toString());
@@ -206,8 +247,11 @@ class FeedNotifier extends Notifier<FeedState> {
   }
 
   void updateAuthorName(String userId, String newName) {
+    print("DEBUG: updateAuthorName triggered for $userId -> $newName");
     final updatedPosts = state.posts.map((post) {
-      if (post.authorId == userId) {
+      // Use more flexible matching in case of ID format differences
+      if (post.authorId == userId || post.authorId.contains(userId) || userId.contains(post.authorId)) {
+        print("DEBUG: Matching post found! Updating ${post.authorName} to $newName");
         return Post(
           id: post.id,
           authorId: post.authorId,
