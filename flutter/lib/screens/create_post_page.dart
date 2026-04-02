@@ -1,14 +1,18 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../repositories/post.dart';
+import '../providers/feed_provider.dart';
+import '../providers/user_provider.dart';
 import 'package:image_picker/image_picker.dart';
-class CreatePostPage extends StatefulWidget {
+
+class CreatePostPage extends ConsumerStatefulWidget {
   const CreatePostPage({super.key});
 
   @override
-  State<CreatePostPage> createState() => _CreatePostPageState();
+  ConsumerState<CreatePostPage> createState() => _CreatePostPageState();
 }
 
-class _CreatePostPageState extends State<CreatePostPage> {
+class _CreatePostPageState extends ConsumerState<CreatePostPage> {
 
   final TextEditingController controller = TextEditingController();
   final PostRepository repository = PostRepository();
@@ -52,16 +56,26 @@ class _CreatePostPageState extends State<CreatePostPage> {
     });
 
     try {
+      final currentUser = ref.read(userProvider);
 
-      await repository.createPost(text, selectedImage);
+      await repository.createPost(
+        text, 
+        selectedImage,
+        currentUserName: currentUser?.name,
+        currentUserPic: currentUser?.profilePhotoUrl,
+      );
+      
+      // Update the Global Feed State immediately by refreshing
+      await ref.read(feedProvider.notifier).refreshFeed();
+
       if (!mounted) return;
       Navigator.pop(context, true);
 
     } catch (e) {
 
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text("Failed to create post"),
+        SnackBar(
+          content: Text("Failed to create post: $e"),
         ),
       );
 

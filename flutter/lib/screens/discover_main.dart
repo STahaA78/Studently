@@ -477,7 +477,6 @@ class _ConnectDiscoverPageState extends State<ConnectDiscoverPage> {
           ),
         ],
       ),
-      bottomNavigationBar: const CustomNavBar(currentIndex: 1),
     );
   }
 

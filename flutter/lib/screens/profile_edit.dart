@@ -7,6 +7,8 @@ import 'package:studently/providers/backend_config_provider.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:studently/screens/interests.dart';
 import 'package:studently/providers/auth_provider.dart';
+import '../providers/feed_provider.dart';
+
 class EditProfilePage extends ConsumerStatefulWidget {
   final User user;
 
@@ -83,6 +85,12 @@ class _EditProfilePageState extends ConsumerState<EditProfilePage> {
     };
     try {
       await ref.read(authProvider.notifier).updateProfile(updatedData);
+      
+      final updatedUser = ref.read(authProvider).value;
+      if (updatedUser != null) {
+        ref.read(feedProvider.notifier).updateAuthorName(updatedUser.id, updatedUser.name);
+      }
+
       if (!mounted) return;
       Navigator.pop(context); 
     } catch (e) {

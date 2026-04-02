@@ -1,7 +1,16 @@
+import 'package:hive/hive.dart';
+
+part 'post.g.dart';
+
+@HiveType(typeId: 0)
 class Comment {
+  @HiveField(0)
   final String userId;
+  @HiveField(1)
   final String username;
+  @HiveField(2)
   final String text;
+  @HiveField(3)
   final DateTime timestamp;
 
   Comment({
@@ -16,7 +25,7 @@ class Comment {
       userId: json["user_id"] ?? "",
       username: json["username"] ?? "",
       text: json["content"] ?? "",
-      timestamp: DateTime.parse(json["timestamp"].toString()).toLocal(),
+      timestamp: DateTime.parse(json["timestamp"]?.toString() ?? DateTime.now().toIso8601String()).toLocal(),
     );
   }
 
@@ -30,15 +39,25 @@ class Comment {
   }
 }
 
+@HiveType(typeId: 1)
 class Post {
+  @HiveField(0)
   final String id;
+  @HiveField(1)
   final String authorId;
+  @HiveField(2)
   final String authorName;
+  @HiveField(3)
   final String? authorPic;
+  @HiveField(4)
   final String content;
+  @HiveField(5)
   final List<String> mediaUrls;
+  @HiveField(6)
   List<String> likes;
+  @HiveField(7)
   List<Comment> comments;
+  @HiveField(8)
   final DateTime timestamp;
 
   Post({
@@ -55,17 +74,17 @@ class Post {
 
   factory Post.fromJson(Map<String, dynamic> json) {
     return Post(
-      id: json["_id"],
-      authorId: json["author_id"],
-      authorName: json["author_name"],
+      id: json["_id"] ?? json["id"] ?? "",
+      authorId: json["author_id"] ?? "",
+      authorName: json["author_name"] ?? "",
       authorPic: json["author_pic"],
-      content: json["content"],
+      content: json["content"] ?? "",
       mediaUrls: List<String>.from(json["media_urls"] ?? []),
       likes: List<String>.from(json["likes"] ?? []),
       comments: (json["comments"] as List? ?? [])
-          .map((e) => Comment.fromJson(e))
+          .map((e) => Comment.fromJson(Map<String, dynamic>.from(e)))
           .toList(),
-      timestamp: DateTime.parse(json["timestamp"].toString()).toLocal(),
+      timestamp: DateTime.parse(json["timestamp"]?.toString() ?? DateTime.now().toIso8601String()).toLocal(),
     );
   }
 

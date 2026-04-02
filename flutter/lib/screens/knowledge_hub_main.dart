@@ -432,9 +432,8 @@ class _KnowledgeHubPageState extends State<KnowledgeHubPage> {
                 ),
               ),
           ],
-        ),
-      ),
-      bottomNavigationBar: const CustomNavBar(currentIndex: 3),
-    );
-  }
-}
+          ),
+          ),
+          );
+          }
+          }
