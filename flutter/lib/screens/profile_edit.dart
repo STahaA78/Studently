@@ -84,10 +84,10 @@ class _EditProfilePageState extends ConsumerState<EditProfilePage> {
       'interests': interests,
     };
     try {
-      await ref.read(authProvider.notifier).updateProfile(updatedData);
+      final updatedUser = await ref.read(authProvider.notifier).updateProfile(updatedData);
       
-      final updatedUser = ref.read(authProvider).value;
       if (updatedUser != null) {
+        // Sync the new name across all posts in the feed instantly
         ref.read(feedProvider.notifier).updateAuthorName(updatedUser.id, updatedUser.name);
       }
 

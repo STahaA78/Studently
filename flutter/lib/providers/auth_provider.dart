@@ -126,7 +126,7 @@ class AuthNotifier extends AsyncNotifier<User?> {
     state = const AsyncValue.data(null);
   }
 
-  Future<void> updateProfile(Map<String, dynamic> updatedData) async {
+  Future<User?> updateProfile(Map<String, dynamic> updatedData) async {
     final userRepo = ref.read(userRepositoryProvider);
     
     // 1. Wait for FastAPI to confirm the save was successful
@@ -155,7 +155,9 @@ class AuthNotifier extends AsyncNotifier<User?> {
       // 3. Update RAM and Disk instantly
       state = AsyncValue.data(updatedUser);
       await _storage.write(key: _userKey, value: jsonEncode(updatedUser.toJson()));
+      return updatedUser;
     }
+    return null;
   }
 
 
