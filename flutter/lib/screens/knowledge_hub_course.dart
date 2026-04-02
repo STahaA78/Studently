@@ -74,22 +74,13 @@ class _RepositoryUserPageState extends ConsumerState<RepositoryUserPage>
                   IconButton(
                     icon: const Icon(Icons.add, color: Colors.black, size: 28),
                     onPressed: () async {
-                      final success = await Navigator.push(
+                      await Navigator.push(
                         context,
                         MaterialPageRoute(
                           builder: (context) => AddResourcePage(course: widget.course),
                         ),
                       );
-                      if (success == true) {
-                        if (!context.mounted) return;
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text("Resource uploaded successfully!"),
-                            backgroundColor: Colors.green,
-                          ),
-                        );
-                        // Provider was already refreshed in upload page, no need to invalidate here
-                      }
+                      // Upload page shows success notification, no need for another here
                     },
                   ),
                   const SizedBox(width: 8),
@@ -191,18 +182,9 @@ class _RepositoryUserPageState extends ConsumerState<RepositoryUserPage>
   Widget _buildRefreshableFileList(String resourceType, Color blue) {
     return RefreshIndicator(
       onRefresh: () async {
-        // Pull-to-refresh: Force fresh fetch using the fresh provider
-        try {
-          // This fetches fresh data from API and caches it
-          await ref.refresh(resourcesCourseFreshProvider(widget.course.code).future);
-          logger.i("[$runtimeType] Refresh completed, got fresh data from API");
-          // Now refresh the main provider to update UI with fresh cached data
-          await ref.refresh(resourcesByCourseProvider(widget.course.code).future);
-          logger.i("[$runtimeType] Main provider refreshed with new cache");
-        } catch (e) {
-          logger.e("[$runtimeType] Refresh failed: $e");
-          rethrow;
-        }
+        // Use the custom refresh function from provider
+        final refresh = ref.read(refreshResourcesForCourseProvider(widget.course.code));
+        await refresh();
       },
       child: _buildFileList(resourceType, blue),
     );

@@ -263,17 +263,19 @@ class _AddResourcePageState extends ConsumerState<AddResourcePage> {
 
       logger.i("File Upload Ended - Upload Successful");
 
-      // Refresh fresh resources to fetch from backend in proper sequence
+      // Refresh fresh resources to fetch from backend using the custom refresh provider
       try {
-        // Step 1: Fetch fresh data from API and cache it
-        await ref.refresh(resourcesCourseFreshProvider(widget.course.code).future);
-        logger.i("Fresh resources fetched and cached from API");
-        
-        // Step 2: Refresh main provider to pull the updated cache
-        await ref.refresh(resourcesByCourseProvider(widget.course.code).future);
-        logger.i("Main provider updated with fresh cache");
+        final refresh = ref.read(refreshResourcesForCourseProvider(widget.course.code));
+        await refresh();
+        logger.i("Resources refreshed after upload");
       } catch (e) {
         logger.e("Error refreshing resources after upload: $e");
+      }
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("Resource Uploaded Successfully")),
+        );
       }
 
       // Close the screen and notify success

@@ -152,11 +152,9 @@ class _KnowledgeHubPageState extends ConsumerState<KnowledgeHubPage> {
       body: SafeArea(
         child: RefreshIndicator(
           onRefresh: () async {
-            // Pull-to-refresh: Force fresh fetch using the fresh provider
-            // This fetches fresh data from API and caches it
-            await ref.refresh(allCoursesFreshProvider.future);
-            // Now refresh the main provider to update UI with fresh cached data
-            await ref.refresh(allCoursesProvider.future);
+            // Use the custom refresh function from provider
+            final refresh = ref.read(refreshAllCoursesProvider);
+            await refresh();
           },
           child: coursesAsyncValue.when(
             loading: () => const Center(child: CircularProgressIndicator()),

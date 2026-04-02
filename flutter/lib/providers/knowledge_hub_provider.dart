@@ -118,7 +118,33 @@ final resourceUploadFunctionProvider = Provider<Future<void> Function({
 
 // ==================== CACHE MANAGEMENT UTILITIES ====================
 
-/// Helper provider for cache refresh - use ref.invalidate(allCoursesProvider)
+/// Custom refresh function for courses - fetches fresh from API then updates cache
+final refreshAllCoursesProvider = Provider<Future<void> Function()>((ref) {
+  return () async {
+    // ignore: unused_result
+    ref.refresh(allCoursesFreshProvider);
+    // Wait for fresh data to be fetched and cached
+    await ref.watch(allCoursesFreshProvider.future);
+    // Invalidate main provider to pick up updated cache
+    ref.invalidate(allCoursesProvider);
+  };
+});
+
+/// Custom refresh function for course resources - fetches fresh from API then updates cache
+/// Parameters: courseId (e.g., "CS101")
+final refreshResourcesForCourseProvider = 
+    Provider.family<Future<void> Function(), String>((ref, courseId) {
+  return () async {
+    // ignore: unused_result
+    ref.refresh(resourcesCourseFreshProvider(courseId));
+    // Wait for fresh data to be fetched and cached
+    await ref.watch(resourcesCourseFreshProvider(courseId).future);
+    // Invalidate main provider to pick up updated cache
+    ref.invalidate(resourcesByCourseProvider);
+  };
+});
+
+/// Helper provider for cache invalidation - use ref.invalidate(allCoursesProvider)
 /// Example usage:
 ///   ref.invalidate(allCoursesProvider);  // Refresh courses cache
 ///   ref.invalidate(resourcesByCourseProvider(courseCode));  // Refresh specific course resources
