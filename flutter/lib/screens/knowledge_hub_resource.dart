@@ -39,6 +39,7 @@ class _PdfGalleryScreenState extends ConsumerState<PdfGalleryScreen> {
   Widget build(BuildContext context) {
     // Access the current item for the App Bar title
     final currentItem = widget.resources[_currentIndex];
+    final totalResources = widget.resources.length;
 
     return Scaffold(
       appBar: AppBar(
@@ -51,17 +52,29 @@ class _PdfGalleryScreenState extends ConsumerState<PdfGalleryScreen> {
               color: Colors.black87),
           onPressed: () => Navigator.pop(context),
         ),
-        title: Text(
-          "${currentItem.year} - ${currentItem.semester}",
-          style: const TextStyle(
-            color: Colors.black,
-            fontWeight: FontWeight.w600,
-            fontSize: 20,
-          ),
+        title: Column(
+          children: [
+            Text(
+              "${currentItem.year} - ${currentItem.semester}",
+              style: const TextStyle(
+                color: Colors.black,
+                fontWeight: FontWeight.w600,
+                fontSize: 20,
+              ),
+            ),
+            Text(
+              "${_currentIndex + 1} of $totalResources",
+              style: const TextStyle(
+                color: Colors.grey,
+                fontWeight: FontWeight.w500,
+                fontSize: 12,
+              ),
+            ),
+          ],
         ),
         centerTitle: true,
         bottom: PreferredSize(
-          preferredSize: const Size.fromHeight(8), // distance below AppBar
+          preferredSize: const Size.fromHeight(8),
           child: SizedBox(),
         ),
       ),
