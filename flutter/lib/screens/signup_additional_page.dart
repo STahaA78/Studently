@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:studently/models/user.dart';
-import 'package:studently/logger.dart';
 import 'package:studently/screens/interests.dart';
 import 'package:studently/providers/backend_config_provider.dart';
 import 'package:studently/utils/constants.dart';

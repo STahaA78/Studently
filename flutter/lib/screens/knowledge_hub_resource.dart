@@ -1,43 +1,38 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
-import 'package:studently/models/resource.dart';
-import 'package:studently/repositories/resource.dart';
-import 'package:studently/services/firebase_auth.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:studently/models/knowledge_hub.dart';
+import 'package:studently/providers/knowledge_hub_provider.dart';
+import 'package:studently/storage/knowledge_hub.dart';
 import 'package:syncfusion_flutter_pdfviewer/pdfviewer.dart';
 import 'package:studently/logger.dart';
+import 'dart:typed_data';
 
-class PdfGalleryScreen extends StatefulWidget {
+class PdfGalleryScreen extends ConsumerStatefulWidget {
   final List<ResourceItem> resources;
   final int initialIndex;
+  final String courseCode;
 
   const PdfGalleryScreen({
     super.key,
     required this.resources,
     required this.initialIndex,
+    required this.courseCode,
   });
 
   @override
-  State<PdfGalleryScreen> createState() => _PdfGalleryScreenState();
+  ConsumerState<PdfGalleryScreen> createState() => _PdfGalleryScreenState();
 }
 
-class _PdfGalleryScreenState extends State<PdfGalleryScreen> {
+class _PdfGalleryScreenState extends ConsumerState<PdfGalleryScreen> {
   late PageController _pageController;
   late int _currentIndex; // Track current page for the title
-  late Map<String, String> _headers; // Get token once for all requests
+
   @override
   void initState() {
     super.initState();
-    _headers = {}; // Initialize with empty map first
     _currentIndex = widget.initialIndex;
     _pageController = PageController(initialPage: widget.initialIndex);
-    
-    // Fetch token and update headers
-    authService.value.getIdToken().then((token) {
-      setState(() {
-        _headers = {
-          "Authorization": "Bearer $token",
-        };
-      });
-    });
   }
 
   @override
@@ -81,18 +76,19 @@ class _PdfGalleryScreenState extends State<PdfGalleryScreen> {
         },
         itemBuilder: (context, index) {
           final item = widget.resources[index];
-          
+          final downloadUrl = ref.watch(resourceDownloadUrlProvider(item.id));
+          final localFilePath =
+              ref.watch(resourceLocalFilePathProvider((widget.courseCode, item.id)));
+
           return Column(
             children: [
               Expanded(
-                child: SfPdfViewer.network(
-                  ResourceRepository().getDownloadUrl(item.id),
-                  // IMPORTANT: Key ensures the viewer resets correctly on swipe
-                  key: ValueKey(item.id), 
-                  headers: _headers,
-                  onDocumentLoadFailed: (details) {
-                    logger.e("Error: ${details.error} - ${details.description}");
-                  },
+                child: _buildPdfViewer(
+                  context,
+                  ref,
+                  item,
+                  downloadUrl,
+                  localFilePath,
                 ),
               ),
             ],
@@ -100,5 +96,122 @@ class _PdfGalleryScreenState extends State<PdfGalleryScreen> {
         },
       ),
     );
+  }
+
+  /// Build PDF viewer with support for local cached files
+  Widget _buildPdfViewer(
+    BuildContext context,
+    WidgetRef ref,
+    ResourceItem item,
+    String downloadUrl,
+    String? localFilePath,
+  ) {
+    // If local file exists and is accessible, use it
+    if (localFilePath != null && localFilePath.isNotEmpty) {
+      final file = File(localFilePath);
+      if (file.existsSync()) {
+        logger.i('Using cached local file: $localFilePath');
+        return SfPdfViewer.file(
+          file,
+          key: ValueKey(item.id),
+          onDocumentLoadFailed: (details) {
+            logger.e("Error loading local file: ${details.error} - ${details.description}");
+          },
+        );
+      }
+    }
+
+    // Otherwise, download from network and optionally cache it
+    return FutureBuilder<Uint8List>(
+      future: _downloadAndCacheFile(context, ref, item),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return Center(
+            child: const CircularProgressIndicator(),
+            );
+        }
+
+        if (snapshot.hasError) {
+          return Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Icon(Icons.error, color: Colors.red, size: 48),
+                const SizedBox(height: 16),
+                Text('Error: ${snapshot.error}'),
+              ],
+            ),
+          );
+        }
+
+        if (snapshot.hasData) {
+          return SfPdfViewer.memory(
+            snapshot.data!,
+            key: ValueKey(item.id),
+            onDocumentLoadFailed: (details) {
+              logger.e("Error: ${details.error} - ${details.description}");
+            },
+          );
+        }
+
+        return const Center(child: Text('No data'));
+      },
+    );
+  }
+
+  /// Download file and cache it locally
+  Future<Uint8List> _downloadAndCacheFile(
+    BuildContext context,
+    WidgetRef ref,
+    ResourceItem item,
+  ) async {
+    try {
+      final fileBytes = await ref.read(
+        downloadResourceFileProvider(item.id).future,
+      );
+
+      // Save to local storage asynchronously
+      _savePdfLocally(ref, item, fileBytes);
+
+      return fileBytes;
+    } catch (e) {
+      logger.e('Error downloading file: $e');
+      rethrow;
+    }
+  }
+
+  /// Save PDF file locally and update resource path
+  void _savePdfLocally(
+    WidgetRef ref,
+    ResourceItem item,
+    Uint8List fileBytes,
+  ) async {
+    try {
+      final storage = KnowledgeHubStorage();
+      final cacheDir = await storage.getDownloadsCacheDir();
+      
+      // Create file path
+      final fileName = '${item.id}.pdf';
+      final filePath = '$cacheDir/$fileName';
+      final file = File(filePath);
+
+      // Save file
+      await file.writeAsBytes(fileBytes);
+      logger.i('File saved locally: $filePath');
+
+      // Update resource with local path in storage
+      await storage.updateResourceWithLocalPath(
+        widget.courseCode,
+        item.id,
+        filePath,
+      );
+      logger.i('Resource updated with local path');
+      
+      // Refresh provider to reflect new local path
+      ref.invalidate(saveResourceLocalPathProvider);
+    } catch (e) {
+      logger.e('Error saving PDF locally: $e');
+      // Don't rethrow - the file was already downloaded, just local caching failed
+    }
   }
 }

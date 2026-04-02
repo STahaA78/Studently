@@ -1,22 +1,22 @@
 import 'dart:io';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_image_compress/flutter_image_compress.dart';
 import 'package:pdf/widgets.dart' as pw;
-import 'package:studently/models/course.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:mime/mime.dart';
 import 'package:studently/logger.dart';
-import 'package:studently/models/resource.dart';
-import 'package:studently/repositories/resource.dart';
+import 'package:studently/models/knowledge_hub.dart';
+import 'package:studently/providers/knowledge_hub_provider.dart';
 
-class AddResourcePage extends StatefulWidget {
+class AddResourcePage extends ConsumerStatefulWidget {
   final Course course;
 
   const AddResourcePage({super.key, required this.course});
 
   @override
-  State<AddResourcePage> createState() => _AddResourcePageState();
+  ConsumerState<AddResourcePage> createState() => _AddResourcePageState();
 }
 
 enum UploadStatus { compressing, success, failed }
@@ -32,13 +32,12 @@ class UploadImage {
 }
 
 
-class _AddResourcePageState extends State<AddResourcePage> {
+class _AddResourcePageState extends ConsumerState<AddResourcePage> {
   final Color blue = const Color(0xFF1976D2);
 
   // Uploaded File
   File? _selectedPdf;
   List<UploadImage> _selectedImages = [];
-  bool _isUploading = false;
   // Form Fields
   String? _selectedType;
   String? _selectedSemester;
@@ -47,6 +46,9 @@ class _AddResourcePageState extends State<AddResourcePage> {
   // Text Controllers for Form Fields
   final TextEditingController _quizNumberController = TextEditingController();
   final TextEditingController _instructorController = TextEditingController();
+  
+  // Upload state
+  bool _isUploading = false;
 
   @override
   void dispose() {
@@ -193,9 +195,11 @@ class _AddResourcePageState extends State<AddResourcePage> {
       return;
     }
 
-    setState(() => _isUploading = true);
-
     try {
+      setState(() {
+        _isUploading = true;
+      });
+
       File fileToUpload;
 
       if (_selectedPdf != null) {
@@ -248,23 +252,45 @@ class _AddResourcePageState extends State<AddResourcePage> {
         isSolved: _isSolved,
       );
 
-      await ResourceRepository().uploadResource(
-        filePath: fileToUpload.path,
+      // Use the provider to upload the resource
+      final uploadFunction = ref.read(resourceUploadFunctionProvider);
+      await uploadFunction(
         resourceItemRequest: resourceItemRequest,
+        filePath: fileToUpload.path,
       );
 
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Upload successful")),
-      );
-    } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("Upload failed: $e")),
-      );
-    } finally {
-      setState(() => _isUploading = false);
+      if (!context.mounted) return;
+
       logger.i("File Upload Ended - Upload Successful");
+
+      // Refresh fresh resources to fetch from backend in proper sequence
+      try {
+        // Step 1: Fetch fresh data from API and cache it
+        await ref.refresh(resourcesCourseFreshProvider(widget.course.code).future);
+        logger.i("Fresh resources fetched and cached from API");
+        
+        // Step 2: Refresh main provider to pull the updated cache
+        await ref.refresh(resourcesByCourseProvider(widget.course.code).future);
+        logger.i("Main provider updated with fresh cache");
+      } catch (e) {
+        logger.e("Error refreshing resources after upload: $e");
+      }
+
+      // Close the screen and notify success
+      if (mounted) {
+        Navigator.pop(context, true);
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text("Upload failed: $e")),
+        );
+      }
+      logger.e("File Upload Error: $e");
+    } finally {
+      setState(() {
+        _isUploading = false;
+      });
     }
   }
 
@@ -294,6 +320,7 @@ class _AddResourcePageState extends State<AddResourcePage> {
   @override
   Widget build(BuildContext context) {
     final String courseDisplay = "${widget.course.code} - ${widget.course.name}";
+    final isUploading = _isUploading;
 
     return Scaffold(
       backgroundColor: Colors.white,
@@ -322,14 +349,12 @@ class _AddResourcePageState extends State<AddResourcePage> {
           child: SizedBox(
             width: double.infinity,
             child: ElevatedButton(
-              onPressed: (_isUploading || !_canSubmit)
+              onPressed: (isUploading || !_canSubmit)
                   ? null
                   : () async {
                       await _fileUpload();
-                      if (!context.mounted) return;
-                      Navigator.pop(context, true);
                     },
-              child: _isUploading
+              child: isUploading
                   ? const SizedBox(
                       height: 20,
                       width: 20,
@@ -476,12 +501,12 @@ class _AddResourcePageState extends State<AddResourcePage> {
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  const Text("Solved?", style: TextStyle(fontWeight: FontWeight.w600)),
-                  Switch(
+                  const Text("Solved", style: TextStyle(fontWeight: FontWeight.w600)),
+                  Checkbox(
                     value: _isSolved,
                     onChanged: (value) {
                       setState(() {
-                        _isSolved = value;
+                        _isSolved = value ?? false;
                       });
                     },
                   ),

@@ -3,7 +3,6 @@ import 'package:studently/services/firebase_auth.dart';
 import '../models/post.dart';
 import '../repositories/post.dart';
 import 'profile_main.dart';
-import 'user_profile_page.dart';
 
 class PostDetailsPage extends StatefulWidget {
   final Post postData;
@@ -367,8 +366,7 @@ class _PostDetailsPageState extends State<PostDetailsPage> {
     final bool isOwner = comment.userId == currentUid;
     final displayName = isOwner
       ? "You"
-      : (comment.username != null &&
-        comment.username.trim().isNotEmpty &&
+      : (comment.username.trim().isNotEmpty &&
         comment.username.toLowerCase() != "unknown"
           ? comment.username
           : "User");

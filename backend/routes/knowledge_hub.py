@@ -239,35 +239,56 @@ def download_resource(resource_id: str, user: dict = Depends(get_current_user)):
     LOGGER.info(f"Download request for resource {resource_id} initiated", extra={"uid": user})
 
     if not ObjectId.is_valid(resource_id):
-        raise HTTPException(status_code=400, detail="Invalid ID")
+        LOGGER.warning(f"Invalid ObjectId format: {resource_id}", extra={"uid": user})
+        raise HTTPException(status_code=400, detail="Invalid ID format")
         
     try:
-        resource = resources_collection.find_one({"_id": ObjectId(resource_id), "approved": True})
+        # Query the resource
+        try:
+            resource = resources_collection.find_one({"_id": ObjectId(resource_id), "approved": True})
+        except Exception as db_error:
+            LOGGER.error(f"Database query error: {db_error}", exc_info=True, extra={"uid": user})
+            raise HTTPException(status_code=500, detail="Database error while fetching resource")
+        
         if not resource:
-            raise HTTPException(status_code=404, detail="Resource not found")
+            LOGGER.warning(f"Resource not found or not approved: {resource_id}", extra={"uid": user})
+            raise HTTPException(status_code=404, detail="Resource not found or not approved")
 
         file_path = resource.get("filePath")
-        if not file_path or not os.path.isfile(file_path):
-            raise HTTPException(status_code=404, detail="File not found on server")
+        LOGGER.debug(f"Resource file path: {file_path}", extra={"uid": user})
+        
+        if not file_path:
+            LOGGER.error(f"Resource has no filePath: {resource_id}", extra={"uid": user})
+            raise HTTPException(status_code=500, detail="Resource does not have a file path")
+        
+        if not os.path.isfile(file_path):
+            LOGGER.error(f"File not found on server: {file_path}", extra={"uid": user})
+            raise HTTPException(status_code=404, detail=f"File not found on server: {file_path}")
 
         # Increment download count
-        resources_collection.update_one(
-            {"_id": ObjectId(resource_id)},
-            {"$inc": {"downloadCount": 1}}
-        )
+        try:
+            resources_collection.update_one(
+                {"_id": ObjectId(resource_id)},
+                {"$inc": {"downloadCount": 1}}
+            )
+        except Exception as update_error:
+            LOGGER.error(f"Failed to update download count: {update_error}", exc_info=True, extra={"uid": user})
+            # Don't fail the download if we can't increment the count
 
-        LOGGER.info(f"Resource {resource_id} Downloaded Request Successfull", extra={"uid": user})
+        LOGGER.info(f"Resource {resource_id} Downloaded Request Successful", extra={"uid": user})
         return FileResponse(
                 path=file_path,
-                media_type="application/pdf",   # IMPORTANT
+                media_type="application/pdf",
                 headers={
                     "Content-Disposition": f'inline; filename="{os.path.basename(file_path)}"',
                     "Accept-Ranges": "bytes",
                 },
             )
+    except HTTPException:
+        raise
     except Exception as e:
-        LOGGER.error(f"Error downloading resource: {e}", extra={"uid": user})
-        raise HTTPException(status_code=500, detail="Internal Server Error")
+        LOGGER.error(f"Unexpected error downloading resource {resource_id}: {e}", exc_info=True, extra={"uid": user})
+        raise HTTPException(status_code=500, detail=f"Internal Server Error: {str(e)}")
 
 @router.get("/resources/{course_id}",
             response_model=ResourceGroup,response_model_exclude_none=True

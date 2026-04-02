@@ -49,7 +49,7 @@ class _DirectMessagesPageState extends State<DirectMessagesPage>
 
   Future<void> _initWebSocket() async {
     await socketService.connect();
-    _socketSubscription ??= socketService.stream?.listen((event) {
+    _socketSubscription ??= socketService.stream.listen((event) {
       final payload = jsonDecode(event);
       if (payload['type'] == 'NEW_MESSAGE') {
         _fetchChats();

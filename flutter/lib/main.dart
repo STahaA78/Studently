@@ -1,17 +1,14 @@
 import 'package:flutter/material.dart';
-import 'package:device_preview/device_preview.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:studently/services/firebase_auth.dart';
 import 'package:studently/utils/constants.dart';
 // Firebase imports
 import 'package:firebase_core/firebase_core.dart';
 import 'firebase_options.dart';
 import 'package:email_otp/email_otp.dart';
-import 'screens/community_feed_page.dart';
-//import 'screens/knowledge_hub_page.dart';
-
-import 'screens/login_page.dart';  // Make sure this path matches your file location
-import 'package:studently/models/course.dart';
+import 'screens/login_page.dart';
+// Hive imports
+import 'package:studently/storage/knowledge_hub.dart';
+import 'package:studently/utils/hive_init.dart';
 
 void main() async {
     EmailOTP.config(
@@ -22,6 +19,14 @@ void main() async {
       emailTheme: EmailTheme.v1,
     );
     WidgetsFlutterBinding.ensureInitialized();
+    
+    // Initialize Hive with all adapters
+    await HiveInit.initializeHive();
+
+    // Initialize KnowledgeHubStorage
+    final khStorage = KnowledgeHubStorage();
+    await khStorage.init();
+    
     await Firebase.initializeApp(
       options: DefaultFirebaseOptions.currentPlatform,
     );

@@ -1,0 +1,127 @@
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:studently/models/knowledge_hub.dart';
+import 'package:studently/repositories/knowledge_hub.dart';
+import 'dart:typed_data';
+
+// ==================== REPOSITORY PROVIDER ====================
+/// Global singleton instance of KnowledgeHubRepository
+final knowledgeHubRepositoryProvider = Provider<KnowledgeHubRepository>((ref) {
+  return KnowledgeHubRepository();
+});
+
+// ==================== COURSES PROVIDERS ====================
+
+/// Provider for fetching all available courses with automatic caching
+/// - First load: Checks cache, returns if available, otherwise fetches from API
+/// - Pull-to-refresh: Use ref.read(allCoursesFreshProvider.future) to force API fetch
+final allCoursesProvider = FutureProvider<List<Course>>((ref) async {
+  final repository = ref.watch(knowledgeHubRepositoryProvider);
+  return repository.fetchAllCourses(); // Uses default forceRefresh: false (checks cache first)
+});
+
+/// Provider to get fresh courses from API (bypasses cache)
+/// Use only for pull-to-refresh scenarios
+final allCoursesFreshProvider = FutureProvider<List<Course>>((ref) async {
+  final repository = ref.watch(knowledgeHubRepositoryProvider);
+  return repository.fetchAllCourses(forceRefresh: true); // Bypass cache, fetch fresh
+});
+
+// ==================== RESOURCES PROVIDERS ====================
+
+/// Provider for fetching resources for a specific course with automatic caching
+/// Parameters: courseId (e.g., "CS101")
+/// - First load: Checks cache, returns if available, otherwise fetches from API
+final resourcesByCourseProvider = FutureProvider.family<ResourceGroup, String>(
+    (ref, courseId) async {
+  final repository = ref.watch(knowledgeHubRepositoryProvider);
+  return repository.fetchResourcesByCourse(courseId); // Uses default forceRefresh: false
+});
+
+/// Provider to get fresh resources from API for a course (bypasses cache)
+/// Use only for pull-to-refresh scenarios
+/// Parameters: courseId (e.g., "CS101")
+final resourcesCourseFreshProvider = FutureProvider.family<ResourceGroup, String>(
+    (ref, courseId) async {
+  final repository = ref.watch(knowledgeHubRepositoryProvider);
+  return repository.fetchResourcesByCourse(courseId, forceRefresh: true); // Bypass cache
+});
+
+/// Provider for fetching all resource groups
+final allResourceGroupsProvider =
+    FutureProvider<List<ResourceGroup>>((ref) async {
+  final repository = ref.watch(knowledgeHubRepositoryProvider);
+  return repository.fetchResourceGroups(forceRefresh: false);
+});
+
+// ==================== DOWNLOAD PROVIDERS ====================
+
+/// Provider for getting the download URL for a resource
+/// Parameters: resourceId
+final resourceDownloadUrlProvider = Provider.family<String, String>(
+  (ref, resourceId) {
+    final repository = ref.watch(knowledgeHubRepositoryProvider);
+    return repository.getDownloadUrl(resourceId);
+  },
+);
+
+/// Provider for downloading resource file content
+/// Parameters: resourceId
+final downloadResourceFileProvider =
+    FutureProvider.family<Uint8List, String>((ref, resourceId) async {
+  final repository = ref.watch(knowledgeHubRepositoryProvider);
+  return repository.downloadResourceFile(resourceId);
+});
+
+/// Provider for getting local file path of a cached resource
+/// Parameters: (courseCode, resourceId)
+final resourceLocalFilePathProvider = Provider.family<String?, (String, String)>(
+  (ref, params) {
+    final repository = ref.watch(knowledgeHubRepositoryProvider);
+    return repository.getLocalFilePath(params.$1, params.$2);
+  },
+);
+
+/// Provider to save resource local path
+final saveResourceLocalPathProvider = Provider.family<
+    Future<void> Function(String),
+    (String, String)
+>((ref, params) {
+  final repository = ref.watch(knowledgeHubRepositoryProvider);
+  return (String localFilePath) async {
+    await repository.updateResourceLocalPath(
+      params.$1,
+      params.$2,
+      localFilePath,
+    );
+  };
+});
+
+// ==================== UPLOAD PROVIDER ====================
+
+/// Provider for managing resource uploads
+/// Just use the repository method directly when needed
+final resourceUploadFunctionProvider = Provider<Future<void> Function({
+  required ResourceItemRequest resourceItemRequest,
+  required String filePath,
+})>((ref) {
+  final repository = ref.watch(knowledgeHubRepositoryProvider);
+  return ({
+    required ResourceItemRequest resourceItemRequest,
+    required String filePath,
+  }) async {
+    await repository.uploadResource(
+      resourceItemRequest: resourceItemRequest,
+      filePath: filePath,
+    );
+  };
+});
+
+// ==================== CACHE MANAGEMENT UTILITIES ====================
+
+/// Helper provider for cache refresh - use ref.invalidate(allCoursesProvider)
+/// Example usage:
+///   ref.invalidate(allCoursesProvider);  // Refresh courses cache
+///   ref.invalidate(resourcesByCourseProvider(courseCode));  // Refresh specific course resources
+/// 
+/// This ensures that on next read, the providers will fetch fresh data from API
+/// while still maintaining the fallback to cached data if API fails

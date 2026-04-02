@@ -66,7 +66,7 @@ class _ChatPageState extends State<ChatPage> {
       });
     });
 
-    _socketSubscription = socketService.stream?.listen((event) {
+    _socketSubscription = socketService.stream.listen((event) {
       final payload = jsonDecode(event);
       if (payload['type'] == 'NEW_MESSAGE' && 
           payload['data']['conversation_id'] == widget.conversationId) {
