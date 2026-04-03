@@ -8,8 +8,7 @@ import 'package:studently/models/user.dart';
 import 'package:studently/models/backend_config.dart';
 import 'package:studently/logger.dart';
 import 'package:studently/services/firebase_auth.dart';
-import 'package:studently/repositories/user.dart';
-import 'community_feed_page.dart';
+import 'package:studently/providers/auth_provider.dart';
 
 // Wrapper class to add selected state to Interest
 class InterestOption {
@@ -43,7 +42,6 @@ class _InterestsSelectionPageState extends ConsumerState<InterestsSelectionPage>
 
   late Map<String, List<InterestOption>> sections;
   String? _completionError;
-  bool _isLoading = false;
 
   @override
   void initState() {
@@ -51,81 +49,16 @@ class _InterestsSelectionPageState extends ConsumerState<InterestsSelectionPage>
     sections = {};
   }
 
-  Future<firebase_auth.User?> _registerFirebase() async {
-    logger.i("[InterestsSelectionPage] Firebase Registration Started");
-    try {
-      final user = await authService.value.createAccount(
-        email: widget.user!.email,
-        password: widget.user!.password!,
-      );
-      logger.i("[InterestsSelectionPage] Firebase Registration Successful");
-      return user;
-    } catch (e) {
-      logger.e("[InterestsSelectionPage] Firebase Registration Failed", error: e);
-      setState(() {
-        _completionError = 'Firebase authentication failed. Please try again.';
-      });
-      return null;
-    }
-  }
-
-  Future<bool> _registerBackend(String firebaseUid) async {
-    final userRepo = UserRepository();
-    try {
-      final success = await userRepo.registerUser(
-        uid: firebaseUid,
-        name: widget.user!.name,
-        email: widget.user!.email,
-        birthday: widget.user!.birthday!,
-        department: widget.user!.department!,
-        batch: widget.user!.batch!,
-        interests: selectedInterests,
-      );
-      if (!success) {
-        setState(() {
-          _completionError = 'Database sync failed. Please contact support.';
-        });
-      }
-      return success;
-    } catch (e) {
-      logger.e("[InterestsSelectionPage] Error sending user to backend", error: e);
-      setState(() {
-        _completionError = 'An error occurred. Please try again.';
-      });
-      return false;
-    }
-  }
-
   Future<void> _completeRegistration() async {
-    setState(() => _isLoading = true);
-    
-    final firebaseUser = await _registerFirebase();
-
-    if (firebaseUser != null) {
-      final backendSuccess = await _registerBackend(firebaseUser.uid);
-      if (!mounted) return; // Ensure widget is still mounted before updating state or navigating
-      if (backendSuccess) {
-        logger.i("[InterestsSelectionPage] Registration Completed Successfully, navigating to CommunityFeedPage");
-        Navigator.pushAndRemoveUntil(
-          context,
-          MaterialPageRoute(
-            builder: (_) => const CommunityFeedPage(),
-          ),
-          (route) => false,
-        );
-      } else {
-        logger.w("[InterestsSelectionPage] Backend registration failed, deleting Firebase user to prevent orphaned account");
-        logger.i("[InterestsSelectionPage] Deleting Firebase user with UID: ${firebaseUser.uid}");
-        try {
-          await firebaseUser.delete();
-        } catch (e) {
-          logger.e("[InterestsSelectionPage] Error deleting Firebase user", error: e);
-        }
-        if (mounted) setState(() => _isLoading = false);
-      }
-    } else {
-      if (mounted) setState(() => _isLoading = false);
-    }
+    ref.read(authProvider.notifier).signUp(
+      email: widget.user!.email,
+      password: widget.user!.password!,
+      name: widget.user!.name,
+      birthday: widget.user!.birthday!,
+      department: widget.user!.department!,
+      batch: widget.user!.batch!,
+      interests: selectedInterests,
+    );
   }
 
   void _handleCompletion() {
@@ -254,7 +187,23 @@ class _InterestsSelectionPageState extends ConsumerState<InterestsSelectionPage>
   Widget build(BuildContext context) {
     final Color blue = const Color(0xFF1976D2);
     final configAsyncValue = ref.watch(backendConfigProvider);
+    final authState = ref.watch(authProvider);
+    final isAuthLoading = authState.isLoading;
+    ref.listen(authProvider, (previous, next) {
+      // 1. Handle Success: If we now have a user, clear the signup stack
+      if (next is AsyncData && next.value != null) {
+        logger.i("[$runtimeType] Signup successful, clearing navigation stack.");
+        // This removes all signup screens and reveals the CommunityFeedPage at the root
+        Navigator.of(context).popUntil((route) => route.isFirst);
+      }
 
+      // 2. Handle Errors (Your existing code)
+      if (next is AsyncError) {
+        setState(() {
+          _completionError = next.error.toString().replaceAll('Exception: ', '');
+        });
+      }
+    });
     return Scaffold(
       backgroundColor: Colors.white,
       body: SafeArea(
@@ -395,12 +344,12 @@ class _InterestsSelectionPageState extends ConsumerState<InterestsSelectionPage>
                     width: double.infinity,
                     height: 56,
                     child: ElevatedButton(
-                      onPressed: (selectedCount > 0 && !_isLoading)
+                      onPressed: (selectedCount > 0 && !isAuthLoading)
                           ? () {
                               _handleCompletion();
                             }
                           : null,
-                      child: _isLoading
+                      child: isAuthLoading
                           ? SizedBox(
                               height: 24,
                               width: 24,

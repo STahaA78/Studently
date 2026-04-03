@@ -1,18 +1,19 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../widgets/custom_nav_bar.dart';
 import 'package:studently/models/user.dart';
 import 'package:studently/repositories/user.dart';
 import 'package:studently/logger.dart';
 import 'package:studently/screens/profile_main.dart';
-
-class RequestsPage extends StatefulWidget {
+import 'package:studently/providers/auth_provider.dart';
+class RequestsPage extends ConsumerStatefulWidget {
   const RequestsPage({super.key});
 
   @override
-  State<RequestsPage> createState() => _RequestsPageState();
+  ConsumerState<RequestsPage> createState() => _RequestsPageState();
 }
 
-class _RequestsPageState extends State<RequestsPage> {
+class _RequestsPageState extends ConsumerState<RequestsPage> {
   final Color primaryBlue = const Color(0xFF0F74C5);
 
   /// TEMP logged-in user id
@@ -34,23 +35,27 @@ class _RequestsPageState extends State<RequestsPage> {
     });
   }
 
-  // ---------------- RESPOND REQUEST ----------------
+ // ---------------- RESPOND REQUEST ----------------
   Future<void> respondRequest(String requesterId, String action) async {
     try {
-      await UserRepository().respondRequest(requesterId, action);
+      // 1. Tell Riverpod to handle the Optimistic Cache Update AND the API call
+      await ref.read(authProvider.notifier).respondToFriendRequest(requesterId, action);
+      
+      // 2. Refresh the list to remove the card they just clicked
       setState(() {
         _requestsFuture = UserRepository().fetchPendingRequests();
       });
-      if (!mounted) return;
-      Navigator.pop(context, true);
+      
+      // 3. (Removed the Navigator.pop so they can stay on the page and answer more requests)
+
     } catch (e) {
       logger.e("[RequestsPage] respondRequest failed: $e");
+      if (!mounted) return; // Good practice to keep this here before using context!
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("Failed to respond to request."), backgroundColor: Colors.red),
+        const SnackBar(content: Text("Failed to respond to request."), backgroundColor: Colors.red),
       );
     }
   }
-
   // ---------------- INITIALS ----------------
   String getInitials(String name) {
     if (name.trim().isEmpty) return "?";
