@@ -6,6 +6,7 @@ import 'package:studently/repositories/user.dart';
 import 'package:studently/models/user.dart'; 
 import 'package:studently/models/backend_config.dart'; 
 import 'package:studently/logger.dart';
+import 'dart:typed_data';
 
 final userRepositoryProvider = Provider<UserRepository>((ref) {
   return UserRepository();
@@ -71,7 +72,7 @@ class AuthNotifier extends AsyncNotifier<User?> {
   // --- Actions ---
 
   Future<void> login(String email, String password) async {
-    state = const AsyncLoading<User?>().copyWithPrevious(state);
+    state = const AsyncValue<User?>.loading();
     try {
       await authService.value.signIn(email: email, password: password);
       final firebaseUser = authService.value.currentUser;
@@ -94,7 +95,7 @@ class AuthNotifier extends AsyncNotifier<User?> {
     required String batch,
     required List<Interest> interests, 
   }) async {
-    state = const AsyncLoading<User?>().copyWithPrevious(state);
+    state = const AsyncValue<User?>.loading();
     try {
       await authService.value.createAccount(email: email, password: password);
       final firebaseUser = authService.value.currentUser;
@@ -135,38 +136,54 @@ class AuthNotifier extends AsyncNotifier<User?> {
     final userRepo = ref.read(userRepositoryProvider);
     
     // 1. Wait for FastAPI to confirm the save was successful
-    await userRepo.updateUserProfile(updatedData); 
+    await userRepo.updateUserProfile(updatedData);
     
-    final currentUser = state.value;
-    if (currentUser != null) {
-      // 2. Locally merge the newly saved data with the existing profile
-      final updatedUser = User(
-        id: currentUser.id,
-        email: currentUser.email,
-        // password: currentUser.password, <-- Removed as it's no longer in backend
-        birthday: currentUser.birthday,
-        profilePhotoUrl: currentUser.profilePhotoUrl, 
-        name: updatedData['name'] ?? currentUser.name,
-        department: updatedData['department'] ?? currentUser.department,
-        batch: updatedData['batch'] ?? currentUser.batch,
-        interests: updatedData['interests'] != null 
-            ? List<Interest>.from(updatedData['interests']) 
-            : currentUser.interests,
-        friendsCount: currentUser.friendsCount,
-        university: currentUser.university,
-        bio: currentUser.bio,
-      );
-
-      // 3. Update RAM and Disk instantly
-      state = AsyncValue.data(updatedUser);
-      _authBox.put(_userKey, jsonEncode(updatedUser.toJson()));
+    // 2. Fetch fresh profile data from backend to get all updated fields (including photoUrl)
+    final firebaseUser = authService.value.currentUser;
+    if (firebaseUser != null) {
+      try {
+        final freshUser = await _fetchAndSaveFreshProfile(firebaseUser.uid);
+        state = AsyncValue.data(freshUser);
+        logger.d("[$runtimeType] Profile updated and refreshed successfully");
+      } catch (e) {
+        logger.w("[$runtimeType] Failed to refresh profile after update: $e");
+        // Even if refresh fails, at least update with local data
+        final currentUser = state.value;
+        if (currentUser != null) {
+          final updatedUser = User(
+            id: currentUser.id,
+            email: currentUser.email,
+            birthday: currentUser.birthday,
+            profilePhotoUrl: currentUser.profilePhotoUrl,
+            name: updatedData['name'] ?? currentUser.name,
+            department: updatedData['department'] ?? currentUser.department,
+            batch: updatedData['batch'] ?? currentUser.batch,
+            interests: updatedData['interests'] != null
+                ? List<Interest>.from(updatedData['interests'])
+                : currentUser.interests,
+            friendsCount: currentUser.friendsCount,
+            university: currentUser.university,
+            bio: currentUser.bio,
+          );
+          state = AsyncValue.data(updatedUser);
+          _authBox.put(_userKey, jsonEncode(updatedUser.toJson()));
+        }
+      }
     }
   }
 
 
-  Future<void> updateProfilePhoto(String imagePath) async {
+  Future<void> updateProfilePhoto({
+    required String filePath,
+    Uint8List? fileBytes,
+    String? filename,
+  }) async {
     final userRepo = ref.read(userRepositoryProvider);
-    await userRepo.uploadProfilePhoto(imagePath); 
+    await userRepo.uploadProfilePhoto(
+      filePath: filePath,
+      fileBytes: fileBytes,
+      filename: filename,
+    ); 
     
     final firebaseUser = authService.value.currentUser;
     if (firebaseUser != null) {

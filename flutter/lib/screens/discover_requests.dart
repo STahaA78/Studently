@@ -6,6 +6,7 @@ import 'package:studently/repositories/user.dart';
 import 'package:studently/logger.dart';
 import 'package:studently/screens/profile_main.dart';
 import 'package:studently/providers/auth_provider.dart';
+import 'package:studently/utils/authenticated_image.dart';
 class RequestsPage extends ConsumerStatefulWidget {
   const RequestsPage({super.key});
 
@@ -182,7 +183,7 @@ class _RequestsPageState extends ConsumerState<RequestsPage> {
               backgroundColor: Colors.grey[300],
               backgroundImage: user.profilePhotoUrl != null &&
                       user.profilePhotoUrl!.isNotEmpty
-                  ? NetworkImage(user.profilePhotoUrl!)
+                  ? AuthenticatedNetworkImage(user.profilePhotoUrl!)
                   : null,
               child: user.profilePhotoUrl == null ||
                       user.profilePhotoUrl!.isEmpty

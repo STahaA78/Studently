@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/foundation.dart'; // Added for kReleaseMode
 import 'package:device_preview/device_preview.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:studently/utils/constants.dart';
@@ -26,10 +25,10 @@ void main() async {
       emailTheme: EmailTheme.v1,
     );
     WidgetsFlutterBinding.ensureInitialized();
-    
+  
     // Initialize Hive with all adapters
     await HiveInit.initializeHive();
-
+    await Hive.openBox('authBox');
     // Initialize KnowledgeHubStorage
     final khStorage = KnowledgeHubStorage();
     await khStorage.init();
