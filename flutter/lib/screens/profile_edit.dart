@@ -6,6 +6,8 @@ import 'package:studently/repositories/user.dart';
 import 'package:studently/providers/backend_config_provider.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:studently/screens/interests.dart';
+import 'package:studently/screens/profile_photo_crop.dart';
+import 'package:studently/logger.dart';
 
 class EditProfilePage extends StatefulWidget {
   final User user;
@@ -497,9 +499,36 @@ class _EditProfilePageState extends State<EditProfilePage> {
           action == 'gallery' ? ImageSource.gallery : ImageSource.camera;
       final pickedFile = await ImagePicker().pickImage(source: source);
       if (pickedFile != null) {
-        await UserRepository().uploadProfilePhoto(pickedFile.path);
+        // Navigate to crop screen
         if (!mounted) return;
-        setState(() {});
+        final result = await Navigator.of(context).push<bool>(
+          MaterialPageRoute(
+            builder: (context) => ProfilePhotoCropScreen(
+              initialImage: pickedFile,
+            ),
+          ),
+        );
+
+        // Refresh profile if photo was uploaded successfully
+        if (result == true && mounted) {
+          try {
+            // Fetch the updated user profile to get the new profile photo URL
+            final updatedUser = await UserRepository().fetchUserProfile('0');
+            if (mounted) {
+              setState(() {
+                widget.user.profilePhotoUrl = updatedUser.profilePhotoUrl;
+              });
+            }
+          } catch (e) {
+            logger.e('Failed to refresh user profile after photo upload: $e');
+            // Show error snackbar but don't crash - photo might have uploaded successfully
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Photo uploaded, but couldn\'t refresh preview')),
+              );
+            }
+          }
+        }
       }
     }
   }

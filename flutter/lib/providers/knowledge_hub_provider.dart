@@ -98,21 +98,37 @@ final saveResourceLocalPathProvider = Provider.family<
 
 // ==================== UPLOAD PROVIDER ====================
 
-/// Provider for managing resource uploads
-/// Just use the repository method directly when needed
+/// Provider for managing resource uploads (supports both file paths and bytes)
+/// Use path for mobile/desktop, bytes for web compatibility
 final resourceUploadFunctionProvider = Provider<Future<void> Function({
   required ResourceItemRequest resourceItemRequest,
-  required String filePath,
+  String? filePath,
+  List<int>? fileBytes,
+  String? filename,
 })>((ref) {
   final repository = ref.watch(knowledgeHubRepositoryProvider);
   return ({
     required ResourceItemRequest resourceItemRequest,
-    required String filePath,
+    String? filePath,
+    List<int>? fileBytes,
+    String? filename,
   }) async {
-    await repository.uploadResource(
-      resourceItemRequest: resourceItemRequest,
-      filePath: filePath,
-    );
+    if (fileBytes != null && filename != null) {
+      // Use bytes-based upload (web-compatible)
+      await repository.uploadResourceFromBytes(
+        resourceItemRequest: resourceItemRequest,
+        fileBytes: fileBytes,
+        filename: filename,
+      );
+    } else if (filePath != null) {
+      // Use file path-based upload (native platforms)
+      await repository.uploadResource(
+        resourceItemRequest: resourceItemRequest,
+        filePath: filePath,
+      );
+    } else {
+      throw Exception('Either filePath or (fileBytes + filename) must be provided');
+    }
   };
 });
 

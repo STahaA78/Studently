@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:typed_data';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -24,10 +25,14 @@ enum UploadStatus { compressing, success, failed }
 class UploadImage {
   File file;
   UploadStatus status;
+  List<int>? bytes;  // Store bytes for web upload
+  String? filename;  // Store filename for web upload
 
   UploadImage({
     required this.file,
     this.status = UploadStatus.compressing,
+    this.bytes,
+    this.filename,
   });
 }
 
@@ -36,8 +41,8 @@ class _AddResourcePageState extends ConsumerState<AddResourcePage> {
   final Color blue = const Color(0xFF1976D2);
 
   // Uploaded File
-  File? _selectedPdf;
-  List<UploadImage> _selectedImages = [];
+  File? _selectedPdf;  List<int>? _selectedPdfBytes;
+  String? _selectedPdfFilename;  List<UploadImage> _selectedImages = [];
   // Form Fields
   String? _selectedType;
   String? _selectedSemester;
@@ -58,33 +63,40 @@ class _AddResourcePageState extends ConsumerState<AddResourcePage> {
   }
 
   // Compress Images before PDF conversion (to reduce file size)
+  // Returns original file if compression fails (e.g., on web)
   Future<File> _compressImage(File file) async {
     logger.i("Image Compression Started for ${file.path}");
-    final dir = await getTemporaryDirectory();
+    try {
+      final dir = await getTemporaryDirectory();
 
-    String temporaryName = DateTime.now().millisecondsSinceEpoch.toString();
+      String temporaryName = DateTime.now().millisecondsSinceEpoch.toString();
 
-    final targetPath = '${dir.path}/$temporaryName.jpg';
+      final targetPath = '${dir.path}/$temporaryName.jpg';
 
-    final compressedFile = await FlutterImageCompress.compressAndGetFile(
-      file.absolute.path,
-      targetPath,
-      quality: 70,
-      minWidth: 1080,
-      minHeight: 1080,
-      format: CompressFormat.jpeg,
-    );
+      final compressedFile = await FlutterImageCompress.compressAndGetFile(
+        file.absolute.path,
+        targetPath,
+        quality: 70,
+        minWidth: 1080,
+        minHeight: 1080,
+        format: CompressFormat.jpeg,
+      );
 
-    if (compressedFile == null) {
-      logger.e("Image Compression Failed for ${file.path}");
-      throw Exception("Image compression failed for ${file.path}");
+      if (compressedFile == null) {
+        logger.e("Image Compression Failed for ${file.path}, returning original");
+        return file;
+      }
+
+      logger.i("Image Compression Successful");
+      return File(compressedFile.path);
+    } catch (e) {
+      // On web or if compression fails, return original file
+      logger.w("Image Compression Error (likely web platform): $e, using original file");
+      return file;
     }
-
-    logger.i("Image Compression Successful");
-    return File(compressedFile.path);
   }
 
-  // Upload File Logic
+  // Upload File Logic (web-compatible using bytes)
   Future<void> _pickFiles() async {
     logger.i("Pick Files Started");
     final result = await FilePicker.platform.pickFiles(
@@ -95,16 +107,18 @@ class _AddResourcePageState extends ConsumerState<AddResourcePage> {
 
     if (result == null) return;
 
-    final files = result.paths.map((path) => File(path!)).toList();
+    // Use result.files which works on all platforms (web, mobile, desktop)
+    final platformFiles = result.files;
 
-    final firstMime = lookupMimeType(files.first.path);
+    // Determine MIME type based on file extension
+    final firstMime = lookupMimeType('dummy.${platformFiles.first.extension}');
     if (firstMime == null) return;
 
     final isPdf = firstMime == 'application/pdf';
     final isImage = firstMime.startsWith('image/');
 
-    final hasMixed = files.any((file) {
-      final mime = lookupMimeType(file.path);
+    final hasMixed = platformFiles.any((platformFile) {
+      final mime = lookupMimeType('dummy.${platformFile.extension}');
       if (isPdf) return mime != 'application/pdf';
       if (isImage) return mime == null || !mime.startsWith('image/');
       return true;
@@ -122,38 +136,58 @@ class _AddResourcePageState extends ConsumerState<AddResourcePage> {
     }
 
     if (isPdf) {
+      // For PDF, create a File object from bytes for storage
+      final file = File.fromRawPath(platformFiles.first.bytes ?? Uint8List(0));
       setState(() {
-        _selectedPdf = files.first;
+        _selectedPdf = file;
         _selectedImages.clear();
+        // Store the bytes for later use
+        _selectedPdfBytes = platformFiles.first.bytes;
+        _selectedPdfFilename = platformFiles.first.name;
       });
       logger.i("Pick Files Ended - PDF");
     } else {
+      // For images, handle compression only on native platforms
       setState(() {
         _selectedPdf = null;
-        _selectedImages = files
-            .map((file) => UploadImage(file: file, status: UploadStatus.compressing))
+        _selectedImages = platformFiles
+            .map((platformFile) => UploadImage(
+              file: File.fromRawPath(platformFile.bytes ?? Uint8List(0)),
+              status: UploadStatus.compressing,
+              bytes: platformFile.bytes,
+              filename: platformFile.name,
+            ))
             .toList();
       });
       logger.i("Pick Files - Compressing Images");
       for (int i = 0; i < _selectedImages.length; i++) {
         try {
-          final compressedFile = await _compressImage(_selectedImages[i].file);
+          // Only compress on native platforms where file I/O is available
+          if (platformFiles[i].bytes != null) {
+            // Use bytes directly for web, but try compression for native
+            final compressedFile = await _compressImage(_selectedImages[i].file);
 
-          if (!mounted) return;
+            if (!mounted) return;
 
-          setState(() {
-            _selectedImages[i] = UploadImage(
-              file: compressedFile,
-              status: UploadStatus.success,
-            );
-          });
+            setState(() {
+              _selectedImages[i] = UploadImage(
+                file: compressedFile,
+                status: UploadStatus.success,
+                bytes: _selectedImages[i].bytes,
+                filename: _selectedImages[i].filename,
+              );
+            });
+          }
         } catch (e) {
+          // If compression fails (web or other issues), keep original
           if (!mounted) return;
 
           setState(() {
             _selectedImages[i] = UploadImage(
               file: _selectedImages[i].file,
-              status: UploadStatus.failed,
+              status: UploadStatus.success,
+              bytes: _selectedImages[i].bytes,
+              filename: _selectedImages[i].filename,
             );
           });
         }
@@ -163,26 +197,40 @@ class _AddResourcePageState extends ConsumerState<AddResourcePage> {
   }
 
   // Convert selected images into a single PDF file and return it
+  // On web, this will return a dummy file since we use bytes directly
   Future<File> _convertImagesToPdf() async {
     logger.i("Convert Images to PDF Started");
-    final pdf = pw.Document();
+    try {
+      final pdf = pw.Document();
 
-    for (final imageFile in _selectedImages) {
-      final imageBytes = await imageFile.file.readAsBytes();
-      final pwImage = pw.MemoryImage(imageBytes);
-      pdf.addPage(
-        pw.Page(
-          build: (context) => pw.Center(child: pw.Image(pwImage)),
-        ),
-      );
+      for (final imageFile in _selectedImages) {
+        final imageBytes = await imageFile.file.readAsBytes();
+        final pwImage = pw.MemoryImage(imageBytes);
+        pdf.addPage(
+          pw.Page(
+            build: (context) => pw.Center(child: pw.Image(pwImage)),
+          ),
+        );
+      }
+      
+      try {
+        final dir = await getTemporaryDirectory();
+        String temporaryName = DateTime.now().millisecondsSinceEpoch.toString();
+        final file = File('${dir.path}/$temporaryName.pdf');
+        await file.writeAsBytes(await pdf.save());
+
+        logger.i("Convert Images to PDF Ended Successful");
+        return file;
+      } catch (e) {
+        // On web, getTemporaryDirectory() fails - return dummy file
+        // The actual bytes will be used from _selectedImages
+        logger.w("PDF file creation skipped (web platform): $e");
+        return File('memory.pdf');
+      }
+    } catch (e) {
+      logger.e("Convert Images to PDF Failed: $e");
+      throw Exception("Failed to process images for upload");
     }
-    final dir = await getTemporaryDirectory();
-    String temporaryName = DateTime.now().millisecondsSinceEpoch.toString();
-    final file = File('${dir.path}/$temporaryName.pdf');
-    await file.writeAsBytes(await pdf.save());
-
-    logger.i("Convert Images to PDF Ended Successful");
-    return file;
   }
 
   Future<void> _fileUpload() async {
@@ -209,11 +257,20 @@ class _AddResourcePageState extends ConsumerState<AddResourcePage> {
         fileToUpload = await _convertImagesToPdf();
       }
 
-      final fileSizeInMB = await fileToUpload.length() / (1024 * 1024);
+      // Check file size - skip on web if using bytes
+      if (!(_selectedImages.isNotEmpty && _selectedImages.first.bytes != null)) {
+        try {
+          final fileSizeInMB = await fileToUpload.length() / (1024 * 1024);
 
-      if (fileSizeInMB > 20) {
-        logger.i("File Upload Ended - File Too Large");
-        throw Exception("File too large (max 20MB)");
+          if (fileSizeInMB > 20) {
+            logger.i("File Upload Ended - File Too Large");
+            throw Exception("File too large (max 20MB)");
+          }
+        } catch (e) {
+          if (e.toString().contains("File too large")) rethrow;
+          logger.w("Could not check file size (web): $e");
+          // Continue with upload anyway
+        }
       }
 
       // Semester and year are required for everything except books
@@ -254,10 +311,30 @@ class _AddResourcePageState extends ConsumerState<AddResourcePage> {
 
       // Use the provider to upload the resource
       final uploadFunction = ref.read(resourceUploadFunctionProvider);
-      await uploadFunction(
-        resourceItemRequest: resourceItemRequest,
-        filePath: fileToUpload.path,
-      );
+      
+      // Prefer bytes upload if available (web), fallback to file path (native)
+      if (_selectedPdfBytes != null && _selectedPdfFilename != null) {
+        await uploadFunction(
+          resourceItemRequest: resourceItemRequest,
+          fileBytes: _selectedPdfBytes,
+          filename: _selectedPdfFilename,
+        );
+      } else if (_selectedImages.isNotEmpty && _selectedImages.first.bytes != null) {
+        // For images, use the first image's bytes
+        final imageBytes = _selectedImages.first.bytes!;
+        final imageFilename = _selectedImages.first.filename ?? 'image.jpg';
+        await uploadFunction(
+          resourceItemRequest: resourceItemRequest,
+          fileBytes: imageBytes,
+          filename: imageFilename,
+        );
+      } else {
+        // Fallback to file path for native platforms
+        await uploadFunction(
+          resourceItemRequest: resourceItemRequest,
+          filePath: fileToUpload.path,
+        );
+      }
 
       if (!context.mounted) return;
 
@@ -349,6 +426,7 @@ class _AddResourcePageState extends ConsumerState<AddResourcePage> {
         child: Padding(
           padding: const EdgeInsets.all(16),
           child: SizedBox(
+            height: 40,
             width: double.infinity,
             child: ElevatedButton(
               onPressed: (isUploading || !_canSubmit)

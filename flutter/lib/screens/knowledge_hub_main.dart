@@ -299,7 +299,7 @@ class _KnowledgeHubPageState extends ConsumerState<KnowledgeHubPage> {
                           Text(
                             course.name,
                             style: const TextStyle(
-                              fontWeight: FontWeight.w700,
+                              fontWeight: FontWeight.w500,
                               fontSize: 17,
                             ),
                           ),
@@ -333,7 +333,7 @@ class _KnowledgeHubPageState extends ConsumerState<KnowledgeHubPage> {
                                         horizontal: 12, vertical: 8),
                                     backgroundColor: blue,
                                     shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(16),
+                                      borderRadius: BorderRadius.circular(12),
                                     ),
                                   ),
                                 ),
@@ -378,7 +378,7 @@ class _KnowledgeHubPageState extends ConsumerState<KnowledgeHubPage> {
                                     side: BorderSide(color: blue),
                                     shape: RoundedRectangleBorder(
                                       borderRadius:
-                                          BorderRadius.circular(16),
+                                          BorderRadius.circular(12),
                                     ),
                                   ),
                                 ),

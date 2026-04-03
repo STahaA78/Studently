@@ -221,6 +221,27 @@ class KnowledgeHubRepository {
       rethrow;
     }
   }
+
+  /// Upload resource using bytes (web-compatible)
+  Future<void> uploadResourceFromBytes({
+    required ResourceItemRequest resourceItemRequest,
+    required List<int> fileBytes,
+    required String filename,
+  }) async {
+    logger.i("[$runtimeType] Upload Resource (bytes) Initiated for Course ${resourceItemRequest.course.code}");
+    try {
+      await _apiService.multiPartFromBytes(
+        endpoint: '/hub/resources/upload',
+        fileBytes: fileBytes,
+        filename: filename,
+        metadata: resourceItemRequest.toJson(),
+      );
+      logger.i("[$runtimeType] Upload Resource (bytes) Completed Successfully for Course ${resourceItemRequest.course.code}");
+    } catch (e) {
+      logger.e("[$runtimeType] Upload Resource (bytes) Failed for Course ${resourceItemRequest.course.code} with error: $e");
+      rethrow;
+    }
+  }
 }
 
 // ==================== LEGACY ALIASES ====================

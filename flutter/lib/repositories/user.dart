@@ -219,18 +219,29 @@ class UserRepository {
 		}
 	}
   
-	// Upload profile photo using ApiService.multiPart
-	Future<void> uploadProfilePhoto(String filePath) async {
+	// Upload profile photo (web-compatible with bytes support)
+	Future<void> uploadProfilePhoto({
+		required String filePath,
+		List<int>? fileBytes,
+		String? filename,
+	}) async {
 		logger.i("[$runtimeType] Upload Profile Photo Initiated");
 		try {
-		await ApiService().multiPart(
-			file: File(filePath),
-			metadata: {"userId": "0"},
-		);
-		logger.i("[$runtimeType] Upload Profile Photo Completed Successfully");
+			// Use provided bytes if available (web), otherwise read from file path (native)
+			final bytes = fileBytes ?? await File(filePath).readAsBytes();
+			final fname = filename ?? filePath.split('/').last;
+			
+			await _apiService.multiPartFromBytes(
+				endpoint: '/users/0/profile/photo/add',
+				fileBytes: bytes,
+				filename: fname,
+				metadata: {"userId": "0"},
+				fieldName: 'photo',  // Backend expects 'photo' field name
+			);
+			logger.i("[$runtimeType] Upload Profile Photo Completed Successfully");
 		} catch (e) {
-		logger.e("[$runtimeType] Upload Profile Photo Failed with error: $e");
-		rethrow;
+			logger.e("[$runtimeType] Upload Profile Photo Failed with error: $e");
+			rethrow;
 		}
 	}
 
