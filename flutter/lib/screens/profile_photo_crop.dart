@@ -1,14 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:studently/logger.dart';
-import 'package:flutter/foundation.dart';
 import 'dart:math' as math;
 import 'dart:typed_data';
 import 'dart:ui' as ui;
 
 class ProfilePhotoCropScreen extends StatefulWidget {
   final XFile initialImage;
-
   const ProfilePhotoCropScreen({super.key, required this.initialImage});
 
   @override
@@ -16,14 +14,16 @@ class ProfilePhotoCropScreen extends StatefulWidget {
 }
 
 class _ProfilePhotoCropScreenState extends State<ProfilePhotoCropScreen> {
-  Uint8List? _imageBytes;
-  ui.Image? _decodedImage; // decoded image for pixel-accurate cropping
+  Uint8List?  _imageBytes;
+  ui.Image?   _decodedImage;
+  Offset      _imageOffset = Offset.zero;
 
-  // Display constants
-  static const double _displaySize = 350.0;
-  static const double _circleRadius = 125.0; // visible circle = 250x250 px
+  // The circular frame is 250 × 250 px, centred in a 350 × 350 display area.
+  static const double _circleDiameter = 250.0;
+  static const double _circleRadius   = _circleDiameter / 2;
+  static const double _displaySize    = 350.0;
 
-  Offset _imageOffset = Offset.zero;
+  // ── init ────────────────────────────────────────────────────────────────
 
   @override
   void initState() {
@@ -34,168 +34,206 @@ class _ProfilePhotoCropScreenState extends State<ProfilePhotoCropScreen> {
   Future<void> _initializeImage() async {
     try {
       final bytes = await widget.initialImage.readAsBytes();
-
-      // Decode once so we can do pixel-accurate cropping later
       final codec = await ui.instantiateImageCodec(bytes);
       final frame = await codec.getNextFrame();
-
       setState(() {
-        _imageBytes = bytes;
+        _imageBytes   = bytes;
         _decodedImage = frame.image;
-        _imageOffset = Offset.zero; // centered
+        _imageOffset  = Offset.zero;
       });
     } catch (e) {
-      logger.e("Error initializing image: $e");
+      logger.e('Error initializing image: $e');
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text("Error loading image: $e")),
-        );
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text('Error loading image: $e')));
       }
     }
   }
 
-  /// Crops the original image to the 250x250 region currently visible
-  /// inside the circle, using BoxFit.cover uniform-scale math.
+  // ── scale helpers ────────────────────────────────────────────────────────
+
+  /// Scale the image so its shortest side == circle diameter (250 px).
+  /// This guarantees the circle is always fully covered by the image.
+  double get _imageScale {
+    final img = _decodedImage!;
+    return math.max(_circleDiameter / img.width, _circleDiameter / img.height);
+  }
+
+  double get _displayW => _decodedImage!.width  * _imageScale;
+  double get _displayH => _decodedImage!.height * _imageScale;
+
+  // ── crop ─────────────────────────────────────────────────────────────────
+
   Future<void> _returnCroppedImage() async {
     if (_imageBytes == null || _decodedImage == null) return;
 
     final img = _decodedImage!;
+    final s   = _imageScale;
+    final dW  = _displayW;
+    final dH  = _displayH;
+
+    // The circle is fixed at center (175, 175) in the 350×350 stack.
+    // The image (size dW × dH) is centered, then offset by user's drag.
+    // Image top-left in stack space:
+    //   x = (350 - dW) / 2 + _imageOffset.dx
+    //   y = (350 - dH) / 2 + _imageOffset.dy
+    //
+    // Circle center relative to image top-left:
+    //   imgX = 175 - ((350 - dW) / 2 + _imageOffset.dx)
+    //   imgX = dW / 2 - _imageOffset.dx
+    //   (similarly for imgY)
+
+    final double imgX = dW / 2 - _imageOffset.dx;
+    final double imgY = dH / 2 - _imageOffset.dy;
+
+    // Map to original image pixels.
+    final double origCX = imgX / s;
+    final double origCY = imgY / s;
+    final double half   = _circleRadius / s;
+
     final double W = img.width.toDouble();
     final double H = img.height.toDouble();
 
-    // BoxFit.cover scales uniformly so the image fills 350x350.
-    // scale = max(containerSize / imageDimension) for each axis.
-    final double coverScale = math.max(_displaySize / W, _displaySize / H);
+    final srcLeft   = (origCX - half).clamp(0.0, W);
+    final srcTop    = (origCY - half).clamp(0.0, H);
+    final srcRight  = (origCX + half).clamp(0.0, W);
+    final srcBottom = (origCY + half).clamp(0.0, H);
 
-    // The scaled image may overflow the 350x350 box; Flutter centers it.
-    // alignOffset is how far the scaled image extends beyond the box edge.
-    final double alignOffsetX = (W * coverScale - _displaySize) / 2;
-    final double alignOffsetY = (H * coverScale - _displaySize) / 2;
-
-    // Circle centre in image-widget display space, adjusted for pan.
-    const double displayCenter = _displaySize / 2; // 175
-    final double imgWidgetX = displayCenter - _imageOffset.dx;
-    final double imgWidgetY = displayCenter - _imageOffset.dy;
-
-    // Map back to original image pixels using the same uniform scale.
-    final double origCenterX = (imgWidgetX + alignOffsetX) / coverScale;
-    final double origCenterY = (imgWidgetY + alignOffsetY) / coverScale;
-
-    // 125 display-px radius -> original pixels (one scale, no warping).
-    final double cropHalf = _circleRadius / coverScale;
-
-    final double srcLeft   = (origCenterX - cropHalf).clamp(0.0, W);
-    final double srcTop    = (origCenterY - cropHalf).clamp(0.0, H);
-    final double srcRight  = (origCenterX + cropHalf).clamp(0.0, W);
-    final double srcBottom = (origCenterY + cropHalf).clamp(0.0, H);
-
-    const int outputSize = 250;
-
+    const int out = 250;
     final recorder = ui.PictureRecorder();
-    final canvas = Canvas(recorder);
+    final canvas   = Canvas(recorder);
 
     canvas.drawImageRect(
       img,
       Rect.fromLTRB(srcLeft, srcTop, srcRight, srcBottom),
-      Rect.fromLTWH(0, 0, outputSize.toDouble(), outputSize.toDouble()),
+      Rect.fromLTWH(0, 0, out.toDouble(), out.toDouble()),
       Paint()..filterQuality = FilterQuality.high,
     );
 
-    final picture        = recorder.endRecording();
-    final croppedUiImage = await picture.toImage(outputSize, outputSize);
-    final byteData =
-        await croppedUiImage.toByteData(format: ui.ImageByteFormat.png);
+    final picture  = recorder.endRecording();
+    final uiImg    = await picture.toImage(out, out);
+    final byteData = await uiImg.toByteData(format: ui.ImageByteFormat.png);
 
     if (!mounted) return;
     Navigator.of(context).pop(byteData!.buffer.asUint8List());
   }
 
+  // ── pan ──────────────────────────────────────────────────────────────────
+
   void _handlePanUpdate(DragUpdateDetails details) {
-    // The image widget is always 350x350 with BoxFit.cover, so it exactly
-    // fills the display area. The circle is 250x250 centered inside, leaving
-    // 50px of image on each side -> max pan offset is ±50 in each direction.
-    const double maxOffset = _displaySize / 2 - _circleRadius; // 175 - 125 = 50
+    if (_decodedImage == null) return;
+
+    final double dW = _displayW;
+    final double dH = _displayH;
+
+    // The circle is fixed at the center (175, 175) with radius 125,
+    // spanning pixel range [50, 300] in both x and y.
+    //
+    // The image is centered in the 350×350 area, then offset by the user's drag.
+    // To keep the circle always within the image bounds:
+    //
+    // Image position: x = (350 - dW) / 2 + dx
+    // Circle bounds: [50, 300]
+    //
+    // For circle to stay within image bounds:
+    //   dx in [-(dW - 250)/2, (dW - 250)/2]
+    // 
+    // When dW == 250 (square image), range is [0, 0] (no pan)
+    // When dW > 250 (larger image), there's room to pan
+
+    final double maxDx = math.max(0, (dW - _displaySize) / 2);
+    final double maxDy = math.max(0, (dH - _displaySize) / 2);
 
     setState(() {
       _imageOffset = Offset(
-        (_imageOffset.dx + details.delta.dx).clamp(-maxOffset, maxOffset),
-        (_imageOffset.dy + details.delta.dy).clamp(-maxOffset, maxOffset),
+        (_imageOffset.dx + details.delta.dx).clamp(-maxDx, maxDx),
+        (_imageOffset.dy + details.delta.dy).clamp(-maxDy, maxDy),
       );
     });
   }
+
+  // ── build ─────────────────────────────────────────────────────────────────
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.white,
       appBar: AppBar(
-        title: const Text("Edit Profile Photo"),
+        title: const Text('Edit Profile Photo'),
         backgroundColor: Colors.black,
         foregroundColor: Colors.white,
         elevation: 0,
       ),
-      body: _imageBytes == null
+      body: _imageBytes == null || _decodedImage == null
           ? const Center(child: CircularProgressIndicator())
           : Column(
               children: [
-                // ── Pan area ──────────────────────────────────────────────
+                // ── pan area ──────────────────────────────────────────────
                 Expanded(
-                  child: Center(
-                    child: GestureDetector(
-                      onPanUpdate: _handlePanUpdate,
-                      child: SizedBox(
-                        width: _displaySize,
-                        height: _displaySize,
-                        child: Stack(
-                          alignment: Alignment.center,
-                          children: [
-                            // Layer 1: full original image, draggable
-                            Transform.translate(
-                              offset: _imageOffset,
-                              child: Image.memory(
-                                _imageBytes!,
-                                width: _displaySize,
-                                height: _displaySize,
-                                fit: BoxFit.cover,
-                                gaplessPlayback: true,
-                              ),
-                            ),
-
-                            // Layer 2: dark vignette with circular cutout
-                            IgnorePointer(
-                              child: CustomPaint(
-                                painter: CircularMaskPainter(
-                                  circleRadius: _circleRadius,
+                  child: Stack(
+                    children: [
+                      // Center the draggable image
+                      Center(
+                        child: GestureDetector(
+                          onPanUpdate: _handlePanUpdate,
+                          child: SizedBox(
+                            width:  _displaySize,
+                            height: _displaySize,
+                            child: Stack(
+                              alignment: Alignment.center,
+                              children: [
+                                // White background in case image has transparency
+                                Container(
+                                  color: Colors.white,
                                 ),
-                                size: const Size(_displaySize, _displaySize),
-                              ),
-                            ),
 
-                            // Layer 3: thin white border ring
-                            IgnorePointer(
-                              child: Container(
-                                width: _circleRadius * 2,
-                                height: _circleRadius * 2,
-                                decoration: BoxDecoration(
-                                  shape: BoxShape.circle,
-                                  border: Border.all(
-                                    color: Colors.white,
-                                    width: 2,
+                                // Layer 1 ── image at its computed display size,
+                                // translated by the user's pan offset.
+                                Transform.translate(
+                                  offset: _imageOffset,
+                                  child: Image.memory(
+                                    _imageBytes!,
+                                    width:  _displayW,
+                                    height: _displayH,
+                                    fit: BoxFit.fill, // dimensions are exact — no extra scaling
+                                    gaplessPlayback: true,
                                   ),
                                 ),
-                              ),
+
+                                // Layer 3 ── white border ring
+                                IgnorePointer(
+                                  child: Container(
+                                    width:  _circleDiameter,
+                                    height: _circleDiameter,
+                                    decoration: BoxDecoration(
+                                      shape: BoxShape.circle,
+                                      border: Border.all(
+                                          color: Colors.white, width: 2),
+                                    ),
+                                  ),
+                                ),
+                              ],
                             ),
-                          ],
+                          ),
                         ),
                       ),
-                    ),
+
+                      // Layer 2 ── full-screen dark overlay with circular cutout
+                      IgnorePointer(
+                        child: CustomPaint(
+                          painter: CircularMaskPainter(
+                              circleRadius: _circleRadius),
+                          size: Size.infinite,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
 
-                // ── Helper text ───────────────────────────────────────────
+                // ── hint ────────────────────────────────────────────────
                 Padding(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 20, vertical: 10),
                   child: Text(
                     'Drag to reposition your photo',
                     textAlign: TextAlign.center,
@@ -203,7 +241,7 @@ class _ProfilePhotoCropScreenState extends State<ProfilePhotoCropScreen> {
                   ),
                 ),
 
-                // ── Done button ───────────────────────────────────────────
+                // ── done ────────────────────────────────────────────────
                 Padding(
                   padding: const EdgeInsets.all(20),
                   child: SizedBox(
@@ -211,7 +249,7 @@ class _ProfilePhotoCropScreenState extends State<ProfilePhotoCropScreen> {
                     child: ElevatedButton.icon(
                       onPressed: _returnCroppedImage,
                       icon: const Icon(Icons.check),
-                      label: const Text("Done"),
+                      label: const Text('Done'),
                       style: ElevatedButton.styleFrom(
                         padding: const EdgeInsets.symmetric(vertical: 12),
                         backgroundColor: const Color(0xFF1976D2),
@@ -226,30 +264,28 @@ class _ProfilePhotoCropScreenState extends State<ProfilePhotoCropScreen> {
   }
 }
 
-/// Paints a semi-transparent overlay with a transparent circular cutout.
+/// Semi-transparent overlay with a transparent circular cutout.
 class CircularMaskPainter extends CustomPainter {
   final double circleRadius;
-
   const CircularMaskPainter({required this.circleRadius});
 
   @override
   void paint(Canvas canvas, Size size) {
-    final center = Offset(size.width / 2, size.height / 2);
-
+    // Use saveLayer to create a compositing layer for proper alpha blending
     canvas.saveLayer(
       Rect.fromLTWH(0, 0, size.width, size.height),
       Paint(),
     );
 
-    // Dark overlay
+    // Draw semi-transparent black overlay
     canvas.drawRect(
       Rect.fromLTWH(0, 0, size.width, size.height),
       Paint()..color = Colors.black.withValues(alpha: 0.55),
     );
 
-    // Punch out the circle
+    // Draw transparent circular cutout at center (clears the overlay in that area)
     canvas.drawCircle(
-      center,
+      Offset(size.width / 2, size.height / 2),
       circleRadius,
       Paint()..blendMode = BlendMode.clear,
     );
