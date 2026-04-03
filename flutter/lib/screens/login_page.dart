@@ -1,25 +1,27 @@
 import 'package:flutter/material.dart';
-import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_auth/firebase_auth.dart' as firebase_auth;
 import 'signup_basic_page.dart';
 import 'community_feed_page.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:studently/utils/constants.dart';
 import 'package:studently/logger.dart';
-class LoginPage extends StatefulWidget {
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:studently/providers/auth_provider.dart';
+import 'package:studently/models/user.dart'; // Add this line!
+class LoginPage extends ConsumerStatefulWidget {
   const LoginPage({super.key});
 
   @override
-  State<LoginPage> createState() => _LoginPageState();
+  ConsumerState<LoginPage> createState() => _LoginPageState();
 }
 
-class _LoginPageState extends State<LoginPage> {
+class _LoginPageState extends ConsumerState<LoginPage> {
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
   late final FocusNode _emailFocusNode = FocusNode();
 
   bool _emailFieldTouched = false;
-  bool _isLoading = false;
   String _emailError = "";
   String _passwordError = "";
   String _loginError = "";
@@ -29,7 +31,7 @@ class _LoginPageState extends State<LoginPage> {
     super.initState();
     _emailFocusNode.addListener(_onEmailFocusChange);
   }
-
+  
   void _onEmailFocusChange() {
     if (!_emailFocusNode.hasFocus) {
       setState(() => _emailFieldTouched = true);
@@ -60,8 +62,29 @@ class _LoginPageState extends State<LoginPage> {
       }
     });
   }
-
-  void _login(BuildContext context) async {
+  String _getFriendlyErrorMessage(Object error) {
+    if (error is firebase_auth.FirebaseAuthException) {
+      switch (error.code) {
+        case 'user-not-found':
+        case 'wrong-password':
+        case 'invalid-credential':
+          return "Invalid email or password.";
+        case 'invalid-email':
+          return "The email address is badly formatted.";
+        case 'user-disabled':
+          return "This account has been disabled.";
+        case 'too-many-requests':
+          return "Too many attempts. Please try again later.";
+        case 'network-request-failed':
+          return "Network error. Check your internet connection.";
+        default:
+          return error.message ?? "An unexpected authentication error occurred.";
+      }
+    }
+    // For backend/FastAPI errors, we strip the 'Exception: ' prefix
+    return error.toString().replaceAll('Exception: ', '');
+  }
+  void _login()  {
     String email = _emailController.text.trim();
     String password = _passwordController.text.trim();
 
@@ -84,59 +107,28 @@ class _LoginPageState extends State<LoginPage> {
     // If field validation failed, return early
     if (_emailError.isNotEmpty || _passwordError.isNotEmpty || hasError) return;
 
-    setState(() => _isLoading = true);
-
-    try {
-      // 1. Call Firebase Auth
-      final user = await FirebaseAuth.instance.signInWithEmailAndPassword(
-        email: email,
-        password: password,
-      );
-
-      if (user.user != null && mounted) {
-        // 2. Success - navigate directly
-        if (!context.mounted) return;
-        Navigator.pushAndRemoveUntil(
-          context,
-          MaterialPageRoute(builder: (context) => const CommunityFeedPage()),
-          (route) => false,
-        );
-      }
-    } on FirebaseAuthException catch (e) {
-      // 3. Handle specific Firebase errors
-      String message = "Login Failed";
-
-      // Debugging: Keep this during development to see the actual code in the console
-      logger.e("Firebase Error Code: ${e.code}");
-
-      if (e.code == 'user-not-found' || e.code == 'wrong-password' || e.code == 'invalid-credential') {
-        // Firebase now often returns 'invalid-credential' for both wrong pass AND wrong email
-        message = "Invalid email or password.";
-      } else if (e.code == 'invalid-email') {
-        message = "The email address is badly formatted.";
-      } else if (e.code == 'user-disabled') {
-        message = "This user account has been disabled.";
-      } else if (e.code == 'too-many-requests') {
-        message = "Too many failed attempts. Try again later.";
-      }
-      if (mounted) {
-        setState(() {
-          _loginError = message;
-          _isLoading = false;
-        });
-      }
-    } catch (e) {
-      if (mounted) {
-        setState(() {
-          _loginError = "An unexpected error occurred.";
-          _isLoading = false;
-        });
-      }
-    }
+    ref.read(authProvider.notifier).login(email, password);
   }
 
   @override
   Widget build(BuildContext context) {
+    // 1. Watch the provider for changes (loading, data, or error)
+    final authState = ref.watch(authProvider);
+    final isLoading = authState.isLoading;
+
+    // 2. Listen specifically for errors to update your UI's _loginError text
+    ref.listen<AsyncValue<User?>>(authProvider, (previous, next) {
+      // Use .whenOrNull to specifically target the error state
+      next.whenOrNull(
+        error: (error, stackTrace) {
+          setState(() {
+            _loginError = _getFriendlyErrorMessage(error);
+          });
+          // Log the full error for debugging!
+          logger.e("Login Error: $error");
+        },
+      );
+    });
     final Color blue = const Color(0xFF1976D2);
     final Size screenSize = MediaQuery.of(context).size;
     final bool isLandscape = screenSize.width > screenSize.height;
@@ -255,8 +247,8 @@ class _LoginPageState extends State<LoginPage> {
                             height: 45,
                             width: double.infinity,
                             child: ElevatedButton(
-                              onPressed: _isLoading ? null : () => _login(context),
-                              child: _isLoading
+                              onPressed: isLoading ? null : _login,
+                              child: isLoading
                                   ? SizedBox(
                                       height: 24,
                                       width: 24,

@@ -6,49 +6,58 @@ import 'package:studently/logger.dart';
 import 'package:studently/screens/profile_edit.dart';
 import 'package:studently/services/api.dart';
 import 'dart:convert';
-class ProfilePage extends StatefulWidget {
+import 'package:flutter_riverpod/flutter_riverpod.dart'; 
+import 'package:studently/providers/auth_provider.dart'; 
+class ProfilePage extends ConsumerStatefulWidget {
   final String? userId;
 
   const ProfilePage({super.key, this.userId});
 
   @override
-  State<ProfilePage> createState() => _ProfilePageState();
+  ConsumerState<ProfilePage> createState() => _ProfilePageState();
 }
 
-class _ProfilePageState extends State<ProfilePage> {
+class _ProfilePageState extends ConsumerState<ProfilePage> {
   final Color blue = const Color(0xFF1976D2);
   final apiService = ApiService();
   List<Map<String, dynamic>> posts = [];
   bool hasLoadedPosts = false;
 
-  User? user;
-  bool isLoading = true;
+  User? otherUser;
+  bool isLoadingOtherUser = true;
   String connectionStatus = "none";
   bool isStatusLoading = true;
   final userRepository = UserRepository();
-
+  bool isLoadingPosts = false;
   @override
   void initState() {
-    logger.i("[ProfilePage] initState called with userId: ${widget.userId}");
     super.initState();
-    _loadUserProfile();
-    _loadConnectionStatus();
-  }
-
-  Future<void> _loadUserProfile() async {
-    setState(() => isLoading = true);
-    try {
-      final fetchedUser = await userRepository.fetchUserProfile(widget.userId ?? "0");
-      setState(() {
-        user = fetchedUser;
-        isLoading = false;
-      });
-      _loadUserPosts();
-    } catch (e) {
-      setState(() => isLoading = false);
+    if (widget.userId != null) {
+      // 1. Viewing someone else: Fetch from API
+      _loadOtherUserProfile();
+      _loadConnectionStatus();
+    } else {
+      // 2. Viewing MY profile: Provider already has my info! Just load my posts.
+      final myUser = ref.read(authProvider).value;
+      if (myUser != null) {
+        _loadUserPosts(myUser.id);
+      }
     }
   }
 
+  Future<void> _loadOtherUserProfile() async {
+    setState(() => isLoadingOtherUser = true);
+    try {
+      final fetchedUser = await userRepository.fetchUserProfile(widget.userId!);
+      setState(() {
+        otherUser = fetchedUser;
+        isLoadingOtherUser = false;
+      });
+      _loadUserPosts(widget.userId!);
+    } catch (e) {
+      setState(() => isLoadingOtherUser = false);
+    }
+  }
   Future<void> _loadConnectionStatus() async {
     // Only load status for other users
     if (widget.userId == null) return;
@@ -63,26 +72,30 @@ class _ProfilePageState extends State<ProfilePage> {
       setState(() => isStatusLoading = false);
     }
   }
-  Future<void> _loadUserPosts() async {
+  Future<void> _loadUserPosts(String targetId) async {
+    if (isLoadingPosts) return;
+    setState(() => isLoadingPosts = true);
+    
     try {
       final response = await apiService.get('/feed?limit=50&skip=0');
-
       final List<dynamic> data = jsonDecode(response.body);
 
-      final String userId = widget.userId ?? user?.id ?? "";
-
       final filteredPosts = data.where((post) {
-        return post['author_id'] == userId;
+        return post['author_id'] == targetId;
       }).toList();
 
       setState(() {
         posts = List<Map<String, dynamic>>.from(filteredPosts);
         hasLoadedPosts = true;
+        isLoadingPosts = false; // Reset loading state
       });
 
     } catch (e) {
       logger.e("Error loading posts: $e");
-      setState(() => hasLoadedPosts = true);
+      setState(() {
+        hasLoadedPosts = true;
+        isLoadingPosts = false;
+      });
     }
   }
   Future<void> _sendConnectionRequest() async {
@@ -173,6 +186,13 @@ class _ProfilePageState extends State<ProfilePage> {
   @override
   Widget build(BuildContext context) {
     final bool isMyProfile = widget.userId == null;
+    User? displayUser;
+    if (isMyProfile) {
+      displayUser = ref.watch(authProvider).value;
+    } else {
+      displayUser = otherUser; 
+    }
+    final bool isScreenLoading = isMyProfile ? displayUser == null : isLoadingOtherUser;
     return Scaffold(
       backgroundColor: Colors.white,
       appBar: AppBar(
@@ -194,9 +214,9 @@ class _ProfilePageState extends State<ProfilePage> {
               )
             : null,
       ),
-      body: isLoading
+      body: isScreenLoading
           ? const Center(child: CircularProgressIndicator())
-          : user == null
+          : displayUser == null
               ? const Center(child: Text("Error Loading Profile"))
               : SingleChildScrollView(
                   padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
@@ -209,7 +229,7 @@ class _ProfilePageState extends State<ProfilePage> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           // Profile picture on the left
-                          _buildProfilePhoto(user!),
+                          _buildProfilePhoto(displayUser!),
                           const SizedBox(width: 16),
                           // Info column on the right
                           Expanded(
@@ -221,7 +241,7 @@ class _ProfilePageState extends State<ProfilePage> {
                                 children: [
                                   // Name
                                   Text(
-                                    user!.name,
+                                    displayUser!.name,
                                     style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
                                     maxLines: 1,
                                     overflow: TextOverflow.ellipsis,
@@ -231,7 +251,7 @@ class _ProfilePageState extends State<ProfilePage> {
                                   Row(
                                     mainAxisAlignment: MainAxisAlignment.start,
                                     children: [
-                                      _buildStatColumn("Friends", user!.friendsCount.toString()),
+                                      _buildStatColumn("Friends", displayUser!.friendsCount.toString()),
                                       const SizedBox(width: 35),
                                       _buildStatColumn("Posts", posts.length.toString()),
                                       const SizedBox(width: 35),
@@ -247,7 +267,7 @@ class _ProfilePageState extends State<ProfilePage> {
                       const SizedBox(height: 16),
                       // Batch info
                       Text(
-                        "${user!.department}, Batch ${user!.batch}",
+                        "${displayUser!.department}, Batch ${displayUser.batch}",
                         style: const TextStyle(color: Colors.grey, fontSize: 12),
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
@@ -259,18 +279,13 @@ class _ProfilePageState extends State<ProfilePage> {
                           height: 40,
                           width: double.infinity,
                           child: OutlinedButton(
-                            onPressed: () async {
-                              final updatedUser = await Navigator.push(
+                            onPressed: () {
+                              Navigator.push(
                                 context,
                                 MaterialPageRoute(
-                                  builder: (context) => EditProfilePage(user: user!)
+                                  builder: (context) => EditProfilePage(user: displayUser!)
                                 ),
                               );
-                              if (updatedUser != null && mounted) {
-                                setState(() {
-                                  user = updatedUser;
-                                });
-                              }
                             },
                             child: Text(
                               "Edit Profile",
@@ -348,7 +363,7 @@ class _ProfilePageState extends State<ProfilePage> {
                       Wrap(
                         spacing: 8,
                         runSpacing: 8,
-                        children: (user!.interests)
+                        children: (displayUser!.interests)
                             .map((interest) => Container(
                                   padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                                   decoration: BoxDecoration(
