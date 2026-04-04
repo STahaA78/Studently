@@ -37,8 +37,8 @@ class Post {
   final String? authorPic;
   final String content;
   final List<String> mediaUrls;
-  List<String> likes;
-  List<Comment> comments;
+  final List<String> likes;
+  final List<Comment> comments;
   final DateTime timestamp;
 
   Post({
@@ -52,6 +52,30 @@ class Post {
     required this.comments,
     required this.timestamp,
   });
+
+  Post copyWith({
+    String? id,
+    String? authorId,
+    String? authorName,
+    String? authorPic,
+    String? content,
+    List<String>? mediaUrls,
+    List<String>? likes,
+    List<Comment>? comments,
+    DateTime? timestamp,
+  }) {
+    return Post(
+      id: id ?? this.id,
+      authorId: authorId ?? this.authorId,
+      authorName: authorName ?? this.authorName,
+      authorPic: authorPic ?? this.authorPic,
+      content: content ?? this.content,
+      mediaUrls: mediaUrls ?? this.mediaUrls,
+      likes: likes ?? this.likes,
+      comments: comments ?? this.comments,
+      timestamp: timestamp ?? this.timestamp,
+    );
+  }
 
   factory Post.fromJson(Map<String, dynamic> json) {
     return Post(

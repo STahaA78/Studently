@@ -1,17 +1,20 @@
 import 'package:flutter/material.dart';
 import '../repositories/post.dart';
 import 'package:image_picker/image_picker.dart';
-class CreatePostPage extends StatefulWidget {
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../providers/feed_provider.dart';
+import 'package:studently/services/firebase_auth.dart';
+
+class CreatePostPage extends ConsumerStatefulWidget {
   const CreatePostPage({super.key});
 
   @override
-  State<CreatePostPage> createState() => _CreatePostPageState();
+  ConsumerState<CreatePostPage> createState() => _CreatePostPageState();
 }
 
-class _CreatePostPageState extends State<CreatePostPage> {
+class _CreatePostPageState extends ConsumerState<CreatePostPage> {
 
   final TextEditingController controller = TextEditingController();
-  final PostRepository repository = PostRepository();
 
   XFile? selectedImage;
   final ImagePicker picker = ImagePicker();
@@ -52,8 +55,16 @@ class _CreatePostPageState extends State<CreatePostPage> {
     });
 
     try {
-
+      final repository = ref.read(postRepositoryProvider);
       await repository.createPost(text, selectedImage);
+      
+      // Trigger global refresh to sync Feed and Profile
+      ref.read(feedProvider.notifier).refresh();
+      final userId = authService.value.currentUser?.uid;
+      if (userId != null) {
+        ref.read(profileFeedProvider(userId).notifier).refresh();
+      }
+
       if (!mounted) return;
       Navigator.pop(context, true);
 
@@ -99,7 +110,7 @@ class _CreatePostPageState extends State<CreatePostPage> {
                     height: 18,
                     width: 18,
                     child: CircularProgressIndicator(strokeWidth: 2),
-                  )
+                    )
                 : const Text(
                     "Post",
                     style: TextStyle(

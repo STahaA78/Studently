@@ -29,10 +29,11 @@ void main() async {
     // Initialize Hive with all adapters
     await HiveInit.initializeHive();
     await Hive.openBox('authBox');
+    await Hive.openBox('feedBox');
+    await Hive.openBox('profileFeedBox');
     // Initialize KnowledgeHubStorage
     final khStorage = KnowledgeHubStorage();
     await khStorage.init();
-    await Hive.openBox('authBox');
     await Hive.openBox('conversationsBox'); 
     await Hive.openBox('messagesBox');
     await Firebase.initializeApp(

@@ -3,8 +3,11 @@ import 'package:studently/services/firebase_auth.dart';
 import '../models/post.dart';
 import '../repositories/post.dart';
 import 'profile_main.dart';
+import 'user_profile_page.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../providers/feed_provider.dart';
 
-class PostDetailsPage extends StatefulWidget {
+class PostDetailsPage extends ConsumerStatefulWidget {
   final Post postData;
 
   const PostDetailsPage({
@@ -13,16 +16,15 @@ class PostDetailsPage extends StatefulWidget {
   });
 
   @override
-  State<PostDetailsPage> createState() => _PostDetailsPageState();
+  ConsumerState<PostDetailsPage> createState() => _PostDetailsPageState();
 }
 
-class _PostDetailsPageState extends State<PostDetailsPage> {
+class _PostDetailsPageState extends ConsumerState<PostDetailsPage> {
 
   late Post post;
   String? currentUserId;
 
   final TextEditingController commentController = TextEditingController();
-  final PostRepository repository = PostRepository();
 
   bool isSending = false;
 
@@ -49,30 +51,30 @@ class _PostDetailsPageState extends State<PostDetailsPage> {
     setState(() => isSending = true);
 
     try {
-
+      final repository = ref.read(postRepositoryProvider);
       await repository.addComment(post.id, text);
 
       setState(() {
 
         final uid = authService.value.currentUser?.uid ?? "";
 
-        post.comments.add(
-          Comment(
+        final newComment = Comment(
             userId: uid,
             username: "You",
             text: text,
             timestamp: DateTime.now().toUtc(),
-          ),
-        );
+          );
+        
+        final updatedComments = List<Comment>.from(post.comments)..add(newComment);
+        post = post.copyWith(comments: updatedComments);
 
         commentController.clear();
-
       });
+      
+      _syncPostGlobally();
 
     } catch (e) {
-
       debugPrint("Comment error: $e");
-
     }
 
     setState(() => isSending = false);
@@ -84,38 +86,51 @@ class _PostDetailsPageState extends State<PostDetailsPage> {
     final index = post.comments.indexOf(comment);
 
     try {
-
+      final repository = ref.read(postRepositoryProvider);
       await repository.deleteComment(post.id, index);
 
       setState(() {
-        post.comments.removeAt(index);
+        final updatedComments = List<Comment>.from(post.comments)..removeAt(index);
+        post = post.copyWith(comments: updatedComments);
       });
+      
+      _syncPostGlobally();
 
     } catch (e) {
-
       debugPrint("Delete comment error: $e");
-
     }
   }
 
-  /// ---------------- LIKE ----------------
-  void toggleLike() {
+  void _syncPostGlobally() {
+    ref.read(feedProvider.notifier).updatePostLocally(post);
+    ref.read(profileFeedProvider(post.authorId).notifier).syncPostUpdate(post);
+  }
 
+  /// ---------------- LIKE ----------------
+  void toggleLike() async {
     if (currentUserId == null) return;
 
+    final isLiked = post.likes.contains(currentUserId);
+    final newLikes = List<String>.from(post.likes);
+    if (isLiked) {
+      newLikes.remove(currentUserId);
+    } else {
+      newLikes.add(currentUserId!);
+    }
+
     setState(() {
-
-      if (post.likes.contains(currentUserId)) {
-
-        post.likes.remove(currentUserId);
-
-      } else {
-
-        post.likes.add(currentUserId!);
-
-      }
-
+      post = post.copyWith(likes: newLikes);
     });
+    
+    _syncPostGlobally();
+
+    try {
+      final repository = ref.read(postRepositoryProvider);
+      await repository.likePost(post.id);
+    } catch (e) {
+      debugPrint("Like error: $e");
+      // Rollback not implemented here for simplicity as we already have optimistic updates in providers
+    }
   }
 
   /// ---------------- TIME FORMAT ----------------
@@ -140,7 +155,7 @@ class _PostDetailsPageState extends State<PostDetailsPage> {
       Navigator.push(
         context,
         MaterialPageRoute(
-          builder: (_) => ProfilePage(),
+          builder: (_) => const ProfilePage(),
         ),
       );
 
