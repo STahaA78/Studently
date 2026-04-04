@@ -57,6 +57,16 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
           ref.read(profileScrollProvider(targetUserId).notifier).set(scrollController.offset);
         }
       }
+
+      // Add pagination check
+      if (scrollController.position.pixels >=
+              scrollController.position.maxScrollExtent - 200) {
+        final displayUser = ref.read(authProvider).value;
+        final targetUserId = widget.userId ?? displayUser?.id ?? "";
+        if (targetUserId.isNotEmpty) {
+           ref.read(profileFeedProvider(targetUserId).notifier).loadMore();
+        }
+      }
     });
 
     if (widget.userId != null) {

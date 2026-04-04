@@ -5,6 +5,7 @@ import 'package:studently/models/post.dart';
 import 'package:studently/repositories/post.dart';
 import 'package:studently/services/firebase_auth.dart';
 import 'package:studently/logger.dart';
+import 'package:studently/providers/auth_provider.dart';
 
 final postRepositoryProvider = Provider<PostRepository>((ref) {
   return PostRepository();
@@ -16,32 +17,47 @@ class FeedNotifier extends AsyncNotifier<List<Post>> {
   static const _lastFetchKey = 'last_feed_fetch_time';
   
   int _skip = 0;
-  final int _limit = 10;
+  final int _limit = 20; 
   bool _hasMore = true;
-  bool _isFetchingMore = false; // Prevent duplicate parallel fetches
+  bool _isFetchingMore = false; 
 
   @override
   Future<List<Post>> build() async {
-    logger.i("[$runtimeType] build() started - Checking local cache");
+    ref.keepAlive();
     
-    // 1. Load from Hive for instant UI
+    // Watch authProvider to trigger a rebuild (and thus name hydration) when user profile changes
+    final authState = ref.watch(authProvider);
+    final currentUser = authState.value;
+
     final String? cachedJson = _feedBox.get(_feedKey);
     List<Post> cachedPosts = [];
     if (cachedJson != null) {
       final List<dynamic> decoded = jsonDecode(cachedJson);
       cachedPosts = decoded.map((e) => Post.fromJson(e)).toList();
-      logger.d("[$runtimeType] Loaded ${cachedPosts.length} posts from cache");
     }
 
-    // 2. Check if we should fetch fresh data (Eventual Consistency / Lifecycle Refresh)
+    // Hydrate names for current user's posts
+    if (currentUser != null) {
+      cachedPosts = _hydrateNames(cachedPosts, currentUser.id, currentUser.name);
+    }
+
     final lastFetch = _feedBox.get(_lastFetchKey) as int?;
     final now = DateTime.now().millisecondsSinceEpoch;
     
-    if (cachedPosts.isEmpty || lastFetch == null || (now - lastFetch) > 300000) { // 5 minutes stale
+    if (cachedPosts.isEmpty || lastFetch == null || (now - lastFetch) > 300000) {
       _fetchFreshFeed();
     }
 
     return cachedPosts;
+  }
+
+  List<Post> _hydrateNames(List<Post> posts, String currentUserId, String currentUserName) {
+    return posts.map((post) {
+      if (post.authorId == currentUserId && post.authorName != currentUserName) {
+        return post.copyWith(authorName: currentUserName);
+      }
+      return post;
+    }).toList();
   }
 
   Future<void> _fetchFreshFeed() async {
@@ -55,19 +71,24 @@ class FeedNotifier extends AsyncNotifier<List<Post>> {
       _skip = freshPosts.length;
       _hasMore = freshPosts.length >= _limit;
       
-      state = AsyncValue.data(freshPosts);
-      _saveToCache(freshPosts);
+      // Hydrate before setting state
+      final currentUser = ref.read(authProvider).value;
+      final hydratedPosts = currentUser != null 
+          ? _hydrateNames(freshPosts, currentUser.id, currentUser.name)
+          : freshPosts;
+
+      state = AsyncValue.data(hydratedPosts);
+      _saveToCache(hydratedPosts);
       _feedBox.put(_lastFetchKey, DateTime.now().millisecondsSinceEpoch);
-      logger.i("[$runtimeType] Fresh feed fetched and cached");
     } catch (e, stack) {
-      logger.e("[$runtimeType] Failed to fetch fresh feed", error: e, stackTrace: stack);
+      logger.e("Feed fetch failed", error: e, stackTrace: stack);
     } finally {
       _isFetchingMore = false;
     }
   }
 
   void _saveToCache(List<Post> posts) {
-    final json = jsonEncode(posts.map((e) => e.toJson()).toList());
+    final json = jsonEncode(posts.take(40).map((e) => e.toJson()).toList());
     _feedBox.put(_feedKey, json);
   }
 
@@ -93,30 +114,25 @@ class FeedNotifier extends AsyncNotifier<List<Post>> {
       _hasMore = nextPosts.length >= _limit;
       
       final currentPosts = state.value ?? [];
-      
-      // Filter out potential duplicates if backend order shifted
       final existingIds = currentPosts.map((p) => p.id).toSet();
-      final filteredNext = nextPosts.where((p) => !existingIds.contains(p.id)).toList();
+      var filteredNext = nextPosts.where((p) => !existingIds.contains(p.id)).toList();
       
       if (filteredNext.isNotEmpty) {
+        final currentUser = ref.read(authProvider).value;
+        if (currentUser != null) {
+          filteredNext = _hydrateNames(filteredNext, currentUser.id, currentUser.name);
+        }
         state = AsyncValue.data([...currentPosts, ...filteredNext]);
-        
-        // Update cache with first 20 posts for quick cold start
-        final updatedList = state.value!;
-        _saveToCache(updatedList.take(20).toList());
+        _saveToCache(state.value!);
       } else if (nextPosts.length < _limit) {
         _hasMore = false;
       }
-      
-    } catch (e) {
-      logger.e("[$runtimeType] Pagination failed", error: e);
     } finally {
       _isFetchingMore = false;
     }
   }
 
-  // Optimistic Like
-  Future<void> toggleLike(String postId) async {
+  void toggleLike(String postId) async {
     final currentPosts = state.value;
     if (currentPosts == null) return;
 
@@ -140,21 +156,18 @@ class FeedNotifier extends AsyncNotifier<List<Post>> {
     final updatedList = [...currentPosts];
     updatedList[postIndex] = updatedPost;
 
-    // Optimistic UI Update
     state = AsyncValue.data(updatedList);
 
     try {
       final repo = ref.read(postRepositoryProvider);
       await repo.likePost(postId);
-      _saveToCache(updatedList.take(20).toList());
+      _saveToCache(updatedList);
     } catch (e) {
-      logger.e("[$runtimeType] Like failed, rolling back", error: e);
-      state = AsyncValue.data(currentPosts); // Rollback
+      state = AsyncValue.data(currentPosts); 
     }
   }
 
-  // Optimistic Delete
-  Future<void> deletePost(String postId) async {
+  void deletePost(String postId) async {
     final currentPosts = state.value;
     if (currentPosts == null) return;
 
@@ -164,80 +177,106 @@ class FeedNotifier extends AsyncNotifier<List<Post>> {
     final originalPosts = [...currentPosts];
     final updatedList = [...currentPosts]..removeAt(postIndex);
 
-    // Optimistic UI Update
     state = AsyncValue.data(updatedList);
 
     try {
       final repo = ref.read(postRepositoryProvider);
       await repo.deletePost(postId);
-      _saveToCache(updatedList.take(20).toList());
+      _saveToCache(updatedList);
     } catch (e) {
-      logger.e("[$runtimeType] Delete failed, rolling back", error: e);
-      state = AsyncValue.data(originalPosts); // Rollback
+      state = AsyncValue.data(originalPosts); 
     }
   }
 
-  // Update a single post (e.g. after edit or comment)
   void updatePostLocally(Post updatedPost) {
     final currentPosts = state.value;
     if (currentPosts == null) return;
-
-    final postIndex = currentPosts.indexWhere((p) => p.id == updatedPost.id);
-    if (postIndex == -1) return;
-
-    final updatedList = [...currentPosts];
-    updatedList[postIndex] = updatedPost;
-    state = AsyncValue.data(updatedList);
-    _saveToCache(updatedList.take(20).toList());
+    final index = currentPosts.indexWhere((p) => p.id == updatedPost.id);
+    if (index == -1) return;
+    final newList = [...currentPosts];
+    newList[index] = updatedPost;
+    state = AsyncValue.data(newList);
+    _saveToCache(newList);
   }
 
-  // Update author name in all posts by this user
   void updateAuthorNameLocally(String userId, String newName) {
     final currentPosts = state.value;
     if (currentPosts == null) return;
-
-    final updatedList = currentPosts.map((post) {
-      if (post.authorId == userId) {
-        return post.copyWith(authorName: newName);
-      }
-      return post;
+    final newList = currentPosts.map((post) {
+      return post.authorId == userId ? post.copyWith(authorName: newName) : post;
     }).toList();
-
-    state = AsyncValue.data(updatedList);
-    _saveToCache(updatedList.take(20).toList());
+    state = AsyncValue.data(newList);
+    _saveToCache(newList);
   }
 }
 
-final feedProvider = AsyncNotifierProvider<FeedNotifier, List<Post>>(() {
-  return FeedNotifier();
-});
+final feedProvider = AsyncNotifierProvider<FeedNotifier, List<Post>>(() => FeedNotifier());
 
-// Profile Feed Provider (Parameterized for specific users)
 class ProfileFeedNotifier extends AsyncNotifier<List<Post>> {
   final String userId;
   ProfileFeedNotifier(this.userId);
 
   final _profileBox = Hive.box('profileFeedBox');
+  int _skip = 0;
+  final int _limit = 50; 
+  bool _hasMore = true;
 
   @override
   Future<List<Post>> build() async {
+    ref.keepAlive();
+    final authState = ref.watch(authProvider);
+    final currentUser = authState.value;
+
     final String? cachedJson = _profileBox.get('profile_$userId');
     List<Post> cachedPosts = [];
     if (cachedJson != null) {
       final List<dynamic> decoded = jsonDecode(cachedJson);
       cachedPosts = decoded.map((e) => Post.fromJson(e)).toList();
     }
-    _fetchProfilePosts();
+
+    if (currentUser != null && userId == currentUser.id) {
+      cachedPosts = cachedPosts.map((p) => p.copyWith(authorName: currentUser.name)).toList();
+    }
+
+    _fetchProfilePosts(reset: true);
     return cachedPosts;
   }
 
-  Future<void> _fetchProfilePosts() async {
+  Future<void> _fetchProfilePosts({bool reset = false}) async {
+    if (reset) {
+      _skip = 0;
+      _hasMore = true;
+    }
+    
     try {
       final repo = ref.read(postRepositoryProvider);
-      final allPosts = await repo.getFeed(skip: 0, limit: 50); 
+      
+      // We fetch more to ensure we find enough user posts since backend doesn't have a direct user-posts API
+      final allPosts = await repo.getFeed(skip: _skip, limit: _limit); 
       final userPosts = allPosts.where((p) => p.authorId == userId).toList();
-      state = AsyncValue.data(userPosts);
-      _profileBox.put('profile_$userId', jsonEncode(userPosts.map((e) => e.toJson()).toList()));
+      
+      final currentUser = ref.read(authProvider).value;
+      final hydrated = (currentUser != null && userId == currentUser.id)
+          ? userPosts.map((p) => p.copyWith(authorName: currentUser.name)).toList()
+          : userPosts;
+
+      if (reset) {
+        state = AsyncValue.data(hydrated);
+      } else {
+        final current = state.value ?? [];
+        state = AsyncValue.data([...current, ...hydrated]);
+      }
+
+      _profileBox.put('profile_$userId', jsonEncode((state.value ?? []).map((e) => e.toJson()).toList()));
+      
+      _skip += allPosts.length;
+      if (allPosts.length < _limit) {
+        _hasMore = false;
+      } else if (hydrated.isEmpty && _hasMore) {
+        // If we didn't find any user posts in this batch but there's more in global feed, fetch next batch
+        _fetchProfilePosts(reset: false);
+      }
+
     } catch (e) {
       logger.e("Profile fetch failed", error: e);
     }
@@ -266,14 +305,19 @@ class ProfileFeedNotifier extends AsyncNotifier<List<Post>> {
   void updateAuthorNameLocally(String newName) {
     final currentPosts = state.value;
     if (currentPosts == null) return;
-    final updatedList = currentPosts.map((post) => post.copyWith(authorName: newName)).toList();
-    state = AsyncValue.data(updatedList);
-    _profileBox.put('profile_$userId', jsonEncode(updatedList.map((e) => e.toJson()).toList()));
+    final newList = currentPosts.map((post) => post.copyWith(authorName: newName)).toList();
+    state = AsyncValue.data(newList);
+    _profileBox.put('profile_$userId', jsonEncode(newList.map((e) => e.toJson()).toList()));
   }
 
   Future<void> refresh() async {
     state = const AsyncLoading();
-    await _fetchProfilePosts();
+    await _fetchProfilePosts(reset: true);
+  }
+
+  Future<void> loadMore() async {
+    if (!_hasMore) return;
+    await _fetchProfilePosts(reset: false);
   }
 }
 
@@ -287,18 +331,15 @@ class FeedScrollNotifier extends Notifier<double> {
   double build() => 0.0;
   void set(double value) => state = value;
 }
-
 final feedScrollProvider = NotifierProvider<FeedScrollNotifier, double>(() => FeedScrollNotifier());
 
 class ProfileScrollNotifier extends Notifier<double> {
   final String userId;
   ProfileScrollNotifier(this.userId);
-
   @override
   double build() => 0.0;
   void set(double value) => state = value;
 }
-
 final profileScrollProvider = NotifierProvider.family<ProfileScrollNotifier, double, String>((userId) {
   return ProfileScrollNotifier(userId);
 });
