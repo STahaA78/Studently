@@ -32,25 +32,27 @@ void main() async {
   
   // Open the auth box before the app runs
   await Hive.openBox('authBox');
+  await Hive.openBox('conversationsBox'); 
+  await Hive.openBox('messagesBox');
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
   );
   
-  runApp(
-    ProviderScope(
-      // Wrap your app with DevicePreview
-      child: DevicePreview(
-        // Automatically disable DevicePreview when you build a release APK/Web build
-        enabled: !kReleaseMode, 
-        builder: (context) => const MyApp(),
-      ),
-    ),
-  );
   // runApp(
-  //   const ProviderScope(
-  //     child: MyApp(),
+  //   ProviderScope(
+  //     // Wrap your app with DevicePreview
+  //     child: DevicePreview(
+  //       // Automatically disable DevicePreview when you build a release APK/Web build
+  //       enabled: !kReleaseMode, 
+  //       builder: (context) => const MyApp(),
+  //     ),
   //   ),
   // );
+  runApp(
+    const ProviderScope(
+      child: MyApp(),
+    ),
+  );
 } 
 
 class MyApp extends ConsumerWidget {
