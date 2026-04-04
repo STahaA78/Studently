@@ -190,6 +190,22 @@ class FeedNotifier extends AsyncNotifier<List<Post>> {
     state = AsyncValue.data(updatedList);
     _saveToCache(updatedList.take(20).toList());
   }
+
+  // Update author name in all posts by this user
+  void updateAuthorNameLocally(String userId, String newName) {
+    final currentPosts = state.value;
+    if (currentPosts == null) return;
+
+    final updatedList = currentPosts.map((post) {
+      if (post.authorId == userId) {
+        return post.copyWith(authorName: newName);
+      }
+      return post;
+    }).toList();
+
+    state = AsyncValue.data(updatedList);
+    _saveToCache(updatedList.take(20).toList());
+  }
 }
 
 final feedProvider = AsyncNotifierProvider<FeedNotifier, List<Post>>(() {
@@ -205,44 +221,31 @@ class ProfileFeedNotifier extends AsyncNotifier<List<Post>> {
 
   @override
   Future<List<Post>> build() async {
-    // Load from Hive
     final String? cachedJson = _profileBox.get('profile_$userId');
     List<Post> cachedPosts = [];
     if (cachedJson != null) {
       final List<dynamic> decoded = jsonDecode(cachedJson);
       cachedPosts = decoded.map((e) => Post.fromJson(e)).toList();
     }
-
-    // Always fetch fresh for profile to ensure consistency
     _fetchProfilePosts();
-
     return cachedPosts;
   }
 
   Future<void> _fetchProfilePosts() async {
     try {
       final repo = ref.read(postRepositoryProvider);
-      // Fixed: Changed limit from 100 to 50 to avoid 422 error from backend
       final allPosts = await repo.getFeed(skip: 0, limit: 50); 
       final userPosts = allPosts.where((p) => p.authorId == userId).toList();
-      
       state = AsyncValue.data(userPosts);
       _profileBox.put('profile_$userId', jsonEncode(userPosts.map((e) => e.toJson()).toList()));
     } catch (e) {
-      logger.e("[$runtimeType] Profile fetch failed", error: e);
+      logger.e("Profile fetch failed", error: e);
     }
   }
 
-  Future<void> refresh() async {
-    state = const AsyncLoading();
-    await _fetchProfilePosts();
-  }
-
-  // Reuse logic for toggleLike and delete locally to sync across UI
   void syncPostUpdate(Post updatedPost) {
     final currentPosts = state.value;
     if (currentPosts == null) return;
-
     final index = currentPosts.indexWhere((p) => p.id == updatedPost.id);
     if (index != -1) {
       final newList = [...currentPosts];
@@ -251,7 +254,7 @@ class ProfileFeedNotifier extends AsyncNotifier<List<Post>> {
       _profileBox.put('profile_$userId', jsonEncode(newList.map((e) => e.toJson()).toList()));
     }
   }
-  
+
   void removePostLocally(String postId) {
     final currentPosts = state.value;
     if (currentPosts == null) return;
@@ -259,8 +262,43 @@ class ProfileFeedNotifier extends AsyncNotifier<List<Post>> {
     state = AsyncValue.data(newList);
     _profileBox.put('profile_$userId', jsonEncode(newList.map((e) => e.toJson()).toList()));
   }
+
+  void updateAuthorNameLocally(String newName) {
+    final currentPosts = state.value;
+    if (currentPosts == null) return;
+    final updatedList = currentPosts.map((post) => post.copyWith(authorName: newName)).toList();
+    state = AsyncValue.data(updatedList);
+    _profileBox.put('profile_$userId', jsonEncode(updatedList.map((e) => e.toJson()).toList()));
+  }
+
+  Future<void> refresh() async {
+    state = const AsyncLoading();
+    await _fetchProfilePosts();
+  }
 }
 
 final profileFeedProvider = AsyncNotifierProvider.family<ProfileFeedNotifier, List<Post>, String>((userId) {
   return ProfileFeedNotifier(userId);
+});
+
+// Scroll Notifiers
+class FeedScrollNotifier extends Notifier<double> {
+  @override
+  double build() => 0.0;
+  void set(double value) => state = value;
+}
+
+final feedScrollProvider = NotifierProvider<FeedScrollNotifier, double>(() => FeedScrollNotifier());
+
+class ProfileScrollNotifier extends Notifier<double> {
+  final String userId;
+  ProfileScrollNotifier(this.userId);
+
+  @override
+  double build() => 0.0;
+  void set(double value) => state = value;
+}
+
+final profileScrollProvider = NotifierProvider.family<ProfileScrollNotifier, double, String>((userId) {
+  return ProfileScrollNotifier(userId);
 });

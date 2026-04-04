@@ -29,7 +29,23 @@ class _CommunityFeedPageState extends ConsumerState<CommunityFeedPage> {
   @override
   void initState() {
     super.initState();
+    
+    // Restore scroll position after the first frame
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (scrollController.hasClients) {
+        final savedOffset = ref.read(feedScrollProvider);
+        if (savedOffset > 0) {
+          scrollController.jumpTo(savedOffset);
+        }
+      }
+    });
+
     scrollController.addListener(() {
+      // Save scroll position
+      if (scrollController.hasClients) {
+        ref.read(feedScrollProvider.notifier).set(scrollController.offset);
+      }
+
       if (scrollController.position.pixels >=
               scrollController.position.maxScrollExtent - 200) {
         ref.read(feedProvider.notifier).loadMore();

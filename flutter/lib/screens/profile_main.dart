@@ -23,6 +23,7 @@ class ProfilePage extends ConsumerStatefulWidget {
 class _ProfilePageState extends ConsumerState<ProfilePage> {
   final Color blue = const Color(0xFF1976D2);
   final apiService = ApiService();
+  final ScrollController scrollController = ScrollController();
 
   User? otherUser;
   bool isLoadingOtherUser = true;
@@ -33,10 +34,41 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
   @override
   void initState() {
     super.initState();
+
+    // Restore scroll position
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (scrollController.hasClients) {
+        final displayUser = ref.read(authProvider).value;
+        final targetUserId = widget.userId ?? displayUser?.id ?? "";
+        if (targetUserId.isNotEmpty) {
+          final savedOffset = ref.read(profileScrollProvider(targetUserId));
+          if (savedOffset > 0) {
+            scrollController.jumpTo(savedOffset);
+          }
+        }
+      }
+    });
+
+    scrollController.addListener(() {
+      if (scrollController.hasClients) {
+        final displayUser = ref.read(authProvider).value;
+        final targetUserId = widget.userId ?? displayUser?.id ?? "";
+        if (targetUserId.isNotEmpty) {
+          ref.read(profileScrollProvider(targetUserId).notifier).set(scrollController.offset);
+        }
+      }
+    });
+
     if (widget.userId != null) {
       _loadOtherUserProfile();
       _loadConnectionStatus();
     }
+  }
+
+  @override
+  void dispose() {
+    scrollController.dispose();
+    super.dispose();
   }
 
   Future<void> _loadOtherUserProfile() async {
@@ -200,6 +232,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                     }
                   },
                   child: SingleChildScrollView(
+                    controller: scrollController,
                     physics: const AlwaysScrollableScrollPhysics(),
                     padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
                     child: Column(

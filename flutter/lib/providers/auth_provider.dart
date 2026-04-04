@@ -7,6 +7,8 @@ import 'package:studently/models/user.dart';
 import 'package:studently/models/backend_config.dart'; 
 import 'package:studently/logger.dart';
 
+import 'package:studently/providers/feed_provider.dart';
+
 final userRepositoryProvider = Provider<UserRepository>((ref) {
   return UserRepository();
 });
@@ -160,6 +162,13 @@ class AuthNotifier extends AsyncNotifier<User?> {
       // 3. Update RAM and Disk instantly
       state = AsyncValue.data(updatedUser);
       _authBox.put(_userKey, jsonEncode(updatedUser.toJson()));
+
+      // 4. Update Feed and Profile providers with the new name locally
+      if (updatedData.containsKey('name')) {
+        final newName = updatedData['name'];
+        ref.read(feedProvider.notifier).updateAuthorNameLocally(currentUser.id, newName);
+        ref.read(profileFeedProvider(currentUser.id).notifier).updateAuthorNameLocally(newName);
+      }
     }
   }
 
