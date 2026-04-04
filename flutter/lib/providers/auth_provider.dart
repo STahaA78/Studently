@@ -6,6 +6,7 @@ import 'package:studently/repositories/user.dart';
 import 'package:studently/models/user.dart'; 
 import 'package:studently/models/backend_config.dart'; 
 import 'package:studently/logger.dart';
+import 'dart:typed_data';
 
 import 'package:studently/providers/feed_provider.dart';
 
@@ -18,7 +19,9 @@ class AuthNotifier extends AsyncNotifier<User?> {
   // (Ensure Hive.openBox('authBox') is called in main.dart before the app runs)
   final _authBox = Hive.box('authBox');
   static const _userKey = 'cached_user_profile';
-
+  
+  List<Map<String, String>> friendsList = [];
+  
   @override
   Future<User?> build() async {
     logger.i("[$runtimeType] build() started - Checking local disk and Firebase");
@@ -26,6 +29,12 @@ class AuthNotifier extends AsyncNotifier<User?> {
     // 2. Synchronous read from Hive (No await needed!)
     final String? localJson = _authBox.get(_userKey);
     User? cachedUser;
+
+    final cachedFriends = _authBox.get('friends_list');
+    if (cachedFriends != null) {
+      final List<dynamic> decoded = jsonDecode(cachedFriends);
+      friendsList = decoded.map((e) => Map<String, String>.from(e)).toList();
+    }
     
     if (localJson != null) {
       cachedUser = User.fromJson(jsonDecode(localJson));
@@ -64,16 +73,33 @@ class AuthNotifier extends AsyncNotifier<User?> {
     try {
       final freshUser = await _fetchAndSaveFreshProfile(uid);
       state = AsyncValue.data(freshUser); // Update the state silently
+      
+      // Fetch and cache friends in the background
+      await fetchFriendsList(); 
+      
       logger.d("[$runtimeType] Background profile refresh complete");
     } catch (e) {
       logger.w("[$runtimeType] Background refresh failed: $e");
     }
   }
 
+  // Dedicated method to fetch friends from UserRepository
+  Future<void> fetchFriendsList() async {
+    try {
+      final userRepo = ref.read(userRepositoryProvider);
+      final rawFriends = await userRepo.getFriendsList(); 
+      
+      friendsList = rawFriends;
+      _authBox.put('friends_list', jsonEncode(friendsList));
+    } catch (e) {
+      logger.e("[$runtimeType] Error fetching friends list: $e");
+    }
+  }
+
   // --- Actions ---
 
   Future<void> login(String email, String password) async {
-    state = const AsyncLoading<User?>().copyWithPrevious(state);
+    state = const AsyncValue<User?>.loading();
     try {
       await authService.value.signIn(email: email, password: password);
       final firebaseUser = authService.value.currentUser;
@@ -96,7 +122,7 @@ class AuthNotifier extends AsyncNotifier<User?> {
     required String batch,
     required List<Interest> interests, 
   }) async {
-    state = const AsyncLoading<User?>().copyWithPrevious(state);
+    state = const AsyncValue<User?>.loading();
     try {
       await authService.value.createAccount(email: email, password: password);
       final firebaseUser = authService.value.currentUser;
@@ -130,6 +156,9 @@ class AuthNotifier extends AsyncNotifier<User?> {
     
     // 5. Delete from Hive
     await _authBox.delete(_userKey); 
+    await _authBox.delete('friends_list'); // Also wipe friends list on logout
+    friendsList.clear();
+
     state = const AsyncValue.data(null);
   }
 
@@ -137,7 +166,7 @@ class AuthNotifier extends AsyncNotifier<User?> {
     final userRepo = ref.read(userRepositoryProvider);
     
     // 1. Wait for FastAPI to confirm the save was successful
-    await userRepo.updateUserProfile(updatedData); 
+    await userRepo.updateUserProfile(updatedData);
     
     final currentUser = state.value;
     if (currentUser != null) {
@@ -145,7 +174,6 @@ class AuthNotifier extends AsyncNotifier<User?> {
       final updatedUser = User(
         id: currentUser.id,
         email: currentUser.email,
-        // password: currentUser.password, <-- Removed as it's no longer in backend
         birthday: currentUser.birthday,
         profilePhotoUrl: currentUser.profilePhotoUrl, 
         name: updatedData['name'] ?? currentUser.name,
@@ -173,13 +201,34 @@ class AuthNotifier extends AsyncNotifier<User?> {
   }
 
 
-  Future<void> updateProfilePhoto(String imagePath) async {
-    final userRepo = ref.read(userRepositoryProvider);
-    await userRepo.uploadProfilePhoto(imagePath); 
-    
-    final firebaseUser = authService.value.currentUser;
-    if (firebaseUser != null) {
-      await _refreshProfileInBackground(firebaseUser.uid); 
+  Future<void> updateProfilePhoto({
+    required String filePath,
+    Uint8List? fileBytes,
+    String? filename,
+  }) async {
+    try {
+      final userRepo = ref.read(userRepositoryProvider);
+      
+      // 1. Upload the photo to the backend
+      await userRepo.uploadProfilePhoto(
+        filePath: filePath,
+        fileBytes: fileBytes,
+        filename: filename,
+      );
+      
+      // 2. Fetch the updated profile with new photo URL from backend
+      final firebaseUser = authService.value.currentUser;
+      if (firebaseUser != null) {
+        final updatedUser = await _fetchAndSaveFreshProfile(firebaseUser.uid);
+        
+        // 3. Update state to trigger UI refresh with new profile photo
+        state = AsyncValue.data(updatedUser);
+        
+        logger.i("[$runtimeType] Profile photo updated successfully");
+      }
+    } catch (e, stack) {
+      logger.e("[$runtimeType] Profile photo upload failed", error: e, stackTrace: stack);
+      rethrow; // Propagate error to UI for user feedback
     }
   }
 
@@ -196,7 +245,6 @@ class AuthNotifier extends AsyncNotifier<User?> {
         id: currentUser.id,
         name: currentUser.name,
         email: currentUser.email,
-        // password: currentUser.password, <-- Removed
         birthday: currentUser.birthday,
         department: currentUser.department,
         batch: currentUser.batch,
@@ -212,6 +260,7 @@ class AuthNotifier extends AsyncNotifier<User?> {
       _authBox.put(_userKey, jsonEncode(updatedUser.toJson()));
     }
   }
+  
   Future<void> respondToFriendRequest(String requesterId, String action) async {
     final currentUser = state.value;
     if (currentUser == null) return;
@@ -248,6 +297,12 @@ class AuthNotifier extends AsyncNotifier<User?> {
       await userRepo.respondRequest(requesterId, action); 
       
       logger.i("[$runtimeType] Friend request $action on backend.");
+
+      // NEW: If accepted, background refresh the friends list to ensure the chat modal gets updated!
+      if (action == 'accept') {
+        fetchFriendsList(); // Note: No await needed, let it update the cache silently!
+      }
+
     } catch (e) {
       // 4. ROLLBACK: If API fails, revert state if we changed it
       logger.e("[$runtimeType] Failed to $action request. Rolling back.", error: e);

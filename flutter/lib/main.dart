@@ -1,59 +1,59 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/foundation.dart'; // Added for kReleaseMode
 import 'package:device_preview/device_preview.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:studently/services/firebase_auth.dart';
 import 'package:studently/utils/constants.dart';
 
 // Firebase imports
 import 'package:firebase_core/firebase_core.dart';
 import 'firebase_options.dart';
 import 'package:email_otp/email_otp.dart';
-
-import 'screens/community_feed_page.dart';
 import 'screens/login_page.dart';
-import 'package:studently/models/course.dart';
+// Hive imports
+import 'package:studently/storage/knowledge_hub.dart';
+import 'package:studently/utils/hive_init.dart';
 
 // Import the Auth Provider
 import 'package:studently/providers/auth_provider.dart';
 import 'package:hive_flutter/hive_flutter.dart';
+import 'screens/community_feed_page.dart';
 void main() async {
-  EmailOTP.config(
-    appName: "Studently",
-    appEmail: "support@studently.com",
-    otpLength: 6,
-    otpType: OTPType.numeric,
-    emailTheme: EmailTheme.v1,
-  );
+    EmailOTP.config(
+      appName: "Studently",
+      appEmail: "support@studently.com",
+      otpLength: 6,
+      otpType: OTPType.numeric,
+      emailTheme: EmailTheme.v1,
+    );
+    WidgetsFlutterBinding.ensureInitialized();
   
-  WidgetsFlutterBinding.ensureInitialized();
-  // Initialize Hive for Web/Mobile
-  await Hive.initFlutter();
-  
-  // Open the auth box before the app runs
-  await Hive.openBox('authBox');
-  await Hive.openBox('feedBox');
-  await Hive.openBox('profileFeedBox');
-  await Firebase.initializeApp(
-    options: DefaultFirebaseOptions.currentPlatform,
-  );
-  
-  runApp(
-    ProviderScope(
-      // Wrap your app with DevicePreview
-      child: DevicePreview(
-        // Automatically disable DevicePreview when you build a release APK/Web build
-        enabled: !kReleaseMode, 
-        builder: (context) => const MyApp(),
+    // Initialize Hive with all adapters
+    await HiveInit.initializeHive();
+    await Hive.openBox('authBox');
+    await Hive.openBox('feedBox');
+    await Hive.openBox('profileFeedBox');
+    // Initialize KnowledgeHubStorage
+    final khStorage = KnowledgeHubStorage();
+    await khStorage.init();
+    await Hive.openBox('conversationsBox'); 
+    await Hive.openBox('messagesBox');
+    await Firebase.initializeApp(
+      options: DefaultFirebaseOptions.currentPlatform,
+    );
+    runApp(
+      ProviderScope(
+        child: DevicePreview(
+          enabled: true , // Set to false to disable Device Preview
+          builder: (context) => const MyApp(), // Wrap your app
+        ),
       ),
-    ),
-  );
-  // runApp(
-  //   const ProviderScope(
-  //     child: MyApp(),
-  //   ),
-  // );
-} 
+    );
+    // runApp(const MyApp());
+    // runApp(
+    //   const ProviderScope(
+    //     child: MyApp(),
+    //   ),
+    // );
+  }
 
 class MyApp extends ConsumerWidget {
   const MyApp({super.key});

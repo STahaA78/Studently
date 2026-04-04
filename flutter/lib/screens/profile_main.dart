@@ -10,6 +10,8 @@ import 'package:studently/providers/auth_provider.dart';
 import 'package:studently/providers/feed_provider.dart';
 import 'package:studently/models/post.dart';
 import 'package:studently/screens/post_details_page.dart';
+import 'dart:convert';
+import 'package:studently/utils/authenticated_image.dart';
 
 class ProfilePage extends ConsumerStatefulWidget {
   final String? userId;
@@ -30,6 +32,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
   String connectionStatus = "none";
   bool isStatusLoading = true;
   final userRepository = UserRepository();
+  final Set<String> failedProfileImages = {};
 
   @override
   void initState() {
@@ -147,6 +150,21 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
     } catch (_) {}
   }
 
+  Future<void> _refreshProfile() async {
+    if (widget.userId != null) {
+      // Viewing someone else's profile
+      await _loadOtherUserProfile();
+      await _loadConnectionStatus();
+      await ref.read(profileFeedProvider(widget.userId!).notifier).refresh();
+    } else {
+      // Viewing my profile - reload auth state and posts
+      final myUser = ref.refresh(authProvider).value;
+      if (myUser != null) {
+        await ref.read(profileFeedProvider(myUser.id).notifier).refresh();
+      }
+    }
+  }
+
   Future<void> _showDisconnectDialog() async {
     final confirmed = await showDialog<bool>(
       context: context,
@@ -176,13 +194,18 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
           ElevatedButton(
             style: ElevatedButton.styleFrom(
               backgroundColor: Colors.red,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
               padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 10),
             ),
             onPressed: () => Navigator.pop(context, true),
             child: const Text(
               "Unfriend",
-              style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
+              style: TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.w600,
+              ),
             ),
           ),
         ],
@@ -197,10 +220,11 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
   Widget build(BuildContext context) {
     final bool isMyProfile = widget.userId == null;
     User? displayUser;
+    
     if (isMyProfile) {
       displayUser = ref.watch(authProvider).value;
     } else {
-      displayUser = otherUser; 
+      displayUser = otherUser;
     }
     
     final String targetUserId = widget.userId ?? displayUser?.id ?? "";
@@ -236,11 +260,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
           : displayUser == null
               ? const Center(child: Text("Error Loading Profile"))
               : RefreshIndicator(
-                  onRefresh: () async {
-                    if (targetUserId.isNotEmpty) {
-                      await ref.read(profileFeedProvider(targetUserId).notifier).refresh();
-                    }
-                  },
+                  onRefresh: _refreshProfile,
                   child: SingleChildScrollView(
                     controller: scrollController,
                     physics: const AlwaysScrollableScrollPhysics(),
@@ -249,10 +269,11 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         const SizedBox(height: 12),
+                        // Instagram-style profile header
                         Row(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            _buildProfilePhoto(displayUser!),
+                            _buildProfilePhoto(displayUser),
                             const SizedBox(width: 16),
                             Expanded(
                               child: Padding(
@@ -262,16 +283,17 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                                   mainAxisAlignment: MainAxisAlignment.start,
                                   children: [
                                     Text(
-                                      displayUser!.name,
+                                      displayUser.name,
                                       style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
                                       maxLines: 1,
                                       overflow: TextOverflow.ellipsis,
                                     ),
                                     const SizedBox(height: 12),
+                                    // Stats row
                                     Row(
                                       mainAxisAlignment: MainAxisAlignment.start,
                                       children: [
-                                        _buildStatColumn("Friends", displayUser!.friendsCount.toString()),
+                                        _buildStatColumn("Friends", displayUser.friendsCount.toString()),
                                         const SizedBox(width: 35),
                                         profileFeedAsync.when(
                                           data: (posts) => _buildStatColumn("Posts", posts.length.toString()),
@@ -290,12 +312,14 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                         ),
                         const SizedBox(height: 16),
                         Text(
-                          "${displayUser!.department}, Batch ${displayUser.batch}",
+                          "${displayUser.department}, Batch ${displayUser.batch}",
                           style: const TextStyle(color: Colors.grey, fontSize: 12),
                           maxLines: 2,
                           overflow: TextOverflow.ellipsis,
                         ),
                         const SizedBox(height: 12),
+                        
+                        // Edit Profile / Connect buttons
                         if (isMyProfile)
                           SizedBox(
                             height: 40,
@@ -358,6 +382,8 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                             ),
                           ),
                         const SizedBox(height: 16),
+                        
+                        // Reject/Accept buttons for incoming requests
                         if (!isMyProfile && connectionStatus == "incoming_request")
                           Row(
                             children: [
@@ -384,15 +410,13 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                         Wrap(
                           spacing: 8,
                           runSpacing: 8,
-                          children: (displayUser!.interests)
+                          children: (displayUser.interests)
                               .map((interest) => Container(
                                     padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                                     decoration: BoxDecoration(
                                       color: Colors.grey.shade100,
                                       borderRadius: BorderRadius.circular(20),
-                                      border: Border.all(
-                                        color: const Color(0xFFE0E6ED),
-                                      ),
+                                      border: Border.all(color: const Color(0xFFE0E6ED)),
                                     ),
                                     child: Row(
                                       mainAxisSize: MainAxisSize.min,
@@ -423,6 +447,8 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                           ),
                         ),
                         const SizedBox(height: 12),
+                        
+                        // Posts Grid rendering using Riverpod AsyncValue
                         profileFeedAsync.when(
                           data: (posts) {
                             if (posts.isEmpty) {
@@ -473,8 +499,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                     ),
                   ),
                 ),
-      bottomNavigationBar:
-          isMyProfile ? const CustomNavBar(currentIndex: 4) : null,
+      bottomNavigationBar: isMyProfile ? const CustomNavBar(currentIndex: 4) : null,
     );
   }
 
@@ -486,28 +511,31 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
           style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
         ),
         const SizedBox(height: 4),
-        Text(
-          label,
-          style: const TextStyle(fontSize: 12, color: Colors.grey),
-        ),
+        Text(label, style: const TextStyle(fontSize: 12, color: Colors.grey)),
       ],
     );
   }
 
-  Widget _buildProfilePhoto(User user) {
-    if (user.profilePhotoUrl?.isEmpty ?? true) {
+  Widget _buildProfilePhoto(User? user) {
+    if (user == null || (user.profilePhotoUrl?.isEmpty ?? true)) {
       return CircleAvatar(
         radius: 45,
         backgroundColor: Colors.grey.shade400,
         child: const Icon(Icons.person, size: 40, color: Colors.white),
       );
     }
+    final bool imageFailed = failedProfileImages.contains(user.profilePhotoUrl);
     return CircleAvatar(
+      key: ValueKey<String>(user.profilePhotoUrl!),
       radius: 45,
       backgroundColor: Colors.grey.shade400,
-      backgroundImage: NetworkImage(user.profilePhotoUrl!),
-      onBackgroundImageError: (_, _) {},
-      child: Container(),
+      backgroundImage: AuthenticatedNetworkImage(user.profilePhotoUrl!),
+      onBackgroundImageError: (exception, stackTrace) {
+        setState(() => failedProfileImages.add(user.profilePhotoUrl!));
+      },
+      child: imageFailed
+          ? const Icon(Icons.person, size: 40, color: Colors.white)
+          : null,
     );
   }
 
@@ -521,6 +549,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
     final String caption = post.content;
     final bool hasImage = imageUrl.isNotEmpty;
 
+    // HYBRID FIX: Wrapped the beautiful development UI inside the necessary community Navigation logic
     return GestureDetector(
       onTap: () async {
         final updatedPost = await Navigator.push(
@@ -537,12 +566,24 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
       child: ClipRRect(
         borderRadius: BorderRadius.circular(12),
         child: hasImage
+            /// 🔥 IMAGE TILE WITH CAPTION OVERLAY
             ? Stack(
                 children: [
                   Positioned.fill(
                     child: Image.network(
                       apiService.getCompleteUrl(imageUrl),
                       fit: BoxFit.cover,
+                      errorBuilder: (context, error, stackTrace) {
+                        return Container(
+                          color: Colors.grey.shade200,
+                          alignment: Alignment.center,
+                          child: Icon(
+                            Icons.image_not_supported_outlined,
+                            size: 48,
+                            color: Colors.grey.shade400,
+                          ),
+                        );
+                      },
                     ),
                   ),
                   if (caption.isNotEmpty)
@@ -551,10 +592,9 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                       left: 6,
                       right: 6,
                       child: Container(
-                        padding:
-                            const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
                         decoration: BoxDecoration(
-                          color: Colors.black.withOpacity(0.5),
+                          color: Colors.black.withValues(alpha: 0.5),
                           borderRadius: BorderRadius.circular(6),
                         ),
                         child: Text(
@@ -570,6 +610,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                     ),
                 ],
               )
+            /// 🔥 TEXT-ONLY TILE (CLEAN GRID STYLE)
             : Container(
                 color: Colors.grey.shade200,
                 alignment: Alignment.center,

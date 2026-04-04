@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart' show kIsWeb; 
@@ -10,14 +9,14 @@ import 'package:path_provider/path_provider.dart';
 import 'package:audioplayers/audioplayers.dart'; 
 import 'package:url_launcher/url_launcher.dart'; 
 import 'package:open_filex/open_filex.dart'; 
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:studently/models/chat.dart';
-import 'package:studently/repositories/chat.dart';
-import 'package:studently/services/socket.dart'; 
+import 'package:studently/providers/chat_provider.dart'; 
 import 'package:studently/services/firebase_auth.dart'; 
 import 'package:studently/logger.dart';
 
-class ChatPage extends StatefulWidget {
+class ChatPage extends ConsumerStatefulWidget { 
   final String conversationId;
   final String otherUserId; 
   final String otherUserName; 
@@ -30,21 +29,18 @@ class ChatPage extends StatefulWidget {
   });
 
   @override
-  State<ChatPage> createState() => _ChatPageState();
+  ConsumerState<ChatPage> createState() => _ChatPageState(); 
 }
 
-class _ChatPageState extends State<ChatPage> {
+class _ChatPageState extends ConsumerState<ChatPage> { 
   final TextEditingController _messageController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
   final Color blue = const Color(0xFF1976D2);
 
-  List<ChatMessage> _messages = [];
-  StreamSubscription? _socketSubscription; 
-  bool _isLoading = true;
-
   bool _isTyping = false;
   bool _isRecording = false;
   bool _isUploading = false;
+  bool _isInitialLoad = true; // true until first scroll-to-bottom completes
   
   final AudioRecorder _audioRecorder = AudioRecorder();
   
@@ -56,49 +52,39 @@ class _ChatPageState extends State<ChatPage> {
   @override
   void initState() {
     super.initState();
-    _fetchMessages();
-    socketService.connect();
-    ChatRepository().markChatAsRead(widget.conversationId);
+    
+    // Scroll-to-bottom whenever the list grows taller (e.g. an image finishes
+    // loading and expands the content), but only during the initial load phase.
+    _scrollController.addListener(() {
+      if (_isInitialLoad &&
+          _scrollController.hasClients &&
+          _scrollController.position.extentAfter == 0) {
+        // Already at the bottom — initial load is done.
+        _isInitialLoad = false;
+      }
+    });
+
+    // Tell provider to load messages for THIS chat
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      ref.read(chatProvider.notifier).loadMessagesForChat(widget.conversationId);
+      Future.delayed(const Duration(milliseconds: 300), _scrollToBottom);
+    });
 
     _messageController.addListener(() {
       setState(() {
         _isTyping = _messageController.text.trim().isNotEmpty;
       });
     });
-
-    _socketSubscription = socketService.stream?.listen((event) {
-      final payload = jsonDecode(event);
-      if (payload['type'] == 'NEW_MESSAGE' && 
-          payload['data']['conversation_id'] == widget.conversationId) {
-        _fetchMessages(isBackgroundRefresh: true);
-        ChatRepository().markChatAsRead(widget.conversationId);
-      }
-    });
   }
 
   @override
-  void dispose() {
-    _socketSubscription?.cancel(); 
+  void dispose() { 
+    
     _messageController.dispose();
     _scrollController.dispose();
     _recordTimer?.cancel();
     _audioRecorder.dispose();
     super.dispose();
-  }
-
-  Future<void> _fetchMessages({bool isBackgroundRefresh = false}) async {
-    try {
-      final messages = await ChatRepository().getMessages(widget.conversationId);
-      if (mounted) {
-        setState(() {
-          _messages = messages;
-          if (!isBackgroundRefresh) _isLoading = false;
-        });
-        _scrollToBottom();
-      }
-    } catch (e) {
-      debugPrint("Error loading messages: $e");
-    }
   }
 
   void _scrollToBottom() {
@@ -111,6 +97,21 @@ class _ChatPageState extends State<ChatPage> {
         );
       }
     });
+    // Give images up to 3 seconds to load and expand the list, re-snapping to
+    // bottom each time. After that we stop so normal scrolling isn't disturbed.
+    for (final ms in [600, 1000, 1500, 2500, 3000]) {
+      Future.delayed(Duration(milliseconds: ms), () {
+        if (!mounted || !_isInitialLoad) return;
+        if (_scrollController.hasClients) {
+          _scrollController.animateTo(
+            _scrollController.position.maxScrollExtent,
+            duration: const Duration(milliseconds: 200),
+            curve: Curves.easeOut,
+          );
+        }
+        if (ms == 3000) _isInitialLoad = false;
+      });
+    }
   }
 
   // --- Interaction Logic ---
@@ -132,15 +133,12 @@ class _ChatPageState extends State<ChatPage> {
       }
       
       if (fileBytes != null) {
-        String? url = await ChatRepository().uploadAttachment(fileBytes, platformFile.name);
+        // Delegated to Provider
+        String? url = await ref.read(chatProvider.notifier).uploadAttachment(fileBytes, platformFile.name);
         
         if (url != null) {
-          await ChatRepository().sendMessage(
-            conversationId: widget.conversationId,
-            text: "", 
-            attachments: [url],
-          );
-          _fetchMessages(isBackgroundRefresh: true);
+          // Send via Provider!
+          await ref.read(chatProvider.notifier).sendMessage("", attachments: [url]);
           _scrollToBottom();
         }
       }
@@ -197,15 +195,12 @@ class _ChatPageState extends State<ChatPage> {
         audioBytes = await File(path).readAsBytes();
       }
 
-      String? url = await ChatRepository().uploadAttachment(audioBytes, 'voice_message.m4a');
+      // Delegated to Provider
+      String? url = await ref.read(chatProvider.notifier).uploadAttachment(audioBytes, 'voice_message.m4a');
       
       if (url != null) {
-        await ChatRepository().sendMessage(
-          conversationId: widget.conversationId,
-          text: "🎤 Voice Message",
-          attachments: [url],
-        );
-        _fetchMessages(isBackgroundRefresh: true);
+        // Send via Provider!
+        await ref.read(chatProvider.notifier).sendMessage("🎤 Voice Message", attachments: [url]);
         _scrollToBottom();
       }
       setState(() => _isUploading = false);
@@ -218,11 +213,8 @@ class _ChatPageState extends State<ChatPage> {
     _messageController.clear();
 
     try {
-      await ChatRepository().sendMessage(
-        conversationId: widget.conversationId,
-        text: text,
-      );
-      _fetchMessages(isBackgroundRefresh: true);
+      // Send via Provider!
+      await ref.read(chatProvider.notifier).sendMessage(text);
       _scrollToBottom();
     } catch (e) {
       if (mounted) {
@@ -305,6 +297,18 @@ class _ChatPageState extends State<ChatPage> {
 
   @override
   Widget build(BuildContext context) {
+    // 1. Listen to the chat state
+    final chatState = ref.watch(chatProvider);
+    final messages = chatState.activeMessages;
+    final isLoading = chatState.isLoading;
+
+    // 2. Automatically scroll down when a new message arrives over WebSocket
+    ref.listen<ChatState>(chatProvider, (previous, next) {
+      if (previous != null && previous.activeMessages.length < next.activeMessages.length) {
+        _scrollToBottom();
+      }
+    });
+
     return Scaffold(
       backgroundColor: Colors.white,
       appBar: AppBar(
@@ -323,16 +327,16 @@ class _ChatPageState extends State<ChatPage> {
       body: Column(
         children: [
           Expanded(
-            child: _isLoading 
-              ? const Center(child: CircularProgressIndicator()) 
-              : _messages.isEmpty 
+            child: isLoading 
+              ? const Center(child: CircularProgressIndicator(color: Color(0xFF1976D2))) 
+              : messages.isEmpty 
                   ? const Center(child: Text("No messages yet. Say Hi!"))
                   : ListView.builder(
                       controller: _scrollController,
                       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                      itemCount: _messages.length,
+                      itemCount: messages.length,
                       itemBuilder: (context, index) {
-                        final msg = _messages[index];
+                        final msg = messages[index];
                         final bool isMe = msg.senderId == authService.value.currentUser?.uid;
                         return _buildMessageBubble(msg, isMe);
                       },

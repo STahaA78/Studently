@@ -381,8 +381,7 @@ class _PostDetailsPageState extends ConsumerState<PostDetailsPage> {
     final bool isOwner = comment.userId == currentUid;
     final displayName = isOwner
       ? "You"
-      : (comment.username != null &&
-        comment.username.trim().isNotEmpty &&
+      : (comment.username.trim().isNotEmpty &&
         comment.username.toLowerCase() != "unknown"
           ? comment.username
           : "User");

@@ -8,7 +8,6 @@ import 'post_details_page.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:studently/utils/constants.dart';
-import '../screens/user_profile_page.dart';
 import '../screens/profile_main.dart';
 import '../services/api.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';

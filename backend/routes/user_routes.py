@@ -158,9 +158,9 @@ def get_profile_photo(user_id: str, USER: str = Depends(get_current_user)):
         LOGGER.info(f"USER accessing own profile photo", extra={"uid": USER})
         user_id = USER  # Override to fetch own profile photo when user_id is "0"
     user = users_collection.find_one({"_id": user_id})
-    photo_path = user.get("profile_photo_path")
+    photo_path = user.get("profilePhotoPath")
     if not photo_path:
-        LOGGER.warning("No Photo Path Found for USER ID: {user_id}", extra= {"uid": USER})
+        LOGGER.warning(f"No Photo Path Found for USER ID: {user_id}", extra={"uid": USER})
         raise HTTPException(status_code=404, detail="Profile photo not set")
     file_path = os.path.join(os.getcwd(), photo_path.lstrip("/"))
     if not os.path.exists(file_path):
@@ -208,18 +208,22 @@ async def add_profile_photo(request: Request,user_id: str, photo: UploadFile = F
         photos_dir = "profile_photos"
         os.makedirs(photos_dir, exist_ok=True)
         _ , ext = os.path.splitext(photo.filename)
-        filename = f"{uuid.uuid4()}{ext}"
+        filename = f"{user_id}{ext}"
         file_path = os.path.join(photos_dir, filename)
         with open(file_path, "wb") as f:
             content = await photo.read()
             f.write(content)
         # Store the file path or URL in DB
         photo_path = f"/{photos_dir}/{user_id}{ext}"
-        users_collection.update_one({"_id": user_id}, {"$set": {"profilePhotoPath": photo_path, "profilePhotoUrl": f"{request.base_url}/users/0/profile/photo"}})
+        # Get the correct protocol from X-Forwarded-Proto header (set by Railway reverse proxy)
+        proto = request.headers.get("X-Forwarded-Proto", "http")
+        base_url = f"{proto}://{request.headers.get('Host', request.url.netloc)}".rstrip('/')
+        profile_photo_url = f"{base_url}/users/0/profile/photo"
+        users_collection.update_one({"_id": user_id}, {"$set": {"profilePhotoPath": photo_path, "profilePhotoUrl": profile_photo_url}})
         LOGGER.info(f"Profile photo updated for user ID: {user_id}", extra={"uid": USER})
         return {"success": True, "message": "Photo Upload Successful"}
     except Exception as e:
-        LOGGER.error(f"Error Uploading Profile Photo")
+        LOGGER.error(f"Error Uploading Profile Photo: {e}", extra={"uid": USER})
         raise HTTPException(status_code=500, detail="Internal Server Error")
 
 @router.get("/search/", response_model=list[UserOut])
