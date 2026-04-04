@@ -147,8 +147,10 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
       // Viewing someone else's profile
       await _loadOtherUserProfile();
       await _loadConnectionStatus();
+      await _loadUserPosts(widget.userId!);
     } else {
-      // Viewing my profile
+      // Viewing my profile - refresh the auth provider and reload posts
+      ref.refresh(authProvider);
       final myUser = ref.read(authProvider).value;
       if (myUser != null) {
         await _loadUserPosts(myUser.id);
@@ -246,8 +248,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
           ? const Center(child: Text("Error Loading Profile"))
           : RefreshIndicator(
               onRefresh: _refreshProfile,
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+              child: SingleChildScrollView(                physics: const AlwaysScrollableScrollPhysics(),                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
                 child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [

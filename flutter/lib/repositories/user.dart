@@ -1,8 +1,10 @@
 import 'dart:convert';
+import 'dart:typed_data';
 import 'package:studently/models/user.dart';
 import 'package:studently/models/backend_config.dart';
 import 'package:studently/services/api.dart';
 import 'package:studently/logger.dart';
+import 'package:studently/utils/image_compression.dart';
 import 'dart:io';
 
 class UserRepository {
@@ -228,12 +230,20 @@ class UserRepository {
 		logger.i("[$runtimeType] Upload Profile Photo Initiated");
 		try {
 			// Use provided bytes if available (web), otherwise read from file path (native)
-			final bytes = fileBytes ?? await File(filePath).readAsBytes();
+			var bytes = fileBytes ?? await File(filePath).readAsBytes();
 			final fname = filename ?? filePath.split('/').last;
+			
+			// Compress image before uploading (Instagram-style compression)
+			logger.i("[$runtimeType] Compressing image before upload...");
+			final compressedBytes = await ImageCompressionUtil.compressImage(
+				Uint8List.fromList(bytes),
+				maxWidth: 1080,
+				quality: 85,
+			);
 			
 			await _apiService.multiPartFromBytes(
 				endpoint: '/users/0/profile/photo/add',
-				fileBytes: bytes,
+				fileBytes: compressedBytes,
 				filename: fname,
 				metadata: {"userId": "0"},
 				fieldName: 'photo',  // Backend expects 'photo' field name
