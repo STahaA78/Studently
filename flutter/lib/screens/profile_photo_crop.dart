@@ -24,7 +24,9 @@ class _ProfilePhotoCropScreenState extends State<ProfilePhotoCropScreen> {
 
   static const double _minZoom        = 1.0;
   static const double _maxZoom        = 5.0;
-  static const double _maxCropDiameterWide = 560.0;
+  static const double _maxViewportWide = 680.0;
+  static const double _circleToViewportRatio = 0.82;
+  static const double _maskOpacity = 0.32;
 
   double _circleDiameter = 300.0;
   double get _circleRadius => _circleDiameter / 2;
@@ -68,19 +70,47 @@ class _ProfilePhotoCropScreenState extends State<ProfilePhotoCropScreen> {
     return math.max(_circleDiameter / img.width, _circleDiameter / img.height);
   }
 
-  /// Total scale (fit × user zoom) — display px per image px.
-  double get _imageScale => _fitScale * _zoomScale;
-
-  double _resolveCropDiameter(BoxConstraints constraints) {
+  double _resolveViewportSize(BoxConstraints constraints) {
     final double shortest = math.min(constraints.maxWidth, constraints.maxHeight);
 
-    // On phones, use full available width so the crop circle touches edges.
-    // On wide/tablet/web layouts, cap the size to avoid an oversized crop UI.
-    if (constraints.maxWidth >= 700) {
-      return math.min(shortest, _maxCropDiameterWide);
+    // Cap the viewport on very wide screens (web/desktop/tablet) so the
+    // crop experience remains focused and ergonomic.
+    if (constraints.maxWidth >= 900) {
+      return math.min(shortest, _maxViewportWide);
     }
 
     return shortest;
+  }
+
+  double _resolveCropDiameter({
+    required double viewportSize,
+    required double availableWidth,
+  }) {
+    // Phone-like widths: make the crop circle span full viewport width
+    // so it touches left and right edges like the earlier behavior.
+    if (availableWidth < 700) {
+      return viewportSize;
+    }
+
+    final double target = viewportSize * _circleToViewportRatio;
+
+    // Wider/tablet/web layouts keep some visible image around the circle.
+    final double min = math.min(320.0, viewportSize);
+    return target.clamp(min, viewportSize).toDouble();
+  }
+
+  Rect _previewSourceRectFor({
+    required Offset center,
+    required double zoom,
+    required double viewportSize,
+  }) {
+    final double s = _fitScale * zoom;
+    final double half = (viewportSize / 2) / s;
+    return Rect.fromCenter(
+      center: center,
+      width: half * 2,
+      height: half * 2,
+    );
   }
 
   Offset _clampCenterForZoom({
@@ -195,8 +225,12 @@ class _ProfilePhotoCropScreenState extends State<ProfilePhotoCropScreen> {
                 Expanded(
                   child: LayoutBuilder(
                     builder: (context, constraints) {
-                      _circleDiameter = _resolveCropDiameter(constraints);
-                      _cropCenter = _clampCenterForZoom(
+                      final viewportSize = _resolveViewportSize(constraints);
+                      _circleDiameter = _resolveCropDiameter(
+                        viewportSize: viewportSize,
+                        availableWidth: constraints.maxWidth,
+                      );
+                      final clampedCenter = _clampCenterForZoom(
                         center: _cropCenter,
                         zoom: _zoomScale,
                       );
@@ -206,26 +240,37 @@ class _ProfilePhotoCropScreenState extends State<ProfilePhotoCropScreen> {
                           onScaleStart:  _handleScaleStart,
                           onScaleUpdate: _handleScaleUpdate,
                           child: SizedBox(
-                            width:  _circleDiameter,
-                            height: _circleDiameter,
+                            width:  viewportSize,
+                            height: viewportSize,
                             child: Stack(
                               alignment: Alignment.center,
                               children: [
                                 Container(color: backgroundColor),
 
-                                ClipOval(
-                                  child: SizedBox(
-                                    width: _circleDiameter,
-                                    height: _circleDiameter,
-                                    child: CustomPaint(
-                                      painter: CropPreviewPainter(
-                                        image: _decodedImage!,
-                                        sourceRect: _sourceRectFor(
-                                          center: _cropCenter,
-                                          zoom: _zoomScale,
-                                        ),
+                                SizedBox(
+                                  width: viewportSize,
+                                  height: viewportSize,
+                                  child: CustomPaint(
+                                    painter: CropPreviewPainter(
+                                      image: _decodedImage!,
+                                      sourceRect: _previewSourceRectFor(
+                                        center: clampedCenter,
+                                        zoom: _zoomScale,
+                                        viewportSize: viewportSize,
                                       ),
                                     ),
+                                  ),
+                                ),
+
+                                IgnorePointer(
+                                  child: CustomPaint(
+                                    painter: CircularOverlayPainter(
+                                      circleRadius: _circleRadius,
+                                      overlayColor: Colors.grey.withValues(
+                                        alpha: _maskOpacity,
+                                      ),
+                                    ),
+                                    size: Size(viewportSize, viewportSize),
                                   ),
                                 ),
 
@@ -234,11 +279,7 @@ class _ProfilePhotoCropScreenState extends State<ProfilePhotoCropScreen> {
                                     width:  _circleDiameter,
                                     height: _circleDiameter,
                                     decoration: BoxDecoration(
-                                      shape: BoxShape.circle,
-                                      border: Border.all(
-                                        color: Colors.white,
-                                        width: 2,
-                                      ),
+                                      shape: BoxShape.circle
                                     ),
                                   ),
                                 ),
@@ -280,6 +321,43 @@ class _ProfilePhotoCropScreenState extends State<ProfilePhotoCropScreen> {
               ],
             ),
     );
+  }
+}
+
+class CircularOverlayPainter extends CustomPainter {
+  final double circleRadius;
+  final Color overlayColor;
+
+  const CircularOverlayPainter({
+    required this.circleRadius,
+    required this.overlayColor,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    canvas.saveLayer(
+      Rect.fromLTWH(0, 0, size.width, size.height),
+      Paint(),
+    );
+
+    canvas.drawRect(
+      Rect.fromLTWH(0, 0, size.width, size.height),
+      Paint()..color = overlayColor,
+    );
+
+    canvas.drawCircle(
+      Offset(size.width / 2, size.height / 2),
+      circleRadius,
+      Paint()..blendMode = BlendMode.clear,
+    );
+
+    canvas.restore();
+  }
+
+  @override
+  bool shouldRepaint(CircularOverlayPainter oldDelegate) {
+    return oldDelegate.circleRadius != circleRadius ||
+        oldDelegate.overlayColor != overlayColor;
   }
 }
 
