@@ -32,7 +32,9 @@ void main() async {
     // Initialize KnowledgeHubStorage
     final khStorage = KnowledgeHubStorage();
     await khStorage.init();
-    
+    await Hive.openBox('authBox');
+    await Hive.openBox('conversationsBox'); 
+    await Hive.openBox('messagesBox');
     await Firebase.initializeApp(
       options: DefaultFirebaseOptions.currentPlatform,
     );
@@ -50,7 +52,6 @@ void main() async {
         child: MyApp(),
       ),
     );
-} 
 
 class MyApp extends ConsumerWidget {
   const MyApp({super.key});

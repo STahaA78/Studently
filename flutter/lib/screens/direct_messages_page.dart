@@ -1,84 +1,40 @@
 import 'dart:async';
-import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:studently/models/chat.dart';
-import 'package:studently/repositories/chat.dart';
 import 'package:studently/screens/chat_page.dart';
 import 'package:studently/services/firebase_auth.dart';
-import 'package:studently/services/socket.dart';
 import 'package:studently/logger.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:studently/providers/chat_provider.dart';
+import 'package:studently/providers/auth_provider.dart'; // NEW: Added AuthProvider
 
-class DirectMessagesPage extends StatefulWidget {
+class DirectMessagesPage extends ConsumerStatefulWidget {
   const DirectMessagesPage({super.key});
 
   @override
-  State<DirectMessagesPage> createState() => _DirectMessagesPageState();
+  ConsumerState<DirectMessagesPage> createState() => _DirectMessagesPageState();
 }
 
-class _DirectMessagesPageState extends State<DirectMessagesPage>
-    with WidgetsBindingObserver {
+class _DirectMessagesPageState extends ConsumerState<DirectMessagesPage> {
   final TextEditingController _searchController = TextEditingController();
 
-  List<ChatConversation> _allConversations = [];
   List<ChatConversation> _filteredConversations = [];
-  bool _isLoading = true;
-  String _activeFilter = 'All'; // NEW: track active filter chip
-
-  final Map<String, String> _userNameCache = {};
-  StreamSubscription? _socketSubscription;
+  String _activeFilter = 'All';
 
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addObserver(this);
-    _fetchChats();
     _searchController.addListener(_onSearchChanged);
-    _initWebSocket();
-  }
-
-  @override
-  void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.resumed) {
-      logger.i("[DirectMessagesPage] App Resumed - Reconnecting WebSocket");
-      socketService.connect();
-    } else if (state == AppLifecycleState.paused) {
-      logger.i("[DirectMessagesPage] App Paused - Disconnecting WebSocket");
-      socketService.disconnect();
-    }
-  }
-
-  Future<void> _initWebSocket() async {
-    await socketService.connect();
-    _socketSubscription ??= socketService.stream.listen((event) {
-      final payload = jsonDecode(event);
-      if (payload['type'] == 'NEW_MESSAGE') {
-        _fetchChats();
-      }
-    });
+    // NOTE: Do NOT call fetchConversations() here. The provider's own _init()
+    // already fetches on startup. Calling it again here races against any
+    // locally-zeroed unread count that loadMessagesForChat just wrote, causing
+    // the server's stale count to overwrite our local zero and re-show the badge.
   }
 
   @override
   void dispose() {
-    WidgetsBinding.instance.removeObserver(this);
-    socketService.disconnect();
-    _socketSubscription?.cancel();
     _searchController.dispose();
     super.dispose();
-  }
-
-  String _getDisplayName(String id) {
-    if (_userNameCache.containsKey(id)) return _userNameCache[id]!;
-    _fetchAndCacheName(id);
-    return "Loading...";
-  }
-
-  Future<void> _fetchAndCacheName(String id) async {
-    try {
-      final name = await ChatRepository().getUserName(id);
-      if (mounted) setState(() => _userNameCache[id] = name);
-    } catch (e) {
-      debugPrint("Failed to fetch name for $id: $e");
-    }
   }
 
   String _formatTimestamp(String? isoString) {
@@ -104,27 +60,11 @@ class _DirectMessagesPageState extends State<DirectMessagesPage>
     }
   }
 
-  Future<void> _fetchChats() async {
-    try {
-      final chats = await ChatRepository().getUserConversations();
-      if (mounted) {
-        setState(() {
-          _allConversations = chats;
-          _applyFilter();
-          _isLoading = false;
-        });
-      }
-    } catch (e) {
-      if (mounted) setState(() => _isLoading = false);
-      debugPrint("Error fetching chats: $e");
-    }
-  }
-
-  void _applyFilter() {
+  void _applyFilter(List<ChatConversation> allConversations, Map<String, String> userNames) {
     final String? myId = authService.value.currentUser?.uid;
     final query = _searchController.text.toLowerCase();
 
-    List<ChatConversation> filtered = _allConversations.where((chat) {
+    List<ChatConversation> filtered = allConversations.where((chat) {
       if (chat.isGroup) {
         return (chat.title ?? "").toLowerCase().contains(query);
       } else {
@@ -132,7 +72,9 @@ class _DirectMessagesPageState extends State<DirectMessagesPage>
           (id) => id != myId,
           orElse: () => "",
         );
-        return _getDisplayName(otherId).toLowerCase().contains(query);
+        // Look up the name from the Provider's cache instantly!
+        final displayName = userNames[otherId] ?? "Unknown User";
+        return displayName.toLowerCase().contains(query);
       }
     }).toList();
 
@@ -147,18 +89,71 @@ class _DirectMessagesPageState extends State<DirectMessagesPage>
 
     _filteredConversations = filtered;
   }
+  
+  void _onSearchChanged() => setState(() {});
 
-  void _onSearchChanged() => setState(() => _applyFilter());
+  /// Returns a human-readable preview string for the last message.
+  /// Falls back to a filename (or generic label) when the message text is empty
+  /// but attachments are present — e.g. photo/file/voice-note sends.
+  String _buildLastMessagePreview(Map<String, dynamic>? lastMessage) {
+    if (lastMessage == null) return "No messages yet";
+
+    final text = (lastMessage['text'] as String?)?.trim() ?? '';
+    if (text.isNotEmpty) return text;
+
+    // Text is empty — check attachments
+    final attachments = lastMessage['attachments'];
+    if (attachments is List && attachments.isNotEmpty) {
+      final url = attachments.first.toString();
+      final cleanPath = url.split('?').first.toLowerCase();
+
+      if (cleanPath.endsWith('.m4a') || cleanPath.endsWith('.mp3') ||
+          cleanPath.endsWith('.aac') || cleanPath.endsWith('.wav')) {
+        return "🎤 Voice message";
+      }
+      if (cleanPath.endsWith('.jpg') || cleanPath.endsWith('.jpeg') ||
+          cleanPath.endsWith('.png') || cleanPath.endsWith('.gif') ||
+          cleanPath.endsWith('.webp') || cleanPath.endsWith('.heic')) {
+        return "📷 Photo";
+      }
+      if (cleanPath.endsWith('.mp4') || cleanPath.endsWith('.mov') ||
+          cleanPath.endsWith('.avi') || cleanPath.endsWith('.mkv')) {
+        return "🎥 Video";
+      }
+
+      // Generic file — try to extract the original filename
+      final decodedUrl = Uri.decodeFull(url);
+      final fullName = decodedUrl.split('/').last.split('?').first;
+      final lastDotIndex = fullName.lastIndexOf('.');
+      if (lastDotIndex != -1) {
+        final namePart = fullName.substring(0, lastDotIndex);
+        final extPart = fullName.substring(lastDotIndex);
+        // Strip the 9-char backend suffix (e.g. "-a1b2c3d4e")
+        if (namePart.length > 9 && namePart[namePart.length - 9] == '-') {
+          return "📎 ${namePart.substring(0, namePart.length - 9)}$extPart";
+        }
+        return "📎 $fullName";
+      }
+      return "📎 Attachment";
+    }
+
+    return "No messages yet";
+  }
 
   void _setFilter(String filter) {
     setState(() {
       _activeFilter = filter;
-      _applyFilter();
     });
   }
 
   @override
   Widget build(BuildContext context) {
+    // Watch the global provider state
+    final chatState = ref.watch(chatProvider);
+    
+    // Apply filters passing the conversations AND the fast name cache
+    _applyFilter(chatState.conversations, chatState.userNames);
+    
     final String? myId = authService.value.currentUser?.uid;
 
     return Scaffold(
@@ -176,7 +171,6 @@ class _DirectMessagesPageState extends State<DirectMessagesPage>
           ),
         ),
         actions: [
-          // NEW: Replaced refresh + dots with a single "new chat" icon button
           Padding(
             padding: const EdgeInsets.only(right: 12),
             child: GestureDetector(
@@ -184,8 +178,8 @@ class _DirectMessagesPageState extends State<DirectMessagesPage>
               child: Container(
                 width: 36,
                 height: 36,
-                decoration: BoxDecoration(
-                  color: const Color(0xFFE8F0FE),
+                decoration: const BoxDecoration(
+                  color: Color(0xFFE8F0FE),
                   shape: BoxShape.circle,
                 ),
                 child: const Icon(
@@ -203,54 +197,54 @@ class _DirectMessagesPageState extends State<DirectMessagesPage>
           _buildSearchBar(),
           _buildFilterChips(),
           Expanded(
-            child: _isLoading
-                ? const Center(child: CircularProgressIndicator())
-                : _filteredConversations.isEmpty
-                    ? Center(
-                        child: Text(
-                          "No messages found",
-                          style: TextStyle(color: Colors.grey.shade500),
-                        ),
-                      )
-                    : ListView.separated(
-                        itemCount: _filteredConversations.length,
-                        separatorBuilder: (_, _) => Divider(
-                          height: 1,
-                          indent: 76,
-                          endIndent: 16,
-                          color: Colors.grey.shade200,
-                        ),
-                        itemBuilder: (context, index) {
-                          final chat = _filteredConversations[index];
-                          final bool isGroup = chat.isGroup;
-                          final String otherUserId = isGroup
-                              ? "GROUP"
-                              : chat.participants.firstWhere(
-                                  (id) => id != myId,
-                                  orElse: () => "Unknown",
-                                );
-                          final String displayName = isGroup
-                              ? (chat.title ?? "Group Chat")
-                              : _getDisplayName(otherUserId);
-                          final int unreadCount =
-                              chat.unreadCounts[myId] ?? 0;
-                          final String lastMsgTime =
-                              _formatTimestamp(chat.lastMessage?['timestamp']);
+            child: _filteredConversations.isEmpty
+                ? Center(
+                    child: Text(
+                      chatState.conversations.isEmpty 
+                          ? "Loading or no chats yet..." // Fallback text
+                          : "No messages match your search",
+                      style: TextStyle(color: Colors.grey.shade500),
+                    ),
+                  )
+                : ListView.separated(
+                    itemCount: _filteredConversations.length,
+                    separatorBuilder: (_, __) => Divider(
+                      height: 1,
+                      indent: 76,
+                      endIndent: 16,
+                      color: Colors.grey.shade200,
+                    ),
+                    itemBuilder: (context, index) {
+                      final chat = _filteredConversations[index];
+                      final bool isGroup = chat.isGroup;
+                      final String otherUserId = isGroup
+                          ? "GROUP"
+                          : chat.participants.firstWhere(
+                              (id) => id != myId,
+                              orElse: () => "Unknown",
+                            );
+                      
+                      // Instant name lookup from the Provider cache!
+                      final String displayName = isGroup
+                          ? (chat.title ?? "Group Chat")
+                          : (chatState.userNames[otherUserId] ?? "Loading...");
 
-                          return _buildConversationTile(
-                            chat,
-                            otherUserId,
-                            displayName,
-                            unreadCount,
-                            lastMsgTime,
-                            isGroup,
-                          );
-                        },
-                      ),
+                      final int unreadCount = chat.unreadCounts[myId] ?? 0;
+                      final String lastMsgTime = _formatTimestamp(chat.lastMessage?['timestamp']);
+
+                      return _buildConversationTile(
+                        chat,
+                        otherUserId,
+                        displayName,
+                        unreadCount,
+                        lastMsgTime,
+                        isGroup,
+                      );
+                    },
+                  ),
           ),
         ],
       ),
-      // FAB removed from here — new chat is now in the AppBar action
     );
   }
 
@@ -277,7 +271,6 @@ class _DirectMessagesPageState extends State<DirectMessagesPage>
     );
   }
 
-  // NEW: Filter chips row (All / Unread / Groups)
   Widget _buildFilterChips() {
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
@@ -329,8 +322,8 @@ class _DirectMessagesPageState extends State<DirectMessagesPage>
     bool isGroup,
   ) {
     return InkWell(
-      onTap: () async {
-        await Navigator.push(
+      onTap: () {
+        Navigator.push(
           context,
           MaterialPageRoute(
             builder: (_) => ChatPage(
@@ -339,8 +332,10 @@ class _DirectMessagesPageState extends State<DirectMessagesPage>
               otherUserName: displayName,
             ),
           ),
-        );
-        _fetchChats();
+        ).then((_) {
+          // NEW: Safely clear the active chat the moment you return to this screen!
+          ref.read(chatProvider.notifier).clearActiveChat();
+        });
       },
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 11),
@@ -355,7 +350,7 @@ class _DirectMessagesPageState extends State<DirectMessagesPage>
                   ? const Icon(Icons.groups, color: Colors.white, size: 26)
                   : Text(
                       displayName != "Loading..." && displayName.isNotEmpty
-                          ? displayName[0]
+                          ? displayName[0].toUpperCase()
                           : "?",
                       style: const TextStyle(
                         color: Colors.white,
@@ -379,10 +374,12 @@ class _DirectMessagesPageState extends State<DirectMessagesPage>
                       fontSize: 15,
                       color: Colors.black87,
                     ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                   ),
                   const SizedBox(height: 3),
                   Text(
-                    chat.lastMessage?['text'] ?? "No messages yet",
+                    _buildLastMessagePreview(chat.lastMessage),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(
@@ -426,7 +423,7 @@ class _DirectMessagesPageState extends State<DirectMessagesPage>
                     ),
                     child: Center(
                       child: Text(
-                        unreadCount.toString(),
+                        unreadCount > 99 ? "99+" : unreadCount.toString(),
                         style: const TextStyle(
                           color: Colors.white,
                           fontSize: 10,
@@ -446,9 +443,15 @@ class _DirectMessagesPageState extends State<DirectMessagesPage>
   }
 
   void _showNewChatModel(BuildContext context) {
-    List<Map<String, String>> allFriends = [];
-    List<Map<String, String>> displayList = [];
-    bool isFirstLoad = true;
+    final outerContext = context;
+    final authNotifier = ref.read(authProvider.notifier);
+
+    // Snapshot the cached list — may be empty if the background fetch hasn't
+    // finished yet. The StatefulBuilder below will trigger a fresh fetch and
+    // call setModalState() when it arrives so the list updates live.
+    List<Map<String, String>> allFriends = List.from(authNotifier.friendsList);
+    List<Map<String, String>> displayList = List.from(allFriends);
+    bool isFetchingFriends = false;
 
     showModalBottomSheet(
       context: context,
@@ -460,6 +463,21 @@ class _DirectMessagesPageState extends State<DirectMessagesPage>
       builder: (context) {
         return StatefulBuilder(
           builder: (BuildContext context, StateSetter setModalState) {
+            // If the list is empty and we haven't started a fetch yet, kick one
+            // off now and refresh the modal when it resolves.
+            if (allFriends.isEmpty && !isFetchingFriends) {
+              isFetchingFriends = true;
+              authNotifier.fetchFriendsList().then((_) {
+                if (outerContext.mounted) {
+                  setModalState(() {
+                    allFriends = List.from(authNotifier.friendsList);
+                    displayList = List.from(allFriends);
+                    isFetchingFriends = false;
+                  });
+                }
+              });
+            }
+
             return Container(
               height: MediaQuery.of(context).size.height * 0.75,
               padding: const EdgeInsets.symmetric(horizontal: 20),
@@ -477,7 +495,7 @@ class _DirectMessagesPageState extends State<DirectMessagesPage>
                         ),
                         IconButton(
                           icon: const Icon(Icons.close, color: Colors.black),
-                          onPressed: () => Navigator.pop(context),
+                          onPressed: () => Navigator.pop(outerContext),
                         ),
                       ],
                     ),
@@ -507,71 +525,64 @@ class _DirectMessagesPageState extends State<DirectMessagesPage>
                     ),
                   ),
                   const SizedBox(height: 10),
+                  
                   Expanded(
-                    child: FutureBuilder<List<Map<String, String>>>(
-                      future: isFirstLoad
-                          ? ChatRepository().getFriendsList()
-                          : null,
-                      builder: (context, snapshot) {
-                        if (snapshot.connectionState ==
-                                ConnectionState.waiting &&
-                            isFirstLoad) {
-                          return const Center(
-                              child: CircularProgressIndicator());
-                        }
-                        if (isFirstLoad && snapshot.hasData) {
-                          allFriends = snapshot.data!;
-                          displayList = List.from(allFriends);
-                          isFirstLoad = false;
-                        }
-                        if (displayList.isEmpty && !isFirstLoad) {
-                          return const Center(
-                              child: Text("No results found"));
-                        }
-                        return ListView.builder(
-                          itemCount: displayList.length,
-                          itemBuilder: (context, index) {
-                            final friend = displayList[index];
-                            return ListTile(
-                              contentPadding:
-                                  const EdgeInsets.symmetric(vertical: 5),
-                             leading: CircleAvatar(
-                                backgroundColor: const Color(0xFFE8F0FE),
-                                child: Text(
-                                  friend['Name']![0].toUpperCase(),
-                                  style: const TextStyle(
-                                    color: Color(0xFF1976D2), 
-                                    fontWeight: FontWeight.bold,
+                    child: isFetchingFriends
+                        ? const Center(child: CircularProgressIndicator())
+                        : displayList.isEmpty
+                        ? Center(
+                            child: Text(allFriends.isEmpty 
+                                ? "No friends yet" 
+                                : "No results found"
+                            ),
+                          )
+                        : ListView.builder(
+                            itemCount: displayList.length,
+                            itemBuilder: (context, index) {
+                              final friend = displayList[index];
+                              return ListTile(
+                                contentPadding:
+                                    const EdgeInsets.symmetric(vertical: 5),
+                               leading: CircleAvatar(
+                                  backgroundColor: const Color(0xFFE8F0FE),
+                                  child: Text(
+                                    friend['Name']![0].toUpperCase(),
+                                    style: const TextStyle(
+                                      color: Color(0xFF1976D2), 
+                                      fontWeight: FontWeight.bold,
+                                    ),
                                   ),
                                 ),
-                              ),
-                              title: Text(
-                                friend['Name']!,
-                                style: const TextStyle(
-                                    fontWeight: FontWeight.w500),
-                              ),
-                              onTap: () async {
-                                final convId = await ChatRepository()
-                                    .createOrGetConversation(friend['id']!);
-                                if (convId != null && context.mounted) {
-                                  Navigator.pop(context);
-                                  Navigator.push(
-                                    context,
-                                    MaterialPageRoute(
-                                      builder: (_) => ChatPage(
-                                        conversationId: convId,
-                                        otherUserId: friend['id']!,
-                                        otherUserName: friend['Name']!,
+                                title: Text(
+                                  friend['Name']!,
+                                  style: const TextStyle(
+                                      fontWeight: FontWeight.w500),
+                                ),
+                                onTap: () async {
+                                  // 3. Call the Provider to smartly route or create the chat!
+                                  final convId = await ref.read(chatProvider.notifier)
+                                      .createOrGetConversation(friend['id']!);
+                                      
+                                  if (convId != null && outerContext.mounted) {
+                                    Navigator.pop(outerContext);
+                                    Navigator.push(
+                                      outerContext,
+                                      MaterialPageRoute(
+                                        builder: (_) => ChatPage(
+                                          conversationId: convId,
+                                          otherUserId: friend['id']!,
+                                          otherUserName: friend['Name']!,
+                                        ),
                                       ),
-                                    ),
-                                  ).then((_) => _fetchChats());
-                                }
-                              },
-                            );
-                          },
-                        );
-                      },
-                    ),
+                                    ).then((_) {
+                                      // Safely clear active chat when returning
+                                      ref.read(chatProvider.notifier).clearActiveChat();
+                                    });
+                                  }
+                                },
+                              );
+                            },
+                          ),
                   ),
                 ],
               ),

@@ -31,7 +31,15 @@ class ChatMessage {
       timestamp: json['timestamp'] ?? '',
     );
   }
-
+  Map<String, dynamic> toJson() => {
+        '_id': id,
+        'conversation_id': conversationId,
+        'sender_id': senderId,
+        'sender_name': senderName,
+        'text': text,
+        'attachments': attachments,
+        'timestamp': timestamp,
+      };
   bool get isMe => senderId == authService.value.currentUser?.uid;
 }
 class ChatConversation {
@@ -86,8 +94,30 @@ class ChatConversation {
         'last_message': lastMessage,
         'unread_counts': unreadCounts,
         'created_at': createdAt,
-        'is_group': isGroup,               // Added
-        'course_id': courseId,             // Added
-        'title': title,                    // Added
+        'is_group': isGroup,
+        'course_id': courseId,
+        'title': title,
       };
+
+  ChatConversation copyWith({
+    String? id,
+    List<String>? participants,
+    Map<String, dynamic>? lastMessage,
+    Map<String, int>? unreadCounts,
+    String? createdAt,
+    bool? isGroup,
+    String? courseId,
+    String? title,
+  }) {
+    return ChatConversation(
+      id: id ?? this.id,
+      participants: participants ?? this.participants,
+      lastMessage: lastMessage ?? this.lastMessage,
+      unreadCounts: unreadCounts ?? this.unreadCounts,
+      createdAt: createdAt ?? this.createdAt,
+      isGroup: isGroup ?? this.isGroup,
+      courseId: courseId ?? this.courseId,
+      title: title ?? this.title,
+    );
+  }
 }

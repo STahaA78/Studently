@@ -47,14 +47,7 @@ class ChatRepository {
     return data['name'] ?? "Student User";
   }
 
-  Future<List<Map<String, String>>> getFriendsList() async {
-    final response = await _apiService.get('/users/0/friends_list');
-    final List<dynamic> data = jsonDecode(response.body);
-    return data.map((f) => {
-      "id": f['_id'].toString(),
-      "Name": f['name'].toString()
-    }).toList();
-  }
+  
 
   Future<String?> createOrGetConversation(String receiverId) async {
     final response = await _apiService.post('/chat/$receiverId/create_chat');
