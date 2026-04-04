@@ -1,13 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:firebase_auth/firebase_auth.dart' as firebase_auth;
 import 'package:studently/providers/backend_config_provider.dart';
 import 'package:studently/utils/constants.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:studently/models/user.dart';
 import 'package:studently/models/backend_config.dart';
 import 'package:studently/logger.dart';
-import 'package:studently/services/firebase_auth.dart';
 import 'package:studently/providers/auth_provider.dart';
 
 // Wrapper class to add selected state to Interest

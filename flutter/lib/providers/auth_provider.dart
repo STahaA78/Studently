@@ -6,6 +6,7 @@ import 'package:studently/repositories/user.dart';
 import 'package:studently/models/user.dart'; 
 import 'package:studently/models/backend_config.dart'; 
 import 'package:studently/logger.dart';
+import 'dart:typed_data';
 
 final userRepositoryProvider = Provider<UserRepository>((ref) {
   return UserRepository();
@@ -96,7 +97,7 @@ class AuthNotifier extends AsyncNotifier<User?> {
   // --- Actions ---
 
   Future<void> login(String email, String password) async {
-    state = const AsyncLoading<User?>().copyWithPrevious(state);
+    state = const AsyncValue<User?>.loading();
     try {
       await authService.value.signIn(email: email, password: password);
       final firebaseUser = authService.value.currentUser;
@@ -119,7 +120,7 @@ class AuthNotifier extends AsyncNotifier<User?> {
     required String batch,
     required List<Interest> interests, 
   }) async {
-    state = const AsyncLoading<User?>().copyWithPrevious(state);
+    state = const AsyncValue<User?>.loading();
     try {
       await authService.value.createAccount(email: email, password: password);
       final firebaseUser = authService.value.currentUser;
@@ -163,7 +164,7 @@ class AuthNotifier extends AsyncNotifier<User?> {
     final userRepo = ref.read(userRepositoryProvider);
     
     // 1. Wait for FastAPI to confirm the save was successful
-    await userRepo.updateUserProfile(updatedData); 
+    await userRepo.updateUserProfile(updatedData);
     
     final currentUser = state.value;
     if (currentUser != null) {
@@ -191,9 +192,17 @@ class AuthNotifier extends AsyncNotifier<User?> {
   }
 
 
-  Future<void> updateProfilePhoto(String imagePath) async {
+  Future<void> updateProfilePhoto({
+    required String filePath,
+    Uint8List? fileBytes,
+    String? filename,
+  }) async {
     final userRepo = ref.read(userRepositoryProvider);
-    await userRepo.uploadProfilePhoto(imagePath); 
+    await userRepo.uploadProfilePhoto(
+      filePath: filePath,
+      fileBytes: fileBytes,
+      filename: filename,
+    ); 
     
     final firebaseUser = authService.value.currentUser;
     if (firebaseUser != null) {

@@ -9,6 +9,7 @@ import 'package:studently/models/backend_config.dart';
 import 'package:studently/repositories/user.dart';
 import 'package:studently/logger.dart';
 import 'package:studently/providers/backend_config_provider.dart';
+import 'package:studently/utils/authenticated_image.dart';
 import 'dart:async';
 
 class ConnectDiscoverPage extends StatefulWidget {
@@ -534,7 +535,7 @@ class _ConnectDiscoverPageState extends State<ConnectDiscoverPage> {
               backgroundColor: Colors.grey[300],
               backgroundImage: user.profilePhotoUrl != null &&
                       user.profilePhotoUrl!.isNotEmpty
-                  ? NetworkImage(user.profilePhotoUrl!)
+                  ? AuthenticatedNetworkImage(user.profilePhotoUrl!)
                   : null,
               child: user.profilePhotoUrl == null ||
                       user.profilePhotoUrl!.isEmpty

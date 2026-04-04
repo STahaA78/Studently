@@ -201,6 +201,44 @@ class ApiService {
   }
 
   /// ===============================
+  /// MULTIPART WITH BYTES (Web-compatible)
+  /// ===============================
+  Future<http.Response> multiPartFromBytes({
+    required String endpoint,
+    required List<int> fileBytes,
+    required String filename,
+    required Map<String, dynamic> metadata,
+    String fieldName = 'file',  // Customizable field name (default: 'file')
+  }) async {
+
+    logger.i("[$runtimeType] Multipart (bytes) request to $endpoint Initiated");
+
+    final url = Uri.parse("$_baseUrl$endpoint");
+
+    try {
+
+      var request = http.MultipartRequest('POST', url)
+        ..headers['Authorization'] =
+            'Bearer ${await authService.value.getIdToken()}'
+        ..fields['metadata'] = jsonEncode(metadata)
+        ..files.add(
+          http.MultipartFile.fromBytes(fieldName, fileBytes, filename: filename),
+        );
+
+      final streamedResponse = await request.send();
+
+      final response = await http.Response.fromStream(streamedResponse);
+
+      return _handleResponse(response);
+
+    } catch (e) {
+
+      logger.e("[$runtimeType] Multipart (bytes) request Failed: $e");
+      throw Exception('Error occurred: $e');
+    }
+  }
+
+  /// ===============================
   /// DOWNLOAD FILE
   /// ===============================
   Future<http.Response> downloadFile(String endpoint) async {

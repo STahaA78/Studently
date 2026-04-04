@@ -1,12 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'dart:typed_data';
 import 'package:studently/models/user.dart';
 import 'package:studently/models/backend_config.dart';
-import 'package:studently/repositories/user.dart';
 import 'package:studently/providers/backend_config_provider.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:studently/screens/interests.dart';
+import 'package:studently/screens/profile_photo_crop.dart';
+import 'package:studently/logger.dart';
 import 'package:studently/providers/auth_provider.dart';
+import 'package:studently/utils/authenticated_image.dart';
+
 class EditProfilePage extends ConsumerStatefulWidget {
   final User user;
 
@@ -22,11 +26,21 @@ class _EditProfilePageState extends ConsumerState<EditProfilePage> {
   String? selectedDepartment;
   String? selectedBatch;
   List<Interest> interests = [];
-  final List<String> departments = ['Computer Science', 'IT', 'ECE', 'Mechanical'];
+  final List<String> departments = [
+    'Computer Science',
+    'IT',
+    'ECE',
+    'Mechanical',
+  ];
   final List<String> batches = ['2022', '2023', '2024', '2025'];
   bool isSaving = false;
   String? _departmentError;
   String? _batchError;
+
+  // Store cropped profile photo locally until user saves
+  Uint8List? _croppedPhotoBytes;
+  String? _croppedPhotoFileName;
+  bool _profileImageFailed = false;
 
   @override
   void initState() {
@@ -81,20 +95,48 @@ class _EditProfilePageState extends ConsumerState<EditProfilePage> {
       'batch': selectedBatch,
       'interests': interests,
     };
+
     try {
+      // If user selected a new profile photo, upload it first
+      if (_croppedPhotoBytes != null) {
+        logger.i('Uploading profile photo...');
+        await ref
+            .read(userRepositoryProvider)
+            .uploadProfilePhoto(
+              filePath: _croppedPhotoFileName ?? 'profile_photo.jpg',
+              fileBytes: _croppedPhotoBytes,
+              filename: _croppedPhotoFileName ?? 'profile_photo.jpg',
+            );
+        logger.i('Profile photo uploaded successfully');
+        // Small delay to ensure backend finishes processing
+        await Future.delayed(const Duration(milliseconds: 500));
+        _croppedPhotoBytes = null;
+        _croppedPhotoFileName = null;
+      }
+
+      // Then update other profile data
       await ref.read(authProvider.notifier).updateProfile(updatedData);
+
       if (!mounted) return;
-      Navigator.pop(context); 
+
+      // Clear image cache to force reload of profile photo
+      imageCache.clearLiveImages();
+      imageCache.clear();
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Profile updated successfully!')),
+      );
+
+      Navigator.pop(context);
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed to update profile: $e')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Failed to update profile: $e')));
     } finally {
       setState(() => isSaving = false);
     }
   }
-
 
   @override
   Widget build(BuildContext context) {
@@ -116,7 +158,10 @@ class _EditProfilePageState extends ConsumerState<EditProfilePage> {
           ),
         ),
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.black87),
+          icon: const Icon(
+            Icons.arrow_back_ios_new_rounded,
+            color: Colors.black87,
+          ),
           onPressed: () => Navigator.pop(context),
         ),
       ),
@@ -130,311 +175,449 @@ class _EditProfilePageState extends ConsumerState<EditProfilePage> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-              // Profile Photo
-              Center(
-                child: Column(
-                  children: [
-                    Stack(
-                      alignment: Alignment.bottomRight,
-                      children: [
-                        CircleAvatar(
-                          radius: 52,
-                          backgroundColor: Colors.grey.shade300,
-                          backgroundImage: hasPhoto
-                              ? NetworkImage(currentUser.profilePhotoUrl!)
-                              : null,
-                          child: !hasPhoto
-                              ? const Icon(Icons.person, size: 48, color: Colors.white)
-                              : null,
-                        ),
-                        GestureDetector(
-                          onTap: _showEditPhotoOptions,
-                          child: Container(
-                            padding: const EdgeInsets.all(6),
-                            decoration: BoxDecoration(
-                              color: Colors.white,
-                              shape: BoxShape.circle,
-                              border: Border.all(color: Colors.grey.shade300),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: Colors.black.withValues(alpha: 0.08),
-                                  blurRadius: 4,
-                                  offset: const Offset(0, 2),
+                    // Profile Photo
+                    Center(
+                      child: Column(
+                        children: [
+                          Stack(
+                            alignment: Alignment.bottomRight,
+                            children: [
+                              CircleAvatar(
+                                key: ValueKey<String?>(
+                                  _croppedPhotoBytes != null
+                                      ? 'cropped'
+                                      : currentUser.profilePhotoUrl,
                                 ),
-                              ],
-                            ),
-                            child: const Icon(Icons.edit, size: 16, color: Colors.black87),
+                                radius: 52,
+                                backgroundColor: Colors.grey.shade300,
+                                backgroundImage: _croppedPhotoBytes != null
+                                    ? MemoryImage(_croppedPhotoBytes!)
+                                    : (hasPhoto
+                                          ? AuthenticatedNetworkImage(
+                                              currentUser.profilePhotoUrl!,
+                                            )
+                                          : null),
+                                onBackgroundImageError: _croppedPhotoBytes == null && hasPhoto
+                                    ? (exception, stackTrace) {
+                                        setState(() => _profileImageFailed = true);
+                                      }
+                                    : null,
+                                child: (_croppedPhotoBytes == null && (!hasPhoto || _profileImageFailed))
+                                    ? const Icon(
+                                        Icons.person,
+                                        size: 48,
+                                        color: Colors.white,
+                                      )
+                                    : null,
+                              ),
+                              GestureDetector(
+                                onTap: _showEditPhotoOptions,
+                                child: Container(
+                                  padding: const EdgeInsets.all(6),
+                                  decoration: BoxDecoration(
+                                    color: Colors.white,
+                                    shape: BoxShape.circle,
+                                    border: Border.all(
+                                      color: Colors.grey.shade300,
+                                    ),
+                                    boxShadow: [
+                                      BoxShadow(
+                                        color: Colors.black.withValues(
+                                          alpha: 0.08,
+                                        ),
+                                        blurRadius: 4,
+                                        offset: const Offset(0, 2),
+                                      ),
+                                    ],
+                                  ),
+                                  child: const Icon(
+                                    Icons.edit,
+                                    size: 16,
+                                    color: Colors.black87,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 8),
+                          TextButton(
+                            onPressed: _showEditPhotoOptions,
+                            child: const Text('Change Profile Photo'),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    Divider(height: 1, color: Colors.grey.shade300),
+                    const SizedBox(height: 12),
+                    // Name
+                    const Text(
+                      'Full Name',
+                      style: TextStyle(
+                        fontWeight: FontWeight.w500,
+                        fontSize: 15,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    SizedBox(
+                      height: 50,
+                      child: TextFormField(
+                        controller: nameController,
+                        textCapitalization: TextCapitalization.words,
+                        decoration: InputDecoration(
+                          contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 18,
+                            vertical: 14,
+                          ),
+                          filled: true,
+                          fillColor: Colors.grey.shade100,
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(25),
+                            borderSide: BorderSide.none,
                           ),
                         ),
-                      ],
+                        validator: (v) => v == null || v.trim().isEmpty
+                            ? 'Enter your name'
+                            : null,
+                      ),
                     ),
-                    const SizedBox(height: 8),
-                    TextButton(
-                      onPressed: _showEditPhotoOptions,
-                      child: const Text('Change Profile Photo'),
+                    const SizedBox(height: 20),
+                    // Department Dropdown
+                    const Text(
+                      'Department',
+                      style: TextStyle(
+                        fontWeight: FontWeight.w500,
+                        fontSize: 15,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    Container(
+                      height: 50,
+                      decoration: BoxDecoration(
+                        color: Colors.grey.shade100,
+                        borderRadius: BorderRadius.circular(25),
+                      ),
+                      child: DropdownButtonFormField<String>(
+                        initialValue: selectedDepartment,
+                        decoration: InputDecoration(
+                          contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 18,
+                            vertical: 8,
+                          ),
+                          border: InputBorder.none,
+                          errorText: _departmentError,
+                        ),
+                        isExpanded: true,
+                        dropdownColor: Colors.white,
+                        icon: const Icon(
+                          Icons.keyboard_arrow_down_rounded,
+                          color: Colors.grey,
+                        ),
+                        items: departments
+                            .map(
+                              (dept) => DropdownMenuItem(
+                                value: dept,
+                                child: Text(dept),
+                              ),
+                            )
+                            .toList(),
+                        onChanged: (val) {
+                          setState(() {
+                            selectedDepartment = val;
+                            _departmentError = null;
+                          });
+                        },
+                        borderRadius: BorderRadius.circular(20),
+                        menuMaxHeight: 220,
+                      ),
+                    ),
+                    if (_departmentError != null)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 6, left: 8),
+                        child: Text(
+                          _departmentError!,
+                          style: const TextStyle(
+                            color: Colors.redAccent,
+                            fontSize: 12,
+                          ),
+                        ),
+                      ),
+                    const SizedBox(height: 20),
+                    // Batch Dropdown
+                    const Text(
+                      'Batch',
+                      style: TextStyle(
+                        fontWeight: FontWeight.w500,
+                        fontSize: 15,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    Container(
+                      height: 50,
+                      decoration: BoxDecoration(
+                        color: Colors.grey.shade100,
+                        borderRadius: BorderRadius.circular(25),
+                      ),
+                      child: DropdownButtonFormField<String>(
+                        initialValue: selectedBatch,
+                        decoration: InputDecoration(
+                          contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 18,
+                            vertical: 8,
+                          ),
+                          border: InputBorder.none,
+                          errorText: _batchError,
+                        ),
+                        isExpanded: true,
+                        dropdownColor: Colors.white,
+                        icon: const Icon(
+                          Icons.keyboard_arrow_down_rounded,
+                          color: Colors.grey,
+                        ),
+                        items: batches
+                            .map(
+                              (batch) => DropdownMenuItem(
+                                value: batch,
+                                child: Text(batch),
+                              ),
+                            )
+                            .toList(),
+                        onChanged: (val) {
+                          setState(() {
+                            selectedBatch = val;
+                            _batchError = null;
+                          });
+                        },
+                        borderRadius: BorderRadius.circular(20),
+                        menuMaxHeight: 220,
+                      ),
+                    ),
+                    if (_batchError != null)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 6, left: 8),
+                        child: Text(
+                          _batchError!,
+                          style: const TextStyle(
+                            color: Colors.redAccent,
+                            fontSize: 12,
+                          ),
+                        ),
+                      ),
+                    const SizedBox(height: 28),
+                    const Text(
+                      'Interests',
+                      style: TextStyle(
+                        fontWeight: FontWeight.w500,
+                        fontSize: 15,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    GestureDetector(
+                      onTap: _openInterestsPage,
+                      child: Container(
+                        decoration: BoxDecoration(
+                          border: Border.all(color: Colors.grey.shade300),
+                          borderRadius: BorderRadius.circular(12),
+                          color: Colors.white,
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Padding(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 16,
+                                vertical: 12,
+                              ),
+                              child: Row(
+                                mainAxisAlignment:
+                                    MainAxisAlignment.spaceBetween,
+                                children: [
+                                  const Text(
+                                    'Change your interests',
+                                    style: TextStyle(
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.w600,
+                                      color: Colors.black87,
+                                    ),
+                                  ),
+                                  IconButton(
+                                    icon: const Icon(Icons.add, size: 24),
+                                    onPressed: _openInterestsPage,
+                                    padding: EdgeInsets.zero,
+                                    constraints: const BoxConstraints(),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            Divider(height: 1, color: Colors.grey.shade300),
+                            if (interests.isNotEmpty)
+                              Consumer(
+                                builder: (context, ref, _) => ref
+                                    .watch(backendConfigProvider)
+                                    .when(
+                                      loading: () => const Padding(
+                                        padding: EdgeInsets.all(12),
+                                        child: CircularProgressIndicator(),
+                                      ),
+                                      error: (_, _) => Padding(
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 8,
+                                          vertical: 12,
+                                        ),
+                                        child: Wrap(
+                                          spacing: 8,
+                                          runSpacing: 8,
+                                          children: interests.map((interest) {
+                                            return Container(
+                                              padding:
+                                                  const EdgeInsets.symmetric(
+                                                    horizontal: 12,
+                                                    vertical: 8,
+                                                  ),
+                                              decoration: BoxDecoration(
+                                                color: Colors.grey.shade100,
+                                                borderRadius:
+                                                    BorderRadius.circular(20),
+                                                border: Border.all(
+                                                  color: const Color(
+                                                    0xFFE0E6ED,
+                                                  ),
+                                                ),
+                                              ),
+                                              child: Row(
+                                                mainAxisSize: MainAxisSize.min,
+                                                children: [
+                                                  if (interest
+                                                      .emoji
+                                                      .isNotEmpty) ...[
+                                                    Text(
+                                                      interest.emoji,
+                                                      style: const TextStyle(
+                                                        fontSize: 14,
+                                                      ),
+                                                    ),
+                                                    const SizedBox(width: 6),
+                                                  ],
+                                                  Text(
+                                                    interest.name,
+                                                    style: const TextStyle(
+                                                      color: Color(0xFF334155),
+                                                      fontSize: 12,
+                                                    ),
+                                                  ),
+                                                ],
+                                              ),
+                                            );
+                                          }).toList(),
+                                        ),
+                                      ),
+                                      data: (config) => Padding(
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 8,
+                                          vertical: 12,
+                                        ),
+                                        child: Wrap(
+                                          spacing: 8,
+                                          runSpacing: 8,
+                                          children: interests.map((interest) {
+                                            return Container(
+                                              padding:
+                                                  const EdgeInsets.symmetric(
+                                                    horizontal: 12,
+                                                    vertical: 8,
+                                                  ),
+                                              decoration: BoxDecoration(
+                                                color: Colors.grey.shade100,
+                                                borderRadius:
+                                                    BorderRadius.circular(20),
+                                                border: Border.all(
+                                                  color: const Color(
+                                                    0xFFE0E6ED,
+                                                  ),
+                                                ),
+                                              ),
+                                              child: Row(
+                                                mainAxisSize: MainAxisSize.min,
+                                                children: [
+                                                  Text(
+                                                    interest.emoji,
+                                                    style: const TextStyle(
+                                                      fontSize: 14,
+                                                    ),
+                                                  ),
+                                                  const SizedBox(width: 6),
+                                                  Text(
+                                                    interest.name,
+                                                    style: const TextStyle(
+                                                      color: Color(0xFF334155),
+                                                      fontSize: 12,
+                                                    ),
+                                                  ),
+                                                ],
+                                              ),
+                                            );
+                                          }).toList(),
+                                        ),
+                                      ),
+                                    ),
+                              )
+                            else
+                              Padding(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 16,
+                                  vertical: 12,
+                                ),
+                                child: Text(
+                                  'No interests selected yet',
+                                  style: TextStyle(
+                                    fontSize: 13,
+                                    color: Colors.grey.shade600,
+                                  ),
+                                ),
+                              ),
+                          ],
+                        ),
+                      ),
                     ),
                   ],
                 ),
               ),
-              const SizedBox(height: 12),
-              Divider(height: 1, color: Colors.grey.shade300),
-              const SizedBox(height: 12),
-              // Name
-              const Text('Full Name', style: TextStyle(fontWeight: FontWeight.w500, fontSize: 15)),
-              const SizedBox(height: 6),
-              SizedBox(
-                height: 50,
-                child: TextFormField(
-                  controller: nameController,
-                  textCapitalization: TextCapitalization.words,
-                  decoration: InputDecoration(
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
-                    filled: true,
-                    fillColor: Colors.grey.shade100,
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(25),
-                      borderSide: BorderSide.none,
-                    ),
-                  ),
-                  validator: (v) => v == null || v.trim().isEmpty ? 'Enter your name' : null,
-                ),
-              ),
-              const SizedBox(height: 20),
-              // Department Dropdown
-              const Text('Department', style: TextStyle(fontWeight: FontWeight.w500, fontSize: 15)),
-              const SizedBox(height: 6),
-              Container(
-                height: 50,
-                decoration: BoxDecoration(
-                  color: Colors.grey.shade100,
-                  borderRadius: BorderRadius.circular(25),
-                ),
-                child: DropdownButtonFormField<String>(
-                  initialValue: selectedDepartment,
-                  decoration: InputDecoration(
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 8),
-                    border: InputBorder.none,
-                    errorText: _departmentError,
-                  ),
-                  isExpanded: true,
-                  dropdownColor: Colors.white,
-                  icon: const Icon(Icons.keyboard_arrow_down_rounded, color: Colors.grey),
-                  items: departments.map((dept) => DropdownMenuItem(
-                    value: dept,
-                    child: Text(dept),
-                  )).toList(),
-                  onChanged: (val) {
-                    setState(() {
-                      selectedDepartment = val;
-                      _departmentError = null;
-                    });
-                  },
-                  borderRadius: BorderRadius.circular(20),
-                  menuMaxHeight: 220,
-                ),
-              ),
-              if (_departmentError != null) Padding(
-                padding: const EdgeInsets.only(top: 6, left: 8),
-                child: Text(_departmentError!, style: const TextStyle(color: Colors.redAccent, fontSize: 12)),
-              ),
-              const SizedBox(height: 20),
-              // Batch Dropdown
-              const Text('Batch', style: TextStyle(fontWeight: FontWeight.w500, fontSize: 15)),
-              const SizedBox(height: 6),
-              Container(
-                height: 50,
-                decoration: BoxDecoration(
-                  color: Colors.grey.shade100,
-                  borderRadius: BorderRadius.circular(25),
-                ),
-                child: DropdownButtonFormField<String>(
-                  initialValue: selectedBatch,
-                  decoration: InputDecoration(
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 8),
-                    border: InputBorder.none,
-                    errorText: _batchError,
-                  ),
-                  isExpanded: true,
-                  dropdownColor: Colors.white,
-                  icon: const Icon(Icons.keyboard_arrow_down_rounded, color: Colors.grey),
-                  items: batches.map((batch) => DropdownMenuItem(
-                    value: batch,
-                    child: Text(batch),
-                  )).toList(),
-                  onChanged: (val) {
-                    setState(() {
-                      selectedBatch = val;
-                      _batchError = null;
-                    });
-                  },
-                  borderRadius: BorderRadius.circular(20),
-                  menuMaxHeight: 220,
-                ),
-              ),
-              if (_batchError != null) Padding(
-                padding: const EdgeInsets.only(top: 6, left: 8),
-                child: Text(_batchError!, style: const TextStyle(color: Colors.redAccent, fontSize: 12)),
-              ),
-              const SizedBox(height: 28),
-              const Text('Interests', style: TextStyle(fontWeight: FontWeight.w500, fontSize: 15)),
-              const SizedBox(height: 6),
-              GestureDetector(
-                onTap: _openInterestsPage,
-                child: Container(
-                  decoration: BoxDecoration(
-                    border: Border.all(color: Colors.grey.shade300),
-                    borderRadius: BorderRadius.circular(12),
-                    color: Colors.white,
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            const Text(
-                              'Change your interests',
-                              style: TextStyle(
-                                fontSize: 14,
-                                fontWeight: FontWeight.w600,
-                                color: Colors.black87,
-                              ),
-                            ),
-                            IconButton(
-                              icon: const Icon(Icons.add, size: 24),
-                              onPressed: _openInterestsPage,
-                              padding: EdgeInsets.zero,
-                              constraints: const BoxConstraints(),
-                            ),
-                          ],
-                        ),
-                      ),
-                      Divider(height: 1, color: Colors.grey.shade300),
-                      if (interests.isNotEmpty)
-                        Consumer(
-                          builder: (context, ref, _) =>
-                            ref.watch(backendConfigProvider).when(
-                              loading: () => const Padding(
-                                padding: EdgeInsets.all(12),
-                                child: CircularProgressIndicator(),
-                              ),
-                              error: (_, _) => Padding(
-                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
-                                child: Wrap(
-                                  spacing: 8,
-                                  runSpacing: 8,
-                                  children: interests.map((interest) {
-                                    return Container(
-                                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                                      decoration: BoxDecoration(
-                                        color: Colors.grey.shade100,
-                                        borderRadius: BorderRadius.circular(20),
-                                        border: Border.all(
-                                          color: const Color(0xFFE0E6ED),
-                                        ),
-                                      ),
-                                      child: Row(
-                                        mainAxisSize: MainAxisSize.min,
-                                        children: [
-                                          if (interest.emoji.isNotEmpty) ...[Text(interest.emoji, style: const TextStyle(fontSize: 14)), const SizedBox(width: 6),
-                                          ],
-                                          Text(
-                                            interest.name,
-                                            style: const TextStyle(
-                                              color: Color(0xFF334155),
-                                              fontSize: 12,
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                    );
-                                  }).toList(),
-                                ),
-                              ),
-                              data: (config) => Padding(
-                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
-                                child: Wrap(
-                                  spacing: 8,
-                                  runSpacing: 8,
-                                  children: interests.map((interest) {
-                                    return Container(
-                                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                                      decoration: BoxDecoration(
-                                        color: Colors.grey.shade100,
-                                        borderRadius: BorderRadius.circular(20),
-                                        border: Border.all(
-                                          color: const Color(0xFFE0E6ED),
-                                        ),
-                                      ),
-                                      child: Row(
-                                        mainAxisSize: MainAxisSize.min,
-                                        children: [
-                                          Text(interest.emoji, style: const TextStyle(fontSize: 14)),
-                                          const SizedBox(width: 6),
-                                          Text(
-                                            interest.name,
-                                            style: const TextStyle(
-                                              color: Color(0xFF334155),
-                                              fontSize: 12,
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                    );
-                                  }).toList(),
-                                ),
-                              ),
-                            ),
-                        )
-                      else
-                        Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                          child: Text(
-                            'No interests selected yet',
-                            style: TextStyle(fontSize: 13, color: Colors.grey.shade600),
-                          ),
-                        ),
-                    ],
-                  ),
-                ),
-              ),
-            ],
+            ),
           ),
-        ),
+          Padding(
+            padding: const EdgeInsets.only(
+              left: 20,
+              right: 20,
+              bottom: 20,
+              top: 10,
+            ),
+            child: SizedBox(
+              width: double.infinity,
+              height: 56,
+              child: ElevatedButton(
+                onPressed: isSaving ? null : saveProfile,
+                child: isSaving
+                    ? const SizedBox(
+                        height: 24,
+                        width: 24,
+                        child: CircularProgressIndicator(
+                          valueColor: AlwaysStoppedAnimation<Color>(
+                            Colors.white,
+                          ),
+                          strokeWidth: 2.5,
+                        ),
+                      )
+                    : const Text(
+                        'Save Changes',
+                        style: TextStyle(fontSize: 16, color: Colors.white),
+                      ),
+              ),
+            ),
+          ),
+        ],
       ),
-    ),
-    Padding(
-      padding: const EdgeInsets.only(left: 20, right: 20, bottom: 20, top: 10),
-      child: SizedBox(
-        width: double.infinity,
-        height: 56,
-        child: ElevatedButton(
-          onPressed: isSaving ? null : saveProfile,
-          child: isSaving
-              ? const SizedBox(
-                  height: 24,
-                  width: 24,
-                  child: CircularProgressIndicator(
-                    valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-                    strokeWidth: 2.5,
-                  ),
-                )
-              : const Text(
-                  'Save Changes',
-                  style: TextStyle(
-                    fontSize: 16,
-                    color: Colors.white,
-                  ),
-                ),
-        ),
-      ),
-    ),
-    ],
-    ),
-  );
-}
+    );
+  }
 
   void _showEditPhotoOptions() async {
     // NEW: Quickly check the provider state to see if the user currently has a photo
@@ -472,10 +655,14 @@ class _EditProfilePageState extends ConsumerState<EditProfilePage> {
                   title: const Text('Choose from Gallery'),
                   onTap: () => Navigator.pop(context, 'gallery'),
                 ),
-                if (hasPhoto) ...[ // FIXED: Using the local 'hasPhoto' variable we just created
+                if (hasPhoto) ...[
+                  // FIXED: Using the local 'hasPhoto' variable we just created
                   const Divider(height: 1, indent: 16, endIndent: 16),
                   ListTile(
-                    leading: const Icon(Icons.delete_outline, color: Colors.red),
+                    leading: const Icon(
+                      Icons.delete_outline,
+                      color: Colors.red,
+                    ),
                     title: const Text(
                       'Remove Photo',
                       style: TextStyle(color: Colors.red),
@@ -491,17 +678,45 @@ class _EditProfilePageState extends ConsumerState<EditProfilePage> {
     );
 
     if (action == 'remove') {
+      // Clear the pending cropped photo if user removes
+      setState(() {
+        _croppedPhotoBytes = null;
+        _croppedPhotoFileName = null;
+      });
       // Provider handles backend deletion AND state clearing
       await ref.read(authProvider.notifier).removeProfilePhoto();
-      
     } else if (action == 'gallery' || action == 'take') {
-      final source =
-          action == 'gallery' ? ImageSource.gallery : ImageSource.camera;
+      final source = action == 'gallery'
+          ? ImageSource.gallery
+          : ImageSource.camera;
       final pickedFile = await ImagePicker().pickImage(source: source);
       if (pickedFile != null) {
-        // Provider handles upload AND injects new URL into state
-        await ref.read(authProvider.notifier).updateProfilePhoto(pickedFile.path);
+        // Navigate to crop screen
+        if (!mounted) return;
+        final croppedImageBytes = await Navigator.of(context).push<Uint8List>(
+          MaterialPageRoute(
+            builder: (context) =>
+                ProfilePhotoCropScreen(initialImage: pickedFile),
+          ),
+        );
+
+        // Store the cropped image locally (no upload yet)
+        if (croppedImageBytes != null && mounted) {
+          setState(() {
+            _croppedPhotoBytes = croppedImageBytes;
+            _croppedPhotoFileName = pickedFile.name;
+          });
+
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text(
+                'Photo preview updated. Tap Save to apply changes.',
+              ),
+              duration: Duration(seconds: 2),
+            ),
+          );
+        }
       }
-    } 
+    }
   }
 }

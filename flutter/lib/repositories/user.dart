@@ -1,8 +1,10 @@
 import 'dart:convert';
+import 'dart:typed_data';
 import 'package:studently/models/user.dart';
 import 'package:studently/models/backend_config.dart';
 import 'package:studently/services/api.dart';
 import 'package:studently/logger.dart';
+import 'package:studently/utils/image_compression.dart';
 import 'dart:io';
 
 class UserRepository {
@@ -219,18 +221,37 @@ class UserRepository {
 		}
 	}
   
-	// Upload profile photo using ApiService.multiPart
-	Future<void> uploadProfilePhoto(String filePath) async {
+	// Upload profile photo (web-compatible with bytes support)
+	Future<void> uploadProfilePhoto({
+		required String filePath,
+		List<int>? fileBytes,
+		String? filename,
+	}) async {
 		logger.i("[$runtimeType] Upload Profile Photo Initiated");
 		try {
-		await ApiService().multiPart(
-			file: File(filePath),
-			metadata: {"userId": "0"},
-		);
-		logger.i("[$runtimeType] Upload Profile Photo Completed Successfully");
+			// Use provided bytes if available (web), otherwise read from file path (native)
+			var bytes = fileBytes ?? await File(filePath).readAsBytes();
+			final fname = filename ?? filePath.split('/').last;
+			
+			// Compress image before uploading (Instagram-style compression)
+			logger.i("[$runtimeType] Compressing image before upload...");
+			final compressedBytes = await ImageCompressionUtil.compressImage(
+				Uint8List.fromList(bytes),
+				maxWidth: 1080,
+				quality: 85,
+			);
+			
+			await _apiService.multiPartFromBytes(
+				endpoint: '/users/0/profile/photo/add',
+				fileBytes: compressedBytes,
+				filename: fname,
+				metadata: {"userId": "0"},
+				fieldName: 'photo',  // Backend expects 'photo' field name
+			);
+			logger.i("[$runtimeType] Upload Profile Photo Completed Successfully");
 		} catch (e) {
-		logger.e("[$runtimeType] Upload Profile Photo Failed with error: $e");
-		rethrow;
+			logger.e("[$runtimeType] Upload Profile Photo Failed with error: $e");
+			rethrow;
 		}
 	}
 
