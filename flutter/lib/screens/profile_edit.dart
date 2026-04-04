@@ -40,6 +40,7 @@ class _EditProfilePageState extends ConsumerState<EditProfilePage> {
   // Store cropped profile photo locally until user saves
   Uint8List? _croppedPhotoBytes;
   String? _croppedPhotoFileName;
+  bool _profileImageFailed = false;
 
   @override
   void initState() {
@@ -196,7 +197,12 @@ class _EditProfilePageState extends ConsumerState<EditProfilePage> {
                                               currentUser.profilePhotoUrl!,
                                             )
                                           : null),
-                                child: (_croppedPhotoBytes == null && !hasPhoto)
+                                onBackgroundImageError: _croppedPhotoBytes == null && hasPhoto
+                                    ? (exception, stackTrace) {
+                                        setState(() => _profileImageFailed = true);
+                                      }
+                                    : null,
+                                child: (_croppedPhotoBytes == null && (!hasPhoto || _profileImageFailed))
                                     ? const Icon(
                                         Icons.person,
                                         size: 48,

@@ -215,7 +215,9 @@ async def add_profile_photo(request: Request,user_id: str, photo: UploadFile = F
             f.write(content)
         # Store the file path or URL in DB
         photo_path = f"/{photos_dir}/{user_id}{ext}"
-        base_url = str(request.base_url).rstrip('/')
+        # Get the correct protocol from X-Forwarded-Proto header (set by Railway reverse proxy)
+        proto = request.headers.get("X-Forwarded-Proto", "http")
+        base_url = f"{proto}://{request.headers.get('Host', request.url.netloc)}".rstrip('/')
         profile_photo_url = f"{base_url}/users/0/profile/photo"
         users_collection.update_one({"_id": user_id}, {"$set": {"profilePhotoPath": photo_path, "profilePhotoUrl": profile_photo_url}})
         LOGGER.info(f"Profile photo updated for user ID: {user_id}", extra={"uid": USER})

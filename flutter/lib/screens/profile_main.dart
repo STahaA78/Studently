@@ -31,6 +31,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
   bool isStatusLoading = true;
   final userRepository = UserRepository();
   bool isLoadingPosts = false;
+  final Set<String> failedProfileImages = {};
   @override
   void initState() {
     super.initState();
@@ -141,6 +142,20 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
     } catch (_) {}
   }
 
+  Future<void> _refreshProfile() async {
+    if (widget.userId != null) {
+      // Viewing someone else's profile
+      await _loadOtherUserProfile();
+      await _loadConnectionStatus();
+    } else {
+      // Viewing my profile
+      final myUser = ref.read(authProvider).value;
+      if (myUser != null) {
+        await _loadUserPosts(myUser.id);
+      }
+    }
+  }
+
   Future<void> _showDisconnectDialog() async {
     final confirmed = await showDialog<bool>(
       context: context,
@@ -229,9 +244,11 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
           ? const Center(child: CircularProgressIndicator())
           : displayUser == null
           ? const Center(child: Text("Error Loading Profile"))
-          : SingleChildScrollView(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-              child: Column(
+          : RefreshIndicator(
+              onRefresh: _refreshProfile,
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   const SizedBox(height: 12),
@@ -487,6 +504,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                     ),
                 ],
               ),
+              ),
             ),
       bottomNavigationBar: isMyProfile
           ? const CustomNavBar(currentIndex: 4)
@@ -515,12 +533,18 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
         child: const Icon(Icons.person, size: 40, color: Colors.white),
       );
     }
+    final bool imageFailed = failedProfileImages.contains(user.profilePhotoUrl);
     return CircleAvatar(
       key: ValueKey<String>(user.profilePhotoUrl!),
       radius: 45,
       backgroundColor: Colors.grey.shade400,
       backgroundImage: AuthenticatedNetworkImage(user.profilePhotoUrl!),
-      onBackgroundImageError: (_, _) {},
+      onBackgroundImageError: (exception, stackTrace) {
+        setState(() => failedProfileImages.add(user.profilePhotoUrl!));
+      },
+      child: imageFailed
+          ? const Icon(Icons.person, size: 40, color: Colors.white)
+          : null,
     );
   }
 
@@ -545,6 +569,17 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                   child: Image.network(
                     apiService.getCompleteUrl(imageUrl),
                     fit: BoxFit.cover,
+                    errorBuilder: (context, error, stackTrace) {
+                      return Container(
+                        color: Colors.grey.shade200,
+                        alignment: Alignment.center,
+                        child: Icon(
+                          Icons.image_not_supported_outlined,
+                          size: 48,
+                          color: Colors.grey.shade400,
+                        ),
+                      );
+                    },
                   ),
                 ),
 
