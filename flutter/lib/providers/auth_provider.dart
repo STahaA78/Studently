@@ -197,16 +197,29 @@ class AuthNotifier extends AsyncNotifier<User?> {
     Uint8List? fileBytes,
     String? filename,
   }) async {
-    final userRepo = ref.read(userRepositoryProvider);
-    await userRepo.uploadProfilePhoto(
-      filePath: filePath,
-      fileBytes: fileBytes,
-      filename: filename,
-    ); 
-    
-    final firebaseUser = authService.value.currentUser;
-    if (firebaseUser != null) {
-      await _refreshProfileInBackground(firebaseUser.uid); 
+    try {
+      final userRepo = ref.read(userRepositoryProvider);
+      
+      // 1. Upload the photo to the backend
+      await userRepo.uploadProfilePhoto(
+        filePath: filePath,
+        fileBytes: fileBytes,
+        filename: filename,
+      );
+      
+      // 2. Fetch the updated profile with new photo URL from backend
+      final firebaseUser = authService.value.currentUser;
+      if (firebaseUser != null) {
+        final updatedUser = await _fetchAndSaveFreshProfile(firebaseUser.uid);
+        
+        // 3. Update state to trigger UI refresh with new profile photo
+        state = AsyncValue.data(updatedUser);
+        
+        logger.i("[$runtimeType] Profile photo updated successfully");
+      }
+    } catch (e, stack) {
+      logger.e("[$runtimeType] Profile photo upload failed", error: e, stackTrace: stack);
+      rethrow; // Propagate error to UI for user feedback
     }
   }
 

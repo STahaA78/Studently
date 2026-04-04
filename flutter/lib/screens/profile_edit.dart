@@ -100,16 +100,12 @@ class _EditProfilePageState extends ConsumerState<EditProfilePage> {
       // If user selected a new profile photo, upload it first
       if (_croppedPhotoBytes != null) {
         logger.i('Uploading profile photo...');
-        await ref
-            .read(userRepositoryProvider)
-            .uploadProfilePhoto(
+        await ref.read(authProvider.notifier).updateProfilePhoto(
               filePath: _croppedPhotoFileName ?? 'profile_photo.jpg',
               fileBytes: _croppedPhotoBytes,
               filename: _croppedPhotoFileName ?? 'profile_photo.jpg',
             );
         logger.i('Profile photo uploaded successfully');
-        // Small delay to ensure backend finishes processing
-        await Future.delayed(const Duration(milliseconds: 500));
         _croppedPhotoBytes = null;
         _croppedPhotoFileName = null;
       }
@@ -118,10 +114,6 @@ class _EditProfilePageState extends ConsumerState<EditProfilePage> {
       await ref.read(authProvider.notifier).updateProfile(updatedData);
 
       if (!mounted) return;
-
-      // Clear image cache to force reload of profile photo
-      imageCache.clearLiveImages();
-      imageCache.clear();
 
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Profile updated successfully!')),
