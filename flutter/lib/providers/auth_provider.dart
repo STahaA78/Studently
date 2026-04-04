@@ -16,7 +16,9 @@ class AuthNotifier extends AsyncNotifier<User?> {
   // (Ensure Hive.openBox('authBox') is called in main.dart before the app runs)
   final _authBox = Hive.box('authBox');
   static const _userKey = 'cached_user_profile';
-
+  
+  List<Map<String, String>> friendsList = [];
+  
   @override
   Future<User?> build() async {
     logger.i("[$runtimeType] build() started - Checking local disk and Firebase");
@@ -24,6 +26,12 @@ class AuthNotifier extends AsyncNotifier<User?> {
     // 2. Synchronous read from Hive (No await needed!)
     final String? localJson = _authBox.get(_userKey);
     User? cachedUser;
+
+    final cachedFriends = _authBox.get('friends_list');
+    if (cachedFriends != null) {
+      final List<dynamic> decoded = jsonDecode(cachedFriends);
+      friendsList = decoded.map((e) => Map<String, String>.from(e)).toList();
+    }
     
     if (localJson != null) {
       cachedUser = User.fromJson(jsonDecode(localJson));
@@ -62,9 +70,26 @@ class AuthNotifier extends AsyncNotifier<User?> {
     try {
       final freshUser = await _fetchAndSaveFreshProfile(uid);
       state = AsyncValue.data(freshUser); // Update the state silently
+      
+      // Fetch and cache friends in the background
+      await fetchFriendsList(); 
+      
       logger.d("[$runtimeType] Background profile refresh complete");
     } catch (e) {
       logger.w("[$runtimeType] Background refresh failed: $e");
+    }
+  }
+
+  // Dedicated method to fetch friends from UserRepository
+  Future<void> fetchFriendsList() async {
+    try {
+      final userRepo = ref.read(userRepositoryProvider);
+      final rawFriends = await userRepo.getFriendsList(); 
+      
+      friendsList = rawFriends;
+      _authBox.put('friends_list', jsonEncode(friendsList));
+    } catch (e) {
+      logger.e("[$runtimeType] Error fetching friends list: $e");
     }
   }
 
@@ -128,6 +153,9 @@ class AuthNotifier extends AsyncNotifier<User?> {
     
     // 5. Delete from Hive
     await _authBox.delete(_userKey); 
+    await _authBox.delete('friends_list'); // Also wipe friends list on logout
+    friendsList.clear();
+
     state = const AsyncValue.data(null);
   }
 
@@ -143,7 +171,6 @@ class AuthNotifier extends AsyncNotifier<User?> {
       final updatedUser = User(
         id: currentUser.id,
         email: currentUser.email,
-        // password: currentUser.password, <-- Removed as it's no longer in backend
         birthday: currentUser.birthday,
         profilePhotoUrl: currentUser.profilePhotoUrl, 
         name: updatedData['name'] ?? currentUser.name,
@@ -187,7 +214,6 @@ class AuthNotifier extends AsyncNotifier<User?> {
         id: currentUser.id,
         name: currentUser.name,
         email: currentUser.email,
-        // password: currentUser.password, <-- Removed
         birthday: currentUser.birthday,
         department: currentUser.department,
         batch: currentUser.batch,
@@ -203,6 +229,7 @@ class AuthNotifier extends AsyncNotifier<User?> {
       _authBox.put(_userKey, jsonEncode(updatedUser.toJson()));
     }
   }
+  
   Future<void> respondToFriendRequest(String requesterId, String action) async {
     final currentUser = state.value;
     if (currentUser == null) return;
@@ -239,6 +266,12 @@ class AuthNotifier extends AsyncNotifier<User?> {
       await userRepo.respondRequest(requesterId, action); 
       
       logger.i("[$runtimeType] Friend request $action on backend.");
+
+      // NEW: If accepted, background refresh the friends list to ensure the chat modal gets updated!
+      if (action == 'accept') {
+        fetchFriendsList(); // Note: No await needed, let it update the cache silently!
+      }
+
     } catch (e) {
       // 4. ROLLBACK: If API fails, revert state if we changed it
       logger.e("[$runtimeType] Failed to $action request. Rolling back.", error: e);
