@@ -32,6 +32,8 @@ void main() async {
   
   // Open the auth box before the app runs
   await Hive.openBox('authBox');
+  await Hive.openBox('feedBox');
+  await Hive.openBox('profileFeedBox');
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
   );
