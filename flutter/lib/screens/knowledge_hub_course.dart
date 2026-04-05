@@ -219,9 +219,10 @@ class _RepositoryUserPageState extends ConsumerState<RepositoryUserPage>
         final item = entries[index];
 
         return GestureDetector(
-          onTap: () {
-            // Handle file tap, e.g., open or download the file
+          onTap: () async {
             logger.i("Tapped on resource: Year ${item.year} - ${item.semester} - ID: ${item.id}");
+            
+            // Open the PDF viewer for this resource
             Navigator.push(
               context,
               MaterialPageRoute(

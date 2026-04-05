@@ -134,7 +134,7 @@ async def upload_resource(
             path_parts.append(f"{meta_dict['semester']}")
             path_parts.append(f"{meta_dict['type']}s")
             if meta_dict['type'] == 'quiz':
-                path_parts.append(f"{meta_dict['instructorName']}")
+                path_parts.append(f"{meta_dict.get('instructorName', '')}")
 
         folder_path = os.path.join(*path_parts)
         os.makedirs(folder_path, exist_ok=True)
@@ -148,12 +148,21 @@ async def upload_resource(
             while chunk := await file.read(1024 * 1024):  # 1 MB chunks
                 f.write(chunk)
 
-        meta_dict['filePath'] = file_path
+        meta_dict['file_path'] = file_path
         # ---
-        meta_dict['uploadedAt'] = datetime.now(timezone.utc).replace(tzinfo=None)
+        meta_dict['uploaded_at'] = datetime.now(timezone.utc).replace(tzinfo=None)
         meta_dict['uploaded_by'] = user
         meta_dict['approved'] = True  # Trust Policy
-        meta_dict['downloadCount'] = 0
+        meta_dict['download_count'] = 0
+        
+        # Convert camelCase to snake_case for database storage
+        if 'instructorName' in meta_dict:
+            meta_dict['instructor_name'] = meta_dict.pop('instructorName')
+        if 'quizNumber' in meta_dict:
+            meta_dict['quiz_number'] = meta_dict.pop('quizNumber')
+        if 'isSolved' in meta_dict:
+            meta_dict['is_solved'] = meta_dict.pop('isSolved')
+        
         result = resources_collection.insert_one(meta_dict)
 
         LOGGER.info(f"Resource Upload Ended successfully: {result.inserted_id}", extra={"uid": user})
@@ -188,11 +197,11 @@ def get_all_resources(user: dict = Depends(get_current_user)):
                             "id": {"$toString": "$_id"},
                             "year": "$year",
                             "semester": "$semester",
-                            "instructorName": "$instructorName",
-                            "quizNumber": "$quizNumber",
-                            "filePath": "$filePath",
-                            "isSolved": "$isSolved",
-                            "uploadedAt": "$uploadedAt",
+                            "instructorName": "$instructor_name",
+                            "quizNumber": "$quiz_number",
+                            "isSolved": "$is_solved",
+                            "gdriveLink": "$gdrive_link",
+                            "uploadedAt": "$uploaded_at",
                         }
                     }
                 }
@@ -213,7 +222,7 @@ def get_all_resources(user: dict = Depends(get_current_user)):
                 "$project": {
                     "_id": 0,
                     "course": "$_id",
-                    "categories": { "$arrayToObject": "$cat_list" }
+                    "resources": { "$arrayToObject": "$cat_list" }
                 }
             },
             # 5. Sort by course name
@@ -254,12 +263,12 @@ def download_resource(resource_id: str, user: dict = Depends(get_current_user)):
             LOGGER.warning(f"Resource not found or not approved: {resource_id}", extra={"uid": user})
             raise HTTPException(status_code=404, detail="Resource not found or not approved")
 
-        file_path = resource.get("filePath")
+        file_path = resource.get("file_path") or resource.get("filePath")
         LOGGER.debug(f"Resource file path: {file_path}", extra={"uid": user})
         
         if not file_path:
             LOGGER.error(f"Resource has no filePath: {resource_id}", extra={"uid": user})
-            raise HTTPException(status_code=500, detail="Resource does not have a file path")
+            raise HTTPException(status_code=400, detail="Resource does not have a file path")
         
         if not os.path.isfile(file_path):
             LOGGER.error(f"File not found on server: {file_path}", extra={"uid": user})
@@ -312,11 +321,11 @@ def get_resources_by_course(course_id: str, user: dict = Depends(get_current_use
                             "id": {"$toString": "$_id"},
                             "year": "$year",
                             "semester": "$semester",
-                            "instructorName": "$instructorName",
-                            "quizNumber": "$quizNumber",
-                            "filePath": "$filePath",
-                            "isSolved": "$isSolved",
-                            "uploadedAt": "$uploadedAt",
+                            "instructorName": "$instructor_name",
+                            "quizNumber": "$quiz_number",
+                            "isSolved": "$is_solved",
+                            "gdriveLink": "$gdrive_link",
+                            "uploadedAt": "$uploaded_at",
                         }
                     },
                     # Grab course info once so we can use it in the next stage

@@ -60,8 +60,8 @@ class ResourceItemAdapter extends TypeAdapter<ResourceItem> {
       instructorName: fields[3] as String?,
       quizNumber: fields[4] as int?,
       isSolved: fields[5] as bool?,
-      filePath: fields[6] as String,
-      uploadedAt: fields[7] as DateTime,
+      gdriveLink: fields[6] as String?,
+      uploadedAt: fields[7] as String?,
       localFilePath: fields[8] as String?,
       type: fields[9] as String?,
     );
@@ -84,7 +84,7 @@ class ResourceItemAdapter extends TypeAdapter<ResourceItem> {
       ..writeByte(5)
       ..write(obj.isSolved)
       ..writeByte(6)
-      ..write(obj.filePath)
+      ..write(obj.gdriveLink)
       ..writeByte(7)
       ..write(obj.uploadedAt)
       ..writeByte(8)

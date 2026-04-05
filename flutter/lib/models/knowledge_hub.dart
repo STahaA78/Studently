@@ -82,10 +82,10 @@ class ResourceItem {
   final bool? isSolved;
 
   @HiveField(6)
-  final String filePath;
+  final String? gdriveLink;
 
   @HiveField(7)
-  final DateTime uploadedAt;
+  final String? uploadedAt;
 
   @HiveField(8)
   final String? localFilePath; // Local storage path for downloaded files
@@ -100,22 +100,25 @@ class ResourceItem {
     this.instructorName,
     this.quizNumber,
     this.isSolved,
-    required this.filePath,
-    required this.uploadedAt,
+    this.gdriveLink,
+    this.uploadedAt,
     this.localFilePath,
     this.type,
   });
 
   factory ResourceItem.fromJson(Map<String, dynamic> json) {
+    // Debug: print raw JSON to see what we're getting
+    print('DEBUG: ResourceItem.fromJson raw json: $json');
+    
     return ResourceItem(
-      id: json['id'],
-      year: json['year'],
-      semester: json['semester'],
+      id: json['id'] ?? '',
+      year: json['year'] ?? 0,
+      semester: json['semester'] ?? 'Fall',
       instructorName: json['instructorName'],
       quizNumber: json['quizNumber'],
-      filePath: json['filePath'],
+      gdriveLink: json['gdriveLink'],
       isSolved: json['isSolved'],
-      uploadedAt: DateTime.parse(json['uploadedAt']),
+      uploadedAt: json['uploadedAt'],
       type: json['type'] ?? '',
     );
   }
@@ -129,7 +132,7 @@ class ResourceItem {
       instructorName: instructorName,
       quizNumber: quizNumber,
       isSolved: isSolved,
-      filePath: filePath,
+      gdriveLink: gdriveLink,
       uploadedAt: uploadedAt,
       localFilePath: localFilePath ?? this.localFilePath,
       type: type ?? this.type,
@@ -147,9 +150,16 @@ class ResourceGroup {
     final resMap = json['resources'] as Map<String, dynamic>;
     
     // Map each key in the JSON to a List of ResourceItem
+    // Normalize keys: 'Final' → 'final', 'Mid' → 'midterm', etc.
     Map<String, List<ResourceItem>> mappedRes = {};
     resMap.forEach((key, value) {
-      mappedRes[key] = (value as List)
+      String normalizedKey = key.toLowerCase();
+      // Handle abbreviation mapping
+      if (normalizedKey == 'mid') {
+        normalizedKey = 'midterm';
+      }
+      
+      mappedRes[normalizedKey] = (value as List)
           .map((e) => ResourceItem.fromJson(e))
           .toList();
     });

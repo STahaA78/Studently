@@ -13,7 +13,7 @@ class Course(BaseModel):
 class ResourceInMetadata(BaseModel):
     course: Course
     instructorName: Optional[str] = None
-    type: Literal['final', 'midterm', 'quiz', 'book']
+    type: Literal['Final', 'Mid', 'Quiz']
     quizNumber: Optional[int] = None  # Only for quizzes
     year: int = Field(..., ge=2000, le=datetime.now().year)
     semester: Literal['Fall', 'Spring', 'Summer']
@@ -46,13 +46,13 @@ class ResourceItem(BaseModel):
     instructorName: Optional[str] = None
     quizNumber: Optional[int] = None
     isSolved: Optional[bool] = None
-    filePath: str
-    uploadedAt: datetime
+    gdriveLink: Optional[str] = None
+    uploadedAt: Optional[str] = None
 
 # List all Resources
 class ResourceGroup(BaseModel):
     course: Course
-    resources: Optional[Dict[Literal['final', 'midterm', 'quiz', 'book'], List[ResourceItem]]] = None
+    resources: Optional[Dict[Literal['final', 'midterm', 'quiz', 'book', 'Final', 'Mid', 'Quiz'], List[ResourceItem]]] = None
 
 # Upload Response
 class GenericResponse(BaseModel):
