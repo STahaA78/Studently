@@ -129,7 +129,6 @@ async def create_post(
 
         raise HTTPException(status_code=500, detail="Internal Server Error")
 
-
 # ================================
 # Get Post Details
 # ================================
@@ -325,3 +324,4 @@ def delete_comment(post_id: str, comment_index: int, user: str = Depends(get_cur
     )
 
     return {"success": True}
+

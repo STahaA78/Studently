@@ -250,32 +250,39 @@ class ProfileFeedNotifier extends AsyncNotifier<List<Post>> {
     
     try {
       final repo = ref.read(postRepositoryProvider);
-      
-      // We fetch more to ensure we find enough user posts since backend doesn't have a direct user-posts API
-      final allPosts = await repo.getFeed(skip: _skip, limit: _limit); 
-      final userPosts = allPosts.where((p) => p.authorId == userId).toList();
-      
+      List<Post> allUserPosts = [];
+      int currentSkip = reset ? 0 : _skip;
+      bool foundMorePosts = true;
+
+      // Keep fetching until we've gone through the entire feed or found enough posts
+      while (foundMorePosts && currentSkip < 1000) { // Safety limit: 1000 posts
+        final batch = await repo.getFeed(skip: currentSkip, limit: _limit);
+        
+        if (batch.isEmpty) {
+          foundMorePosts = false;
+          break;
+        }
+
+        final userPostsInBatch = batch.where((p) => p.authorId == userId).toList();
+        allUserPosts.addAll(userPostsInBatch);
+
+        // If we got fewer posts than limit, we've reached the end
+        if (batch.length < _limit) {
+          foundMorePosts = false;
+          _hasMore = false;
+        }
+
+        currentSkip += _limit;
+      }
+
       final currentUser = ref.read(authProvider).value;
       final hydrated = (currentUser != null && userId == currentUser.id)
-          ? userPosts.map((p) => p.copyWith(authorName: currentUser.name)).toList()
-          : userPosts;
+          ? allUserPosts.map((p) => p.copyWith(authorName: currentUser.name)).toList()
+          : allUserPosts;
 
-      if (reset) {
-        state = AsyncValue.data(hydrated);
-      } else {
-        final current = state.value ?? [];
-        state = AsyncValue.data([...current, ...hydrated]);
-      }
-
-      _profileBox.put('profile_$userId', jsonEncode((state.value ?? []).map((e) => e.toJson()).toList()));
-      
-      _skip += allPosts.length;
-      if (allPosts.length < _limit) {
-        _hasMore = false;
-      } else if (hydrated.isEmpty && _hasMore) {
-        // If we didn't find any user posts in this batch but there's more in global feed, fetch next batch
-        _fetchProfilePosts(reset: false);
-      }
+      state = AsyncValue.data(hydrated);
+      _profileBox.put('profile_$userId', jsonEncode(hydrated.map((e) => e.toJson()).toList()));
+      _skip = currentSkip;
 
     } catch (e) {
       logger.e("Profile fetch failed", error: e);

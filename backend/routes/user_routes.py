@@ -148,13 +148,7 @@ def get_user_info(user_id: str, USER: str = Depends(get_current_user)):
 @router.get("/{user_id}/profile/photo")
 def get_profile_photo(user_id: str, USER: str = Depends(get_current_user)):
     LOGGER.info(f"Fetching profile photo for USER ID: {user_id}", extra={"uid": USER})
-    if user_id != "0":
-        if is_admin(USER):
-            LOGGER.info(f"Admin accessing profile photo of USER ID: {user_id}", extra={"uid": USER})
-        else:
-            LOGGER.warning(f"Unauthorized access attempt to profile photo of USER ID: {user_id} by USER ID: {USER}", extra={"uid": USER})
-            raise HTTPException(status_code=403, detail="Not authorized to access this profile photo")
-    else:
+    if user_id == "0":
         LOGGER.info(f"USER accessing own profile photo", extra={"uid": USER})
         user_id = USER  # Override to fetch own profile photo when user_id is "0"
     user = users_collection.find_one({"_id": user_id})

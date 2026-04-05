@@ -13,6 +13,7 @@ import firebase_auth
 import firebase_core
 import flutter_image_compress_macos
 import flutter_secure_storage_darwin
+import path_provider_foundation
 import record_darwin
 import shared_preferences_foundation
 import syncfusion_pdfviewer_macos
@@ -27,6 +28,7 @@ func RegisterGeneratedPlugins(registry: FlutterPluginRegistry) {
   FLTFirebaseCorePlugin.register(with: registry.registrar(forPlugin: "FLTFirebaseCorePlugin"))
   FlutterImageCompressMacosPlugin.register(with: registry.registrar(forPlugin: "FlutterImageCompressMacosPlugin"))
   FlutterSecureStorageDarwinPlugin.register(with: registry.registrar(forPlugin: "FlutterSecureStorageDarwinPlugin"))
+  PathProviderPlugin.register(with: registry.registrar(forPlugin: "PathProviderPlugin"))
   RecordPlugin.register(with: registry.registrar(forPlugin: "RecordPlugin"))
   SharedPreferencesPlugin.register(with: registry.registrar(forPlugin: "SharedPreferencesPlugin"))
   SyncfusionFlutterPdfViewerPlugin.register(with: registry.registrar(forPlugin: "SyncfusionFlutterPdfViewerPlugin"))
