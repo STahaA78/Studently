@@ -7,10 +7,16 @@ import 'package:path_provider/path_provider.dart';
 import 'package:studently/models/knowledge_hub.dart';
 import 'package:studently/providers/knowledge_hub_provider.dart';
 import 'package:studently/services/firebase_auth.dart';
-import 'package:studently/storage/knowledge_hub.dart';
 import 'package:syncfusion_flutter_pdfviewer/pdfviewer.dart';
 import 'package:studently/logger.dart';
-import 'dart:typed_data';
+
+class _PdfSource {
+  final File? file;
+  final Uint8List? bytes;
+
+  const _PdfSource.file(this.file) : bytes = null;
+  const _PdfSource.bytes(this.bytes) : file = null;
+}
 
 class PdfGalleryScreen extends ConsumerStatefulWidget {
   final List<ResourceItem> resources;
@@ -123,52 +129,13 @@ class _PdfGalleryScreenState extends ConsumerState<PdfGalleryScreen> {
     String downloadUrl,
     String? localFilePath,
   ) {
-    // For web with Google Drive resources, open in Google Drive viewer
-    if (kIsWeb && item.gdriveLink != null && item.gdriveLink!.isNotEmpty) {
-      final fileIdMatch = RegExp(r'[?&]id=([a-zA-Z0-9-_]+)').firstMatch(item.gdriveLink!);
-      if (fileIdMatch != null) {
-        final fileId = fileIdMatch.group(1);
-        final viewerUrl = 'https://drive.google.com/file/d/$fileId/preview';
-        
-        return Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const Icon(Icons.file_present, size: 64, color: Colors.grey),
-              const SizedBox(height: 16),
-              Text(
-                'Google Drive PDF',
-                style: Theme.of(context).textTheme.titleLarge,
-              ),
-              const SizedBox(height: 8),
-              Text(
-                'Open in Google Drive viewer',
-                style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: Colors.grey),
-              ),
-              const SizedBox(height: 24),
-              ElevatedButton.icon(
-                onPressed: () {
-                  // Launch URL in new tab
-                  final uri = Uri.parse(viewerUrl);
-                  launchUrl(uri, webOnlyWindowName: '_blank');
-                },
-                icon: const Icon(Icons.open_in_new),
-                label: const Text('Open PDF in Browser'),
-              ),
-            ],
-          ),
-        );
-      }
-    }
-
-    // For mobile and backend resources, download locally
-    return FutureBuilder<File>(
+    return FutureBuilder<_PdfSource>(
       future: _downloadAndSavePdf(
-        context,
         ref,
         item,
         downloadUrl,
         widget.courseCode,
+        localFilePath,
       ),
       builder: (context, snapshot) {
         // Loading state
@@ -212,17 +179,31 @@ class _PdfGalleryScreenState extends ConsumerState<PdfGalleryScreen> {
           );
         }
 
-        // Success state - display PDF from local file
+        // Success state - display downloaded PDF
         if (snapshot.hasData) {
-          final pdfFile = snapshot.data!;
-          logger.i('Opening PDF from: ${pdfFile.path}');
-          return SfPdfViewer.file(
-            pdfFile,
-            key: ValueKey(item.id),
-            onDocumentLoadFailed: (details) {
-              logger.e("Error loading PDF: ${details.error} - ${details.description}");
-            },
-          );
+          final pdfSource = snapshot.data!;
+          if (pdfSource.file != null) {
+            final pdfFile = pdfSource.file!;
+            logger.i('Opening PDF from file: ${pdfFile.path}');
+            return SfPdfViewer.file(
+              pdfFile,
+              key: ValueKey(item.id),
+              onDocumentLoadFailed: (details) {
+                logger.e("Error loading PDF: ${details.error} - ${details.description}");
+              },
+            );
+          }
+
+          if (pdfSource.bytes != null) {
+            logger.i('Opening PDF from in-memory bytes for resource: ${item.id}');
+            return SfPdfViewer.memory(
+              pdfSource.bytes!,
+              key: ValueKey('${item.id}-memory'),
+              onDocumentLoadFailed: (details) {
+                logger.e("Error loading PDF: ${details.error} - ${details.description}");
+              },
+            );
+          }
         }
 
         return const Center(child: Text('No data'));
@@ -231,56 +212,75 @@ class _PdfGalleryScreenState extends ConsumerState<PdfGalleryScreen> {
   }
 
   /// Download PDF from backend or Google Drive using Dio and save locally
-  Future<File> _downloadAndSavePdf(
-    BuildContext context,
+  Future<_PdfSource> _downloadAndSavePdf(
     WidgetRef ref,
     ResourceItem item,
     String downloadUrl,
     String courseCode,
+    String? localFilePath,
   ) async {
     try {
-      // Check if this is a Google Drive resource
+      final rawGdriveLink = item.gdriveLink?.trim();
+      final hasGdriveLink = rawGdriveLink != null && rawGdriveLink.isNotEmpty;
+
+      // Reuse previously persisted local path when possible.
+      if (!kIsWeb && localFilePath != null && localFilePath.isNotEmpty) {
+        final existingLocalFile = File(localFilePath);
+        if (existingLocalFile.existsSync()) {
+          logger.i('Using persisted local PDF path: $localFilePath');
+          return _PdfSource.file(existingLocalFile);
+        }
+      }
+
       String actualDownloadUrl = downloadUrl;
-      
-      if (item.gdriveLink != null && item.gdriveLink!.isNotEmpty) {
-        logger.i('Detected Google Drive resource: ${item.gdriveLink}');
-        
-        // Extract file ID and use direct Google Drive download URL
-        final fileIdMatch = RegExp(r'[?&]id=([a-zA-Z0-9-_]+)').firstMatch(item.gdriveLink!);
-        if (fileIdMatch != null) {
-          final fileId = fileIdMatch.group(1);
-          // Use direct download URL (doesn't require auth)
-          actualDownloadUrl = 'https://drive.google.com/uc?export=download&id=$fileId';
-          logger.i('Using Google Drive direct download URL: $actualDownloadUrl');
+      String? authToken;
+
+      if (hasGdriveLink) {
+        logger.i('Detected Google Drive resource: $rawGdriveLink');
+        actualDownloadUrl = rawGdriveLink;
+
+        final fileId = _extractGoogleDriveFileId(rawGdriveLink);
+        if (fileId != null) {
+          actualDownloadUrl = _buildGoogleDriveDownloadUrl(fileId);
+          logger.i('Using normalized Google Drive direct download URL: $actualDownloadUrl');
         }
       } else {
         // For backend resources, add auth token
-        final token = await authService.value.getIdToken();
-        if (token == null) {
+        authToken = await authService.value.getIdToken();
+        if (authToken == null) {
           logger.e('No auth token found. User may not be logged in.');
           throw Exception('Authentication required. Please log in again.');
         }
       }
 
-      // On web, we can't use path_provider, so handle it differently
+      final headers = <String, dynamic>{};
+      if (authToken != null) {
+        headers['Authorization'] = 'Bearer $authToken';
+      }
+
+      final dio = Dio();
+
+      // On web, stream bytes directly into SPDF memory viewer.
       if (kIsWeb) {
         logger.i('Downloading PDF from: $actualDownloadUrl (web)');
-        final dio = Dio();
-        
+
         final response = await dio.get<List<int>>(
           actualDownloadUrl,
           options: Options(
             responseType: ResponseType.bytes,
+            headers: headers,
+            followRedirects: true,
+            validateStatus: (status) =>
+                status != null && status >= 200 && status < 400,
           ),
         );
-        
-        // Create a temporary File object (won't actually persist on web)
-        final dir = Directory.systemTemp;
-        final fileName = '${item.id}.pdf';
-        final file = File('${dir.path}/$fileName');
-        await file.writeAsBytes(response.data!);
-        logger.i('PDF downloaded (web temp): ${file.path}');
-        return file;
+
+        final bytes = response.data;
+        if (bytes == null || bytes.isEmpty) {
+          throw Exception('Downloaded PDF is empty.');
+        }
+
+        return _PdfSource.bytes(Uint8List.fromList(bytes));
       }
 
       // On mobile, use path_provider to save locally
@@ -300,16 +300,24 @@ class _PdfGalleryScreenState extends ConsumerState<PdfGalleryScreen> {
       // Check if file already exists
       if (file.existsSync()) {
         logger.i('PDF already cached locally: $filePath');
-        return file;
+        final saveLocalPath =
+            ref.read(saveResourceLocalPathProvider((courseCode, item.id)));
+        await saveLocalPath(filePath);
+        return _PdfSource.file(file);
       }
 
       // Download the file using Dio
       logger.i('Downloading PDF from: $actualDownloadUrl to $filePath');
-      final dio = Dio();
 
       await dio.download(
         actualDownloadUrl,
         filePath,
+        options: Options(
+          headers: headers,
+          followRedirects: true,
+          validateStatus: (status) =>
+              status != null && status >= 200 && status < 400,
+        ),
         onReceiveProgress: (received, total) {
           if (total != -1) {
             final progress = (received / total * 100).toStringAsFixed(0);
@@ -318,11 +326,60 @@ class _PdfGalleryScreenState extends ConsumerState<PdfGalleryScreen> {
         },
       );
 
+      if (!file.existsSync() || file.lengthSync() == 0) {
+        throw Exception('Downloaded PDF file is empty or missing.');
+      }
+
+      final saveLocalPath =
+          ref.read(saveResourceLocalPathProvider((courseCode, item.id)));
+      await saveLocalPath(filePath);
+
       logger.i('PDF downloaded and saved: $filePath');
-      return file;
+      return _PdfSource.file(file);
     } catch (e) {
       logger.e('Error downloading PDF: $e');
       rethrow;
     }
+  }
+
+  String _buildGoogleDriveDownloadUrl(String fileId) {
+    return 'https://drive.google.com/uc?export=download&id=$fileId&confirm=t';
+  }
+
+  String? _extractGoogleDriveFileId(String? link) {
+    if (link == null || link.trim().isEmpty) {
+      return null;
+    }
+
+    final trimmedLink = link.trim();
+
+    // Sometimes the stored value is already a file id.
+    final idOnlyPattern = RegExp(r'^[a-zA-Z0-9_-]{20,}$');
+    if (idOnlyPattern.hasMatch(trimmedLink)) {
+      return trimmedLink;
+    }
+
+    final uri = Uri.tryParse(trimmedLink);
+    if (uri == null) {
+      return null;
+    }
+
+    final queryId = uri.queryParameters['id'];
+    if (queryId != null && queryId.isNotEmpty) {
+      return queryId;
+    }
+
+    final pathSegments = uri.pathSegments;
+    final dIndex = pathSegments.indexOf('d');
+    if (dIndex != -1 && dIndex + 1 < pathSegments.length) {
+      return pathSegments[dIndex + 1];
+    }
+
+    final filePathMatch = RegExp(r'/file/d/([a-zA-Z0-9_-]+)').firstMatch(uri.path);
+    if (filePathMatch != null) {
+      return filePathMatch.group(1);
+    }
+
+    return null;
   }
 }
