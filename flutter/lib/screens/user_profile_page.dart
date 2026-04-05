@@ -71,7 +71,7 @@ class _UserProfilePageState extends State<UserProfilePage> {
   Future<void> loadConnectionStatus() async {
     try {
       final uri = Uri.parse(
-        "http://localhost:8000/profile/status"
+        "${api.getCompleteUrl('/profile/status')}"
         "?user_id=$currentUserId&target_id=${widget.userId}",
       );
 
@@ -91,7 +91,7 @@ class _UserProfilePageState extends State<UserProfilePage> {
   // ---------------- SEND REQUEST ----------------
   Future<void> sendConnectionRequest() async {
     final uri = Uri.parse(
-      "http://localhost:8000/profile/$currentUserId/request"
+      "${api.getCompleteUrl('/profile/$currentUserId/request')}"
       "?target_id=${widget.userId}",
     );
 
@@ -104,7 +104,7 @@ class _UserProfilePageState extends State<UserProfilePage> {
   // ---------------- CANCEL REQUEST ----------------
   Future<void> cancelConnectionRequest() async {
     final uri = Uri.parse(
-      "http://localhost:8000/profile/$currentUserId/cancel-request"
+      "${api.getCompleteUrl('/profile/$currentUserId/cancel-request')}"
       "?target_id=${widget.userId}",
     );
 
@@ -117,7 +117,7 @@ class _UserProfilePageState extends State<UserProfilePage> {
   // ---------------- ACCEPT REQUEST ----------------
   Future<void> acceptRequest() async {
     final uri = Uri.parse(
-      "http://localhost:8000/profile/$currentUserId/respond",
+      "${api.getCompleteUrl('/profile/$currentUserId/respond')}",
     );
 
     final response = await http.post(
@@ -137,7 +137,7 @@ class _UserProfilePageState extends State<UserProfilePage> {
   // ---------------- REJECT REQUEST ----------------
   Future<void> rejectRequest() async {
     final uri = Uri.parse(
-      "http://localhost:8000/profile/$currentUserId/respond",
+      "${api.getCompleteUrl('/profile/$currentUserId/respond')}",
     );
 
     final response = await http.post(
@@ -157,7 +157,7 @@ class _UserProfilePageState extends State<UserProfilePage> {
   // ---------------- UNFRIEND ----------------
   Future<void> unfriendUser() async {
     final uri = Uri.parse(
-      "http://localhost:8000/profile/$currentUserId/unfriend",
+      "${api.getCompleteUrl('/profile/$currentUserId/unfriend')}",
     );
 
     final response = await http.post(
