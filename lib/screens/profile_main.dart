@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import '../widgets/custom_nav_bar.dart';
 import 'package:studently/models/user.dart';
 import 'package:studently/repositories/user.dart';
-import 'package:studently/logger.dart';
 import 'package:studently/screens/profile_edit.dart';
 import 'package:studently/services/api.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart'; 
@@ -10,7 +9,6 @@ import 'package:studently/providers/auth_provider.dart';
 import 'package:studently/providers/feed_provider.dart';
 import 'package:studently/models/post.dart';
 import 'package:studently/screens/post_details_page.dart';
-import 'dart:convert';
 import 'package:studently/utils/authenticated_image.dart';
 
 class ProfilePage extends ConsumerStatefulWidget {
@@ -298,7 +296,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                                         profileFeedAsync.when(
                                           data: (posts) => _buildStatColumn("Posts", posts.length.toString()),
                                           loading: () => _buildStatColumn("Posts", "..."),
-                                          error: (_, __) => _buildStatColumn("Posts", "0"),
+                                          error: (_, _) => _buildStatColumn("Posts", "0"),
                                         ),
                                         const SizedBox(width: 35),
                                         _buildStatColumn("Resources", "0"),
@@ -493,7 +491,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                             );
                           },
                           loading: () => const Center(child: CircularProgressIndicator()),
-                          error: (err, __) => Center(child: Text("Error loading posts: $err")),
+                          error: (err, _) => Center(child: Text("Error loading posts: $err")),
                         ),
                       ],
                     ),

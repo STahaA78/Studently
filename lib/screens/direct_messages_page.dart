@@ -1,9 +1,7 @@
-import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:studently/models/chat.dart';
 import 'package:studently/screens/chat_page.dart';
 import 'package:studently/services/firebase_auth.dart';
-import 'package:studently/logger.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:studently/providers/chat_provider.dart';
 import 'package:studently/providers/auth_provider.dart'; // NEW: Added AuthProvider
@@ -208,7 +206,7 @@ class _DirectMessagesPageState extends ConsumerState<DirectMessagesPage> {
                   )
                 : ListView.separated(
                     itemCount: _filteredConversations.length,
-                    separatorBuilder: (_, __) => Divider(
+                    separatorBuilder: (_, _) => Divider(
                       height: 1,
                       indent: 76,
                       endIndent: 16,
