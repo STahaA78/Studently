@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
+import 'package:flutter/scheduler.dart';
 import '../widgets/custom_nav_bar.dart';
 import 'package:studently/models/user.dart';
 import 'package:studently/repositories/user.dart';
@@ -9,7 +11,6 @@ import 'package:studently/providers/auth_provider.dart';
 import 'package:studently/providers/feed_provider.dart';
 import 'package:studently/models/post.dart';
 import 'package:studently/screens/post_details_page.dart';
-import 'package:studently/utils/authenticated_image.dart';
 
 class ProfilePage extends ConsumerStatefulWidget {
   final String? userId;
@@ -26,6 +27,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
   final ScrollController scrollController = ScrollController();
 
   User? otherUser;
+  User? refreshedOwnUser; // Cache for own user when refreshed
   bool isLoadingOtherUser = true;
   String connectionStatus = "none";
   bool isStatusLoading = true;
@@ -85,13 +87,32 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
   Future<void> _loadOtherUserProfile() async {
     setState(() => isLoadingOtherUser = true);
     try {
-      final fetchedUser = await userRepository.fetchUserProfile(widget.userId!);
+      final fetchedUser = await userRepository.fetchUserProfile(userId: widget.userId!);
       setState(() {
         otherUser = fetchedUser;
         isLoadingOtherUser = false;
       });
     } catch (e) {
       setState(() => isLoadingOtherUser = false);
+    }
+  }
+
+  Future<void> _refreshOwnUserProfile() async {
+    try {
+      final freshUser = await userRepository.fetchUserProfile();
+      // Only update local cache via setState - don't touch authProvider
+      setState(() {
+        refreshedOwnUser = freshUser;
+      });
+      // Clear refreshedOwnUser after a brief moment to resume normal feed watching
+      await Future.delayed(const Duration(milliseconds: 500));
+      if (mounted) {
+        setState(() {
+          refreshedOwnUser = null;
+        });
+      }
+    } catch (e) {
+      // Silently fail if refresh fails
     }
   }
 
@@ -150,16 +171,12 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
 
   Future<void> _refreshProfile() async {
     if (widget.userId != null) {
-      // Viewing someone else's profile
+      // Viewing someone else's profile - only refresh profile data
       await _loadOtherUserProfile();
       await _loadConnectionStatus();
-      await ref.read(profileFeedProvider(widget.userId!).notifier).refresh();
     } else {
-      // Viewing my profile - reload auth state and posts
-      final myUser = ref.refresh(authProvider).value;
-      if (myUser != null) {
-        await ref.read(profileFeedProvider(myUser.id).notifier).refresh();
-      }
+      // Viewing my profile - only refresh profile data locally
+      await _refreshOwnUserProfile();
     }
   }
 
@@ -220,15 +237,20 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
     User? displayUser;
     
     if (isMyProfile) {
-      displayUser = ref.watch(authProvider).value;
+      // For own profile: prefer refreshedOwnUser (from refresh), fall back to authProvider
+      displayUser = refreshedOwnUser ?? ref.watch(authProvider).value;
     } else {
       displayUser = otherUser;
     }
     
     final String targetUserId = widget.userId ?? displayUser?.id ?? "";
-    final profileFeedAsync = targetUserId.isNotEmpty 
-        ? ref.watch(profileFeedProvider(targetUserId))
-        : const AsyncValue<List<Post>>.data([]);
+    // Only fetch feed for display purposes (post count), not on every profile refresh
+    // Use select to only watch the feed when NOT on own profile or when refreshedOwnUser is null
+    final profileFeedAsync = (isMyProfile && refreshedOwnUser != null)
+        ? const AsyncValue<List<Post>>.data([])  // Skip feed watch during own profile refresh
+        : (targetUserId.isNotEmpty 
+            ? ref.watch(profileFeedProvider(targetUserId))
+            : const AsyncValue<List<Post>>.data([]));
 
     final bool isScreenLoading = isMyProfile ? displayUser == null : isLoadingOtherUser;
     
@@ -251,6 +273,15 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                 icon: const Icon(Icons.chevron_left, color: Colors.black),
                 onPressed: () => Navigator.pop(context),
               )
+            : null,
+        actions: kIsWeb
+            ? [
+                IconButton(
+                  icon: const Icon(Icons.refresh, color: Colors.black),
+                  onPressed: _refreshProfile,
+                  tooltip: 'Refresh',
+                )
+              ]
             : null,
       ),
       body: isScreenLoading
@@ -515,21 +546,26 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
   }
 
   Widget _buildProfilePhoto(User? user) {
-    if (user == null || (user.profilePhotoUrl?.isEmpty ?? true)) {
+    if (user == null || (user.picture?.isEmpty ?? true)) {
       return CircleAvatar(
         radius: 45,
         backgroundColor: Colors.grey.shade400,
         child: const Icon(Icons.person, size: 40, color: Colors.white),
       );
     }
-    final bool imageFailed = failedProfileImages.contains(user.profilePhotoUrl);
+    final bool imageFailed = failedProfileImages.contains(user.picture);
     return CircleAvatar(
-      key: ValueKey<String>(user.profilePhotoUrl!),
+      key: ValueKey<String>(user.picture!),
       radius: 45,
       backgroundColor: Colors.grey.shade400,
-      backgroundImage: AuthenticatedNetworkImage(user.profilePhotoUrl!),
+      backgroundImage: NetworkImage(user.picture!),
       onBackgroundImageError: (exception, stackTrace) {
-        setState(() => failedProfileImages.add(user.profilePhotoUrl!));
+        // Defer setState to avoid calling it during paint phase
+        SchedulerBinding.instance.addPostFrameCallback((_) {
+          if (mounted) {
+            setState(() => failedProfileImages.add(user.picture!));
+          }
+        });
       },
       child: imageFailed
           ? const Icon(Icons.person, size: 40, color: Colors.white)

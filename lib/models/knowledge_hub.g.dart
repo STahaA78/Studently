@@ -55,42 +55,48 @@ class ResourceItemAdapter extends TypeAdapter<ResourceItem> {
     };
     return ResourceItem(
       id: fields[0] as String,
-      year: fields[1] as int,
-      semester: fields[2] as String,
-      instructorName: fields[3] as String?,
-      quizNumber: fields[4] as int?,
+      course: fields[1] as Course,
+      type: fields[2] as String,
+      year: fields[3] as int,
+      semester: fields[4] as String,
       isSolved: fields[5] as bool?,
-      filePath: fields[6] as String,
-      uploadedAt: fields[7] as DateTime,
-      localFilePath: fields[8] as String?,
-      type: fields[9] as String?,
+      midNumber: fields[6] as int?,
+      fileUrl: fields[7] as String,
+      uploadedAt: fields[8] as DateTime,
+      uploadedBy: fields[9] as String,
+      approved: fields[10] as bool,
+      localFilePath: fields[11] as String?,
     );
   }
 
   @override
   void write(BinaryWriter writer, ResourceItem obj) {
     writer
-      ..writeByte(10)
+      ..writeByte(12)
       ..writeByte(0)
       ..write(obj.id)
       ..writeByte(1)
-      ..write(obj.year)
+      ..write(obj.course)
       ..writeByte(2)
-      ..write(obj.semester)
+      ..write(obj.type)
       ..writeByte(3)
-      ..write(obj.instructorName)
+      ..write(obj.year)
       ..writeByte(4)
-      ..write(obj.quizNumber)
+      ..write(obj.semester)
       ..writeByte(5)
       ..write(obj.isSolved)
       ..writeByte(6)
-      ..write(obj.filePath)
+      ..write(obj.midNumber)
       ..writeByte(7)
-      ..write(obj.uploadedAt)
+      ..write(obj.fileUrl)
       ..writeByte(8)
-      ..write(obj.localFilePath)
+      ..write(obj.uploadedAt)
       ..writeByte(9)
-      ..write(obj.type);
+      ..write(obj.uploadedBy)
+      ..writeByte(10)
+      ..write(obj.approved)
+      ..writeByte(11)
+      ..write(obj.localFilePath);
   }
 
   @override

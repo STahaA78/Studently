@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/scheduler.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'dart:typed_data';
 import 'package:studently/models/user.dart';
@@ -9,7 +10,6 @@ import 'package:studently/screens/interests.dart';
 import 'package:studently/screens/profile_photo_crop.dart';
 import 'package:studently/logger.dart';
 import 'package:studently/providers/auth_provider.dart';
-import 'package:studently/utils/authenticated_image.dart';
 
 class EditProfilePage extends ConsumerStatefulWidget {
   final User user;
@@ -133,7 +133,7 @@ class _EditProfilePageState extends ConsumerState<EditProfilePage> {
   @override
   Widget build(BuildContext context) {
     final currentUser = ref.watch(authProvider).value ?? widget.user;
-    final bool hasPhoto = currentUser.profilePhotoUrl?.isNotEmpty ?? false;
+    final bool hasPhoto = currentUser.picture?.isNotEmpty ?? false;
     return Scaffold(
       backgroundColor: Colors.white,
       appBar: AppBar(
@@ -178,20 +178,25 @@ class _EditProfilePageState extends ConsumerState<EditProfilePage> {
                                 key: ValueKey<String?>(
                                   _croppedPhotoBytes != null
                                       ? 'cropped'
-                                      : currentUser.profilePhotoUrl,
+                                      : currentUser.picture,
                                 ),
                                 radius: 52,
                                 backgroundColor: Colors.grey.shade300,
                                 backgroundImage: _croppedPhotoBytes != null
                                     ? MemoryImage(_croppedPhotoBytes!)
                                     : (hasPhoto
-                                          ? AuthenticatedNetworkImage(
-                                              currentUser.profilePhotoUrl!,
+                                          ? NetworkImage(
+                                              currentUser.picture!,
                                             )
                                           : null),
                                 onBackgroundImageError: _croppedPhotoBytes == null && hasPhoto
                                     ? (exception, stackTrace) {
-                                        setState(() => _profileImageFailed = true);
+                                        // Defer setState to avoid calling it during paint phase
+                                        SchedulerBinding.instance.addPostFrameCallback((_) {
+                                          if (mounted) {
+                                            setState(() => _profileImageFailed = true);
+                                          }
+                                        });
                                       }
                                     : null,
                                 child: (_croppedPhotoBytes == null && (!hasPhoto || _profileImageFailed))
@@ -614,7 +619,7 @@ class _EditProfilePageState extends ConsumerState<EditProfilePage> {
   void _showEditPhotoOptions() async {
     // NEW: Quickly check the provider state to see if the user currently has a photo
     final currentUser = ref.read(authProvider).value ?? widget.user;
-    final bool hasPhoto = currentUser.profilePhotoUrl?.isNotEmpty ?? false;
+    final bool hasPhoto = currentUser.picture?.isNotEmpty ?? false;
 
     final action = await showModalBottomSheet<String>(
       context: context,

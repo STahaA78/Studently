@@ -6,7 +6,6 @@ import 'package:studently/repositories/user.dart';
 import 'package:studently/logger.dart';
 import 'package:studently/screens/profile_main.dart';
 import 'package:studently/providers/auth_provider.dart';
-import 'package:studently/utils/authenticated_image.dart';
 class RequestsPage extends ConsumerStatefulWidget {
   const RequestsPage({super.key});
 
@@ -181,12 +180,12 @@ class _RequestsPageState extends ConsumerState<RequestsPage> {
             CircleAvatar(
               radius: 25,
               backgroundColor: Colors.grey[300],
-              backgroundImage: user.profilePhotoUrl != null &&
-                      user.profilePhotoUrl!.isNotEmpty
-                  ? AuthenticatedNetworkImage(user.profilePhotoUrl!)
+              backgroundImage: user.picture != null &&
+                      user.picture!.isNotEmpty
+                  ? NetworkImage(user.picture!)
                   : null,
-              child: user.profilePhotoUrl == null ||
-                      user.profilePhotoUrl!.isEmpty
+              child: user.picture == null ||
+                      user.picture!.isEmpty
                   ? const Icon(Icons.person, size: 32, color: Colors.grey)
                   : null,
             ),

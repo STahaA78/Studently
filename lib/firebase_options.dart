@@ -60,6 +60,8 @@ class DefaultFirebaseOptions {
     messagingSenderId: '761103065292',
     projectId: 'studently-123',
     storageBucket: 'studently-123.firebasestorage.app',
+    androidClientId: '761103065292-5nah76vbprn8sl1caaqj226nrba92jgb.apps.googleusercontent.com',
+    iosClientId: '761103065292-t9kfulo3ujhdgldalg07i81cm0mvd04h.apps.googleusercontent.com',
     iosBundleId: 'com.studently.app',
   );
 

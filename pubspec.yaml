@@ -38,6 +38,9 @@ dependencies:
   hive: ^2.2.3
   hive_flutter: ^1.1.0
   image_cropper: ^12.1.1
+  google_sign_in: ^6.2.1
+  syncfusion_flutter_datepicker: ^32.1.25
+  js: ^0.6.7
   
 
 dev_dependencies:
@@ -71,13 +74,13 @@ dependency_overrides:
   record_platform_interface: ^1.5.0
 
 flutter_native_splash:
-  color: "#E1EFFF" 
+  color: "#FFFFFF" 
   image: "assets/images/logo_gpt.png" 
   branding: "assets/images/Studently_wordmark_cropped.png"
   branding_mode: "bottom"
   
   android_12:
-    color: "#E1EFFF"
+    color: "#FFFFFF"
     image: "assets/images/logo_gpt.png"
     branding: "assets/images/Studently_wordmark_cropped.png"
     

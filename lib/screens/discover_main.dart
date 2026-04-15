@@ -9,7 +9,6 @@ import 'package:studently/models/backend_config.dart';
 import 'package:studently/repositories/user.dart';
 import 'package:studently/logger.dart';
 import 'package:studently/providers/backend_config_provider.dart';
-import 'package:studently/utils/authenticated_image.dart';
 import 'dart:async';
 
 class ConnectDiscoverPage extends StatefulWidget {
@@ -533,12 +532,12 @@ class _ConnectDiscoverPageState extends State<ConnectDiscoverPage> {
             CircleAvatar(
               radius: 25,
               backgroundColor: Colors.grey[300],
-              backgroundImage: user.profilePhotoUrl != null &&
-                      user.profilePhotoUrl!.isNotEmpty
-                  ? AuthenticatedNetworkImage(user.profilePhotoUrl!)
+              backgroundImage: user.picture != null &&
+                      user.picture!.isNotEmpty
+                  ? NetworkImage(user.picture!)
                   : null,
-              child: user.profilePhotoUrl == null ||
-                      user.profilePhotoUrl!.isEmpty
+              child: user.picture == null ||
+                      user.picture!.isEmpty
                   ? const Icon(Icons.person, size: 32, color: Colors.grey)
                   : null,
             ),
@@ -863,13 +862,13 @@ class _ConnectDiscoverPageState extends State<ConnectDiscoverPage> {
   }
 
   Widget _buildCardBackground(User student) {
-    if (student.profilePhotoUrl != null &&
-        student.profilePhotoUrl!.isNotEmpty) {
+    if (student.picture != null &&
+        student.picture!.isNotEmpty) {
       return Stack(
         fit: StackFit.expand,
         children: [
           Image.network(
-            student.profilePhotoUrl!,
+            student.picture!,
             fit: BoxFit.cover,
             errorBuilder: (context, error, stackTrace) =>
                 _buildDefaultBackground(),

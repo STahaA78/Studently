@@ -261,6 +261,26 @@ class ApiService {
   }
 
   /// ===============================
+  /// DOWNLOAD FROM EXTERNAL URL
+  /// ===============================
+  Future<http.Response> downloadFromUrl(String externalUrl) async {
+
+    logger.i("[$runtimeType] Download from external URL: $externalUrl");
+
+    try {
+
+      final response = await http.get(Uri.parse(externalUrl));
+
+      return _handleResponse(response);
+
+    } catch (e) {
+
+      logger.e("[$runtimeType] Download from external URL failed: $e");
+      throw Exception('Error occurred: $e');
+    }
+  }
+
+  /// ===============================
   /// RESPONSE HANDLER
   /// ===============================
   http.Response _handleResponse(http.Response response) {

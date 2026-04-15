@@ -1,10 +1,10 @@
 import 'dart:convert';
 import 'dart:io';
+import 'dart:typed_data';
 import 'package:studently/models/knowledge_hub.dart';
 import 'package:studently/services/api.dart';
 import 'package:studently/storage/knowledge_hub.dart';
 import 'package:studently/logger.dart';
-import 'dart:typed_data';
 
 /// Unified KnowledgeHub Repository combining all course and resource operations
 class KnowledgeHubRepository {
@@ -95,7 +95,7 @@ class KnowledgeHubRepository {
           // Reconstruct ResourceGroup properly from cached resources
           final Map<String, List<ResourceItem>> resourcesByType = {};
           for (var resource in cachedResources) {
-            final type = (resource.type ?? '').toLowerCase();
+            final type = resource.type;
             if (!resourcesByType.containsKey(type)) {
               resourcesByType[type] = [];
             }
@@ -113,13 +113,10 @@ class KnowledgeHubRepository {
       final Map<String, dynamic> jsonData = jsonDecode(response.body);
       final resourceGroup = ResourceGroup.fromJson(jsonData);
 
-      // Cache the resources with proper type information
+      // Cache the resources
       final allResources = <ResourceItem>[];
       resourceGroup.resources.forEach((type, resourceList) {
-        for (var resource in resourceList) {
-          // Add type information to each resource
-          allResources.add(resource.copyWith(type: type));
-        }
+        allResources.addAll(resourceList);
       });
       await _storage.saveResourcesForCourse(courseId, allResources);
       logger.i("[$runtimeType] Cached ${allResources.length} resources for course $courseId");
@@ -143,39 +140,22 @@ class KnowledgeHubRepository {
     }
   }
 
-  String getDownloadUrl(String resourceId) {
-    logger.i("[$runtimeType] Get Download URL for Resource $resourceId");
-    final completeUrl = _apiService.getCompleteUrl('/hub/resources/$resourceId/download');
-    logger.d("[$runtimeType] Download URL: $completeUrl");
-    return completeUrl;
-  }
-
-  /// Download resource file and save locally
-  Future<Uint8List> downloadResourceFile(
-    String resourceId, {
-    String courseCode = '',
-  }) async {
-    logger.i("[$runtimeType] Download Resource File for Resource $resourceId Initiated (courseCode: $courseCode)");
+  /// Download resource file directly from Cloudflare R2 URL
+  Future<Uint8List> downloadFromUrl(String fileUrl) async {
+    logger.i("[$runtimeType] Download Resource File from Cloudflare URL Initiated");
     try {
-      final response = await _apiService.get('/hub/resources/$resourceId/download');
+      final response = await _apiService.downloadFromUrl(fileUrl);
       if (response.statusCode == 200) {
         final bytes = response.bodyBytes;
-        logger.i("[$runtimeType] Downloaded ${bytes.length} bytes for resource $resourceId");
-        
-        // Mark file as downloaded in local storage
-        if (courseCode.isNotEmpty) {
-          await _storage.markFileAsDownloaded(courseCode, resourceId, resourceId);
-          logger.i("[$runtimeType] Marked resource $resourceId as downloaded in local storage");
-        }
-        
-        logger.i("[$runtimeType] Download Resource File for Resource $resourceId Completed Successfully");
+        logger.i("[$runtimeType] Downloaded ${bytes.length} bytes from Cloudflare R2");
+        logger.i("[$runtimeType] Download Resource File from Cloudflare URL Completed Successfully");
         return bytes;
       } else {
-        logger.e("[$runtimeType] Download Resource File for Resource $resourceId Failed with status code: ${response.statusCode}");
-        throw Exception('Failed to download resource file. Status code: ${response.statusCode}');
+        logger.e("[$runtimeType] Download from Cloudflare URL Failed with status code: ${response.statusCode}");
+        throw Exception('Failed to download file from Cloudflare. Status code: ${response.statusCode}');
       }
     } catch (e) {
-      logger.e("[$runtimeType] Download Resource File for Resource $resourceId Failed with error: $e");
+      logger.e("[$runtimeType] Download from Cloudflare URL Failed with error: $e");
       rethrow;
     }
   }
