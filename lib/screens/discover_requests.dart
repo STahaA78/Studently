@@ -25,32 +25,57 @@ class _RequestsPageState extends ConsumerState<RequestsPage> {
   @override
   void initState() {
     super.initState();
-    _requestsFuture = UserRepository().fetchPendingRequests();
-  }
-
-  // ---------------- FETCH REQUESTS ----------------
-  Future<void> loadPendingRequests() async {
-    setState(() {
-      _requestsFuture = UserRepository().fetchPendingRequests();
+    _requestsFuture = _loadAndCacheRequests();
+    
+    // Background refresh: fetch fresh data in the background
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _refreshRequestsInBackground();
     });
   }
+
+  Future<List<User>> _loadAndCacheRequests() async {
+    _currentRequests = await UserRepository().fetchPendingRequests();
+    return _currentRequests;
+  }
+
+  Future<void> _refreshRequestsInBackground() async {
+    try {
+      final freshRequests = await UserRepository().fetchPendingRequests();
+      if (!mounted) return;
+      setState(() {
+        _currentRequests = freshRequests;
+      });
+      logger.i("[RequestsPage] Background refresh completed");
+    } catch (e) {
+      logger.e("[RequestsPage] Background refresh failed: $e");
+    }
+  }
+
+  // Store current requests in memory
+  late List<User> _currentRequests = [];
 
  // ---------------- RESPOND REQUEST ----------------
   Future<void> respondRequest(String requesterId, String action) async {
     try {
-      // 1. Tell Riverpod to handle the Optimistic Cache Update AND the API call
+      // 1. OPTIMISTIC UPDATE: Remove the card immediately from the list
+      setState(() {
+        _currentRequests.removeWhere((user) => user.id == requesterId);
+      });
+
+      // 2. Tell Riverpod to handle the API call (in the background)
       await ref.read(authProvider.notifier).respondToFriendRequest(requesterId, action);
       
-      // 2. Refresh the list to remove the card they just clicked
+      logger.i("[RequestsPage] respondRequest successful for $requesterId");
+
+    } catch (e) {
+      logger.e("[RequestsPage] respondRequest failed: $e");
+      
+      // 3. ROLLBACK: If API fails, reload the list to restore the card
+      if (!mounted) return;
       setState(() {
         _requestsFuture = UserRepository().fetchPendingRequests();
       });
       
-      // 3. (Removed the Navigator.pop so they can stay on the page and answer more requests)
-
-    } catch (e) {
-      logger.e("[RequestsPage] respondRequest failed: $e");
-      if (!mounted) return; // Good practice to keep this here before using context!
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text("Failed to respond to request."), backgroundColor: Colors.red),
       );
@@ -115,7 +140,7 @@ class _RequestsPageState extends ConsumerState<RequestsPage> {
                       child: ElevatedButton(
                         onPressed: () {
                           setState(() {
-                            _requestsFuture = UserRepository().fetchPendingRequests();
+                            _requestsFuture = _loadAndCacheRequests();
                           });
                         },
                         style: ElevatedButton.styleFrom(
@@ -132,7 +157,7 @@ class _RequestsPageState extends ConsumerState<RequestsPage> {
               ),
             );
           }
-          final requests = snapshot.data ?? [];
+          final requests = _currentRequests.isNotEmpty ? _currentRequests : snapshot.data ?? [];
           if (requests.isEmpty) {
             return const Center(
               child: Text(
@@ -167,8 +192,9 @@ class _RequestsPageState extends ConsumerState<RequestsPage> {
           ),
         );
         if (changed == true) {
+          // Reload only if connection status was changed in profile
           setState(() {
-            _requestsFuture = UserRepository().fetchPendingRequests();
+            _requestsFuture = _loadAndCacheRequests();
           });
         }
       },

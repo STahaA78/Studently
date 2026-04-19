@@ -18,7 +18,7 @@ class ConnectDiscoverPage extends StatefulWidget {
   State<ConnectDiscoverPage> createState() => _ConnectDiscoverPageState();
 }
 
-class _ConnectDiscoverPageState extends State<ConnectDiscoverPage> {
+class _ConnectDiscoverPageState extends State<ConnectDiscoverPage> with WidgetsBindingObserver {
   final TextEditingController _searchController = TextEditingController();
   final Color primaryBlue = const Color(0xFF0F74C5);
   final UserRepository _userRepository = UserRepository();
@@ -33,6 +33,30 @@ class _ConnectDiscoverPageState extends State<ConnectDiscoverPage> {
   int _topCardIndex = 0;
   Timer? _searchDebounceTimer;
 
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    _discoverFuture = _loadDiscoverUsers();
+    loadPendingRequestsCount();
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _searchController.dispose();
+    _searchDebounceTimer?.cancel();
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    // Reload pending count when app resumes (returning from another screen)
+    if (state == AppLifecycleState.resumed) {
+      loadPendingRequestsCount();
+    }
+  }
+
   // ---------------- SAFE SETSTATE ----------------
   void _safeSetState(VoidCallback fn) {
     if (!mounted) return;
@@ -44,21 +68,6 @@ class _ConnectDiscoverPageState extends State<ConnectDiscoverPage> {
     } else {
       setState(fn);
     }
-  }
-
-  // ---------------- INIT ----------------
-  @override
-  void initState() {
-    super.initState();
-    _discoverFuture = _loadDiscoverUsers();
-    loadPendingRequestsCount();
-  }
-
-  @override
-  void dispose() {
-    _searchController.dispose();
-    _searchDebounceTimer?.cancel();
-    super.dispose();
   }
 
   Future<List<User>> _loadDiscoverUsers() async {
