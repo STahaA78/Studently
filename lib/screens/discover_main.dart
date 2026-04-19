@@ -33,6 +33,7 @@ class _ConnectDiscoverPageState extends State<ConnectDiscoverPage> with WidgetsB
   int _topCardIndex = 0;
   final ValueNotifier<double> _swipeProgressNotifier = ValueNotifier<double>(0.0);
   Timer? _searchDebounceTimer;
+  bool _isDisposed = false;
 
   @override
   void initState() {
@@ -44,6 +45,7 @@ class _ConnectDiscoverPageState extends State<ConnectDiscoverPage> with WidgetsB
 
   @override
   void dispose() {
+    _isDisposed = true;
     _swipeProgressNotifier.dispose();
     WidgetsBinding.instance.removeObserver(this);
     _searchController.dispose();
@@ -54,21 +56,21 @@ class _ConnectDiscoverPageState extends State<ConnectDiscoverPage> with WidgetsB
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     // Reload pending count when app resumes (returning from another screen)
-    if (state == AppLifecycleState.resumed) {
+    if (state == AppLifecycleState.resumed && mounted) {
       loadPendingRequestsCount();
     }
   }
 
   // ---------------- SAFE SETSTATE ----------------
   void _safeSetState(VoidCallback fn) {
-    if (!mounted) return;
+    if (!mounted || _isDisposed) return;
     if (SchedulerBinding.instance.schedulerPhase ==
         SchedulerPhase.persistentCallbacks) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) setState(fn);
+        if (mounted && !_isDisposed) setState(fn);
       });
     } else {
-      setState(fn);
+      if (mounted && !_isDisposed) setState(fn);
     }
   }
 
@@ -202,13 +204,15 @@ class _ConnectDiscoverPageState extends State<ConnectDiscoverPage> with WidgetsB
   }
 
   // ---------------- PENDING COUNT ----------------
-  Future<void> loadPendingRequestsCount() async {
+  Future<void> loadPendingRequestsCount() async {    if (!mounted || _isDisposed) return;
     try {
       final count = await _userRepository.fetchPendingRequestsCount();
-      if (!mounted) return;
+      if (!mounted || _isDisposed) return;
       _safeSetState(() => pendingRequestsCount = count);
     } catch (e) {
-      logger.e("[ConnectDiscoverPage] loadPendingRequestsCount failed: $e");
+      if (mounted && !_isDisposed) {
+        logger.e("[ConnectDiscoverPage] loadPendingRequestsCount failed: $e");
+      }
     }
   }
 
@@ -422,8 +426,8 @@ class _ConnectDiscoverPageState extends State<ConnectDiscoverPage> with WidgetsB
                 context,
                 MaterialPageRoute(builder: (_) => const RequestsPage()),
               );
+              await loadPendingRequestsCount();
               if (result == true) {
-                await loadPendingRequestsCount();
                 _discoverFuture = _loadDiscoverUsers();
               }
             },
