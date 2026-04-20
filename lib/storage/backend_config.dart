@@ -10,6 +10,7 @@ class BackendConfigStorage {
   static const String _configKey = 'config';
 
   late Box<String> _configBox;
+  bool _isInitialized = false;
 
   static final BackendConfigStorage _instance =
       BackendConfigStorage._internal();
@@ -22,8 +23,13 @@ class BackendConfigStorage {
 
   /// Initialize storage box
   Future<void> init() async {
+    if (_isInitialized) {
+      return;
+    }
+
     try {
       _configBox = await Hive.openBox<String>(_boxName);
+      _isInitialized = true;
       logger.i('[BackendConfigStorage] Initialized successfully');
     } catch (e) {
       if (e.toString().contains('is not a subtype of type')) {
@@ -31,6 +37,7 @@ class BackendConfigStorage {
         try {
           await Hive.deleteBoxFromDisk(_boxName);
           _configBox = await Hive.openBox<String>(_boxName);
+          _isInitialized = true;
           logger.i('[BackendConfigStorage] Box cleared and reinitialized after schema migration');
         } catch (clearError) {
           logger.e('[BackendConfigStorage] Error during schema migration: $clearError');
@@ -45,6 +52,10 @@ class BackendConfigStorage {
 
   /// Save backend config to local storage
   Future<void> saveConfig(BackendConfig config) async {
+    if (!_isInitialized) {
+      await init();
+    }
+
     try {
       final configJson = jsonEncode({
         'departments': config.departments
@@ -79,6 +90,11 @@ class BackendConfigStorage {
 
   /// Get cached backend config
   BackendConfig? getCachedConfig() {
+    if (!_isInitialized) {
+      logger.w('[BackendConfigStorage] Accessed before initialization. Returning null config.');
+      return null;
+    }
+
     try {
       final configJson = _configBox.get(_configKey);
       if (configJson != null) {
@@ -94,6 +110,11 @@ class BackendConfigStorage {
 
   /// Check if config is cached
   bool hasCachedConfig() {
+    if (!_isInitialized) {
+      logger.w('[BackendConfigStorage] Accessed before initialization. No cached config available.');
+      return false;
+    }
+
     try {
       return _configBox.containsKey(_configKey);
     } catch (e) {
@@ -104,6 +125,11 @@ class BackendConfigStorage {
 
   /// Clear cached config
   Future<void> clearConfig() async {
+    if (!_isInitialized) {
+      logger.w('[BackendConfigStorage] Clear requested before initialization. Nothing to clear.');
+      return;
+    }
+
     try {
       await _configBox.delete(_configKey);
       logger.i('[BackendConfigStorage] Config cleared');

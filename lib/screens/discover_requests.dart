@@ -273,7 +273,7 @@ class _RequestsPageState extends ConsumerState<RequestsPage> {
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      "${user.department} • Batch ${user.batch}",
+                      "${user.department?.name ?? 'N/A'} • Batch ${user.batch}",
                       style: TextStyle(
                         fontSize: 12,
                         color: Colors.grey[600],

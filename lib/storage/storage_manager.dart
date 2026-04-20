@@ -20,6 +20,8 @@ class StorageManager {
 
   bool _isBackendConfigInitialized = false;
   bool _isUserStorageInitialized = false;
+  Future<void>? _appInitFuture;
+  Future<void>? _userInitFuture;
 
   StorageManager._internal();
 
@@ -30,6 +32,25 @@ class StorageManager {
   /// Initialize only non-user-specific storage (Backend Config)
   /// Should be called at app startup
   Future<void> initialize() async {
+    if (_isBackendConfigInitialized) {
+      return;
+    }
+
+    if (_appInitFuture != null) {
+      await _appInitFuture;
+      return;
+    }
+
+    _appInitFuture = _initializeInternal();
+
+    try {
+      await _appInitFuture;
+    } finally {
+      _appInitFuture = null;
+    }
+  }
+
+  Future<void> _initializeInternal() async {
     try {
       logger.i('[StorageManager] Initializing app storage');
       
@@ -47,6 +68,25 @@ class StorageManager {
   /// Initialize user-specific storage (Knowledge Hub)
   /// Should be called when user logs in
   Future<void> initializeUserStorage() async {
+    if (_isUserStorageInitialized) {
+      return;
+    }
+
+    if (_userInitFuture != null) {
+      await _userInitFuture;
+      return;
+    }
+
+    _userInitFuture = _initializeUserStorageInternal();
+
+    try {
+      await _userInitFuture;
+    } finally {
+      _userInitFuture = null;
+    }
+  }
+
+  Future<void> _initializeUserStorageInternal() async {
     try {
       if (!_isBackendConfigInitialized) {
         throw Exception('App storage must be initialized first by calling initialize()');
@@ -72,9 +112,11 @@ class StorageManager {
       logger.i('[StorageManager] Clearing user storage');
       
       if (_isUserStorageInitialized) {
-        // You can add methods to KnowledgeHubStorage to clear all data if needed
-        // For now, the instance will be recreated on re-login
+        await _knowledgeHubStorage.clearStorage();
         _isUserStorageInitialized = false;
+        logger.i('[StorageManager] User storage data cleared from KnowledgeHubStorage');
+      } else {
+        logger.i('[StorageManager] User storage not initialized, nothing to clear');
       }
 
       logger.i('[StorageManager] User storage cleared');

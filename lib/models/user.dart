@@ -24,7 +24,7 @@ class User {
   int? friendsCount;
   String? password;
   String? birthday; // MM/DD/YYYY
-  String? department;
+  Department? department;
   String? batch;
   List<Interest> interests;
   String? university;
@@ -52,7 +52,12 @@ class User {
       friendsCount: json['friends_count']  ?? 0,
       password: json['password'],
       birthday: json['birthday'],
-      department: json['department'],
+      department: json['department'] != null 
+        ? Department(
+            name: json['department']['name'] ?? '',
+            code: json['department']['code'] ?? '',
+          )
+        : null,
       batch: json['batch'],
       interests: (json['interests'] as List<dynamic>?)?.map((e) => Interest.fromJson(e)).toList() ?? [],
       university: json['university'],
@@ -68,7 +73,9 @@ class User {
       'friendsCount': friendsCount, // ADDED
       'password': password,
       'birthday': birthday,
-      'department': department,
+      'department': department != null
+        ? {'name': department!.name, 'code': department!.code}
+        : null,
       'batch': batch,
       'university': university, // ADDED
       'picture': picture, // Cloudflare R2 URL

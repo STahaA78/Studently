@@ -2,11 +2,10 @@ import 'package:studently/services/api.dart';
 import 'dart:convert';
 import 'package:studently/models/backend_config.dart';
 import 'package:studently/logger.dart';
-import 'package:studently/storage/backend_config.dart';
+import 'package:studently/storage/storage_manager.dart';
 
 class BackendConfigRepository {
   final ApiService _apiService = ApiService();
-  final BackendConfigStorage _storage = BackendConfigStorage();
 
   Future<BackendConfig> fetchConfig() async {
     logger.i("[$runtimeType] Fetch Backend Config Initiated");
@@ -16,7 +15,7 @@ class BackendConfigRepository {
       final config = BackendConfig.fromJson(configData);
       
       // Cache the config in storage
-      await _storage.saveConfig(config);
+      await StorageManager().backendConfigStorage.saveConfig(config);
       
       logger.i("[$runtimeType] Fetch Backend Config Completed Successfully");
       return config;
@@ -29,7 +28,7 @@ class BackendConfigRepository {
   /// Get cached config from storage (synchronous)
   BackendConfig? getCachedConfig() {
     try {
-      final cachedConfig = _storage.getCachedConfig();
+      final cachedConfig = StorageManager().backendConfigStorage.getCachedConfig();
       if (cachedConfig != null) {
         logger.d("[$runtimeType] Retrieved cached config from storage");
       }

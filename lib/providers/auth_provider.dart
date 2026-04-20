@@ -60,20 +60,18 @@ class AuthNotifier extends AsyncNotifier<User?> {
     // 4. Check Firebase session
     if (firebaseUser != null) {
       if (cachedUser != null) {
+        await _ensureUserStorageInitialized();
+
         // INSTANT UI: Return cached data but trigger a refresh in the background
         _refreshProfileInBackground(firebaseUser.uid);
-        
-        // Initialize user-specific storage in background
-        _initializeUserStorageInBackground();
-        
+
         return cachedUser;
       }
       
       // No cache found, but logged into Firebase: Fetch fresh from FastAPI
       final freshUser = await _fetchAndSaveFreshProfile(firebaseUser.uid);
-      
-      // Initialize user-specific storage after fetching profile
-      _initializeUserStorageInBackground();
+
+      await _ensureUserStorageInitialized();
       
       return freshUser;
     }
@@ -81,19 +79,16 @@ class AuthNotifier extends AsyncNotifier<User?> {
     return null; // Not logged in
   }
 
-  /// Initialize user storage in the background
-  void _initializeUserStorageInBackground() {
-    Future(() async {
-      try {
-        final storageManager = StorageManager();
-        if (!storageManager.isUserStorageInitialized) {
-          await storageManager.initializeUserStorage();
-          logger.i("[$runtimeType] User storage initialized in background");
-        }
-      } catch (e) {
-        logger.w("[$runtimeType] Error initializing user storage in background: $e");
+  Future<void> _ensureUserStorageInitialized() async {
+    try {
+      final storageManager = StorageManager();
+      if (!storageManager.isUserStorageInitialized) {
+        await storageManager.initializeUserStorage();
+        logger.i("[$runtimeType] User storage initialized");
       }
-    });
+    } catch (e) {
+      logger.w("[$runtimeType] Error initializing user storage: $e");
+    }
   }
 
   // --- Helper Methods ---
@@ -214,15 +209,7 @@ class AuthNotifier extends AsyncNotifier<User?> {
         logger.i("[$runtimeType] Existing user detected: ${user.email}");
         _authBox.put(_userKey, jsonEncode(user.toJson()));
         
-        // Initialize user-specific storage (Knowledge Hub) for existing user
-        try {
-          final storageManager = StorageManager();
-          await storageManager.initializeUserStorage();
-          logger.i("[$runtimeType] User storage initialized for existing user");
-        } catch (e) {
-          logger.w("[$runtimeType] Error initializing user storage: $e");
-          // Continue even if user storage initialization fails
-        }
+        await _ensureUserStorageInitialized();
         
         state = AsyncValue.data(user);
         
@@ -258,7 +245,7 @@ class AuthNotifier extends AsyncNotifier<User?> {
   Future<void> signUp({
     required String name,
     required String birthday, 
-    required String department,
+    required Department department,
     required String batch,
     required List<Interest> interests,
     bool extractedFields = true,
@@ -287,15 +274,7 @@ class AuthNotifier extends AsyncNotifier<User?> {
         // Clear signup flag after successful signup
         setSignupInProgress(false);
         
-        // Initialize user-specific storage (Knowledge Hub) after successful signup
-        try {
-          final storageManager = StorageManager();
-          await storageManager.initializeUserStorage();
-          logger.i("[$runtimeType] User storage initialized after signup");
-        } catch (e) {
-          logger.w("[$runtimeType] Error initializing user storage: $e");
-          // Continue even if user storage initialization fails
-        }
+        await _ensureUserStorageInitialized();
         
         state = AsyncValue.data(user);
       } else {
@@ -349,6 +328,20 @@ class AuthNotifier extends AsyncNotifier<User?> {
     
     final currentUser = state.value;
     if (currentUser != null) {
+      // Convert department data to Department object if provided
+      Department? updatedDepartment;
+      if (updatedData['department'] != null) {
+        final deptData = updatedData['department'];
+        if (deptData is Map<String, dynamic>) {
+          updatedDepartment = Department(
+            name: deptData['name'] ?? '',
+            code: deptData['code'] ?? '',
+          );
+        } else if (deptData is Department) {
+          updatedDepartment = deptData;
+        }
+      }
+
       // 2. Locally merge the newly saved data with the existing profile
       final updatedUser = User(
         id: currentUser.id,
@@ -356,7 +349,7 @@ class AuthNotifier extends AsyncNotifier<User?> {
         birthday: currentUser.birthday,
         picture: currentUser.picture,
         name: updatedData['name'] ?? currentUser.name,
-        department: updatedData['department'] ?? currentUser.department,
+        department: updatedDepartment ?? currentUser.department,
         batch: updatedData['batch'] ?? currentUser.batch,
         interests: updatedData['interests'] != null 
             ? List<Interest>.from(updatedData['interests']) 

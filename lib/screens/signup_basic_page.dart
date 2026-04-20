@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'interests.dart';
 import 'package:studently/models/user.dart' as studently_user;
+import 'package:studently/models/backend_config.dart';
 import 'package:studently/logger.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:studently/utils/constants.dart';
@@ -228,10 +229,10 @@ class _SignupBasicPageState extends ConsumerState<SignupBasicPage> {
   Future<void> _handleCompletion() async {
     final name = _nameController.text.trim();
     final birthday = _birthdayController.text.trim();
-    final department = _departmentCode ?? ''; // Use the department code, not display name
+    final departmentCode = _departmentCode ?? ''; // The extracted department code
     final batch = _batchController.text.trim();
     
-    logger.i("[$runtimeType] Google Signup Completion - Name: $name, Birthday: $birthday");
+    logger.i("[$runtimeType] Google Signup Completion - Name: $name, Birthday: $birthday, Department Code: $departmentCode");
     
     if (_validateBirthday() && _validateName()) {
       setState(() { _completionError = null; });
@@ -240,28 +241,58 @@ class _SignupBasicPageState extends ConsumerState<SignupBasicPage> {
       final googleSignUpUser = authService.value.currentUser;
       
       if (googleSignUpUser != null) {
-        // Navigate directly to interests selection (skip email verification and additional pages)
-        if (!mounted) return;
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (context) => InterestsSelectionPage(
-              initialInterests: [],
-              user: studently_user.User(
-                id: googleSignUpUser.uid,
-                name: name,
-                email: googleSignUpUser.email ?? '',
-                password: '', // Empty for Google signin
-                department: department,
-                batch: batch,
-                birthday: birthday,
-                picture: googleSignUpUser.photoURL ?? '',
-                interests: [],
+        // Get the full Department object from backend config
+        final backendConfigAsync = ref.watch(backendConfigProvider);
+        
+        backendConfigAsync.when(
+          data: (config) {
+            // Find the Department object that matches the extracted code
+            Department? department;
+            for (final dept in config.departments) {
+              if (dept.code.toUpperCase() == departmentCode.toUpperCase()) {
+                department = dept;
+                break;
+              }
+            }
+            // Use first department as fallback if not found
+            department ??= config.departments.isNotEmpty ? config.departments.first : null;
+
+            if (department == null) {
+              setState(() => _completionError = 'Department not found in config');
+              return;
+            }
+
+            // Navigate directly to interests selection (skip email verification and additional pages)
+            if (!mounted) return;
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => InterestsSelectionPage(
+                  initialInterests: [],
+                  user: studently_user.User(
+                    id: googleSignUpUser.uid,
+                    name: name,
+                    email: googleSignUpUser.email ?? '',
+                    password: '', // Empty for Google signin
+                    department: department,
+                    batch: batch,
+                    birthday: birthday,
+                    picture: googleSignUpUser.photoURL ?? '',
+                    interests: [],
+                  ),
+                  completeSignup: true,
+                  extractedFields: _extractedFields,
+                ),
               ),
-              completeSignup: true,
-              extractedFields: _extractedFields,
-            ),
-          ),
+            );
+          },
+          loading: () {
+            setState(() => _completionError = 'Loading department information...');
+          },
+          error: (error, stack) {
+            setState(() => _completionError = 'Error loading department information');
+            logger.e("[$runtimeType] Error loading backend config: $error");
+          },
         );
       }
     }

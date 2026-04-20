@@ -87,7 +87,7 @@ class _ConnectDiscoverPageState extends State<ConnectDiscoverPage> with WidgetsB
     
     // Apply department filter if selected
     if (selectedDepartmentName != null) {
-      validUsers = validUsers.where((user) => user.department == selectedDepartmentName).toList();
+      validUsers = validUsers.where((user) => user.department?.name == selectedDepartmentName).toList();
     }
     
     // Apply batch year filter if selected
@@ -579,7 +579,7 @@ class _ConnectDiscoverPageState extends State<ConnectDiscoverPage> with WidgetsB
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      "${user.department} • Batch ${user.batch}",
+                      "${user.department?.name ?? 'N/A'} • Batch ${user.batch}",
                       style: TextStyle(
                         fontSize: 12,
                         color: Colors.grey[600],
