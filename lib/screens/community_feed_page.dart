@@ -1,9 +1,11 @@
 import '../models/post.dart';
-import 'package:studently/services/firebase_auth.dart'; 
+import 'package:studently/services/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'direct_messages_page.dart';
 import '../widgets/custom_nav_bar.dart';
+import '../widgets/notification_badge_icon.dart';
 import 'post_details_page.dart';
+import 'notifications_page.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:studently/utils/constants.dart';
@@ -11,6 +13,7 @@ import '../screens/profile_main.dart';
 import '../services/api.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../providers/feed_provider.dart';
+import '../providers/notifications_provider.dart';
 
 class CommunityFeedPage extends ConsumerStatefulWidget {
   const CommunityFeedPage({super.key});
@@ -27,7 +30,7 @@ class _CommunityFeedPageState extends ConsumerState<CommunityFeedPage> {
   @override
   void initState() {
     super.initState();
-    
+
     // Restore scroll position after the first frame
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (scrollController.hasClients) {
@@ -45,7 +48,7 @@ class _CommunityFeedPageState extends ConsumerState<CommunityFeedPage> {
       }
 
       if (scrollController.position.pixels >=
-              scrollController.position.maxScrollExtent - 200) {
+          scrollController.position.maxScrollExtent - 200) {
         ref.read(feedProvider.notifier).loadMore();
       }
     });
@@ -70,9 +73,7 @@ class _CommunityFeedPageState extends ConsumerState<CommunityFeedPage> {
     final updatedPost = await Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (_) => PostDetailsPage(
-          postData: posts[index],
-        ),
+        builder: (_) => PostDetailsPage(postData: posts[index]),
       ),
     );
 
@@ -81,7 +82,9 @@ class _CommunityFeedPageState extends ConsumerState<CommunityFeedPage> {
       // Also sync to profile if it's the current user's profile
       final userId = authService.value.currentUser?.uid;
       if (userId != null) {
-         ref.read(profileFeedProvider(userId).notifier).syncPostUpdate(updatedPost);
+        ref
+            .read(profileFeedProvider(userId).notifier)
+            .syncPostUpdate(updatedPost);
       }
     }
   }
@@ -89,13 +92,18 @@ class _CommunityFeedPageState extends ConsumerState<CommunityFeedPage> {
   @override
   Widget build(BuildContext context) {
     final feedAsync = ref.watch(feedProvider);
+    final unreadCount = ref.watch(
+      notificationProvider.select((s) => s.unreadCount),
+    );
 
     return Scaffold(
       backgroundColor: Colors.white,
       body: SafeArea(
         child: feedAsync.when(
           data: (posts) => ScrollConfiguration(
-            behavior: ScrollConfiguration.of(context).copyWith(scrollbars: false),
+            behavior: ScrollConfiguration.of(
+              context,
+            ).copyWith(scrollbars: false),
             child: RefreshIndicator(
               onRefresh: () => ref.read(feedProvider.notifier).refresh(),
               child: CustomScrollView(
@@ -130,12 +138,8 @@ class _CommunityFeedPageState extends ConsumerState<CommunityFeedPage> {
                       ],
                     ),
                     actions: [
-                      IconButton(
-                        icon: const Icon(
-                          Icons.notifications_none_rounded,
-                          color: Colors.black,
-                          size: 26,
-                        ),
+                      NotificationBadgeIcon(
+                        unreadCount: unreadCount,
                         onPressed: () {
                           Navigator.push(
                             context,
@@ -164,28 +168,25 @@ class _CommunityFeedPageState extends ConsumerState<CommunityFeedPage> {
                     ],
                   ),
                   SliverList(
-                    delegate: SliverChildBuilderDelegate(
-                      (context, index) {
-                        final post = posts[index];
-                        final currentUser = authService.value.currentUser?.uid;
-                        final bool isLiked = post.likes.contains(currentUser);
-                        final int likes = post.likes.length;
-                        final int comments = post.comments.length;
+                    delegate: SliverChildBuilderDelegate((context, index) {
+                      final post = posts[index];
+                      final currentUser = authService.value.currentUser?.uid;
+                      final bool isLiked = post.likes.contains(currentUser);
+                      final int likes = post.likes.length;
+                      final int comments = post.comments.length;
 
-                        return _buildPostCard(
-                          post: post,
-                          index: index,
-                          name: post.authorName,
-                          time: formatTime(post.timestamp),
-                          isLiked: isLiked,
-                          likes: likes,
-                          comments: comments,
-                          onCommentTap: () => openPostDetails(index, posts),
-                          allPosts: posts,
-                        );
-                      },
-                      childCount: posts.length,
-                    ),
+                      return _buildPostCard(
+                        post: post,
+                        index: index,
+                        name: post.authorName,
+                        time: formatTime(post.timestamp),
+                        isLiked: isLiked,
+                        likes: likes,
+                        comments: comments,
+                        onCommentTap: () => openPostDetails(index, posts),
+                        allPosts: posts,
+                      );
+                    }, childCount: posts.length),
                   ),
                   if (feedAsync.isLoading && posts.isNotEmpty)
                     const SliverToBoxAdapter(
@@ -223,18 +224,12 @@ class _CommunityFeedPageState extends ConsumerState<CommunityFeedPage> {
       if (post.authorId == currentUserId) {
         Navigator.push(
           context,
-          MaterialPageRoute(
-            builder: (_) => const ProfilePage(),
-          ),
+          MaterialPageRoute(builder: (_) => const ProfilePage()),
         );
       } else {
         Navigator.push(
           context,
-          MaterialPageRoute(
-            builder: (_) => ProfilePage(
-              userId: post.authorId,
-            ),
-          ),
+          MaterialPageRoute(builder: (_) => ProfilePage(userId: post.authorId)),
         );
       }
     }
@@ -289,18 +284,14 @@ class _CommunityFeedPageState extends ConsumerState<CommunityFeedPage> {
                   PopupMenuButton(
                     icon: const Icon(Icons.more_vert),
                     itemBuilder: (context) => const [
-                      PopupMenuItem(
-                        value: "edit",
-                        child: Text("Edit"),
-                      ),
-                      PopupMenuItem(
-                        value: "delete",
-                        child: Text("Delete"),
-                      ),
+                      PopupMenuItem(value: "edit", child: Text("Edit")),
+                      PopupMenuItem(value: "delete", child: Text("Delete")),
                     ],
                     onSelected: (value) async {
                       if (value == "edit") {
-                        final controller = TextEditingController(text: post.content);
+                        final controller = TextEditingController(
+                          text: post.content,
+                        );
                         final updated = await showDialog<String>(
                           context: context,
                           builder: (context) {
@@ -320,7 +311,10 @@ class _CommunityFeedPageState extends ConsumerState<CommunityFeedPage> {
                                 ),
                                 TextButton(
                                   onPressed: () {
-                                    Navigator.pop(context, controller.text.trim());
+                                    Navigator.pop(
+                                      context,
+                                      controller.text.trim(),
+                                    );
                                   },
                                   child: const Text("Save"),
                                 ),
@@ -334,9 +328,15 @@ class _CommunityFeedPageState extends ConsumerState<CommunityFeedPage> {
                             final postRepo = ref.read(postRepositoryProvider);
                             await postRepo.editPost(post.id, updated);
                             final updatedPost = post.copyWith(content: updated);
-                            ref.read(feedProvider.notifier).updatePostLocally(updatedPost);
+                            ref
+                                .read(feedProvider.notifier)
+                                .updatePostLocally(updatedPost);
                             if (currentUserId != null) {
-                               ref.read(profileFeedProvider(currentUserId).notifier).syncPostUpdate(updatedPost);
+                              ref
+                                  .read(
+                                    profileFeedProvider(currentUserId).notifier,
+                                  )
+                                  .syncPostUpdate(updatedPost);
                             }
                           } catch (e) {
                             debugPrint("Edit error: $e");
@@ -350,7 +350,9 @@ class _CommunityFeedPageState extends ConsumerState<CommunityFeedPage> {
                           context: context,
                           builder: (context) => AlertDialog(
                             title: const Text("Delete Post"),
-                            content: const Text("Are you sure you want to delete this post?"),
+                            content: const Text(
+                              "Are you sure you want to delete this post?",
+                            ),
                             actions: [
                               TextButton(
                                 onPressed: () => Navigator.pop(context, false),
@@ -370,11 +372,15 @@ class _CommunityFeedPageState extends ConsumerState<CommunityFeedPage> {
                         if (confirm == true) {
                           ref.read(feedProvider.notifier).deletePost(post.id);
                           if (currentUserId != null) {
-                             ref.read(profileFeedProvider(currentUserId).notifier).removePostLocally(post.id);
+                            ref
+                                .read(
+                                  profileFeedProvider(currentUserId).notifier,
+                                )
+                                .removePostLocally(post.id);
                           }
                         }
                       }
-                    }
+                    },
                   ),
               ],
             ),
@@ -384,10 +390,7 @@ class _CommunityFeedPageState extends ConsumerState<CommunityFeedPage> {
             padding: const EdgeInsets.symmetric(horizontal: 19),
             child: Text(
               post.content,
-              style: const TextStyle(
-                fontSize: 15,
-                color: Colors.black87,
-              ),
+              style: const TextStyle(fontSize: 15, color: Colors.black87),
             ),
           ),
           if (post.mediaUrls.isNotEmpty)
@@ -412,10 +415,14 @@ class _CommunityFeedPageState extends ConsumerState<CommunityFeedPage> {
                     if (currentUserId != null) {
                       final updatedPost = post.copyWith(
                         likes: post.likes.contains(currentUserId)
-                            ? (List<String>.from(post.likes)..remove(currentUserId))
-                            : (List<String>.from(post.likes)..add(currentUserId)),
+                            ? (List<String>.from(post.likes)
+                                ..remove(currentUserId))
+                            : (List<String>.from(post.likes)
+                                ..add(currentUserId)),
                       );
-                      ref.read(profileFeedProvider(currentUserId).notifier).syncPostUpdate(updatedPost);
+                      ref
+                          .read(profileFeedProvider(currentUserId).notifier)
+                          .syncPostUpdate(updatedPost);
                     }
                   },
                   child: Icon(
@@ -427,10 +434,7 @@ class _CommunityFeedPageState extends ConsumerState<CommunityFeedPage> {
                 const SizedBox(width: 6),
                 Text(
                   "$likes",
-                  style: const TextStyle(
-                    fontSize: 14,
-                    color: Colors.black87,
-                  ),
+                  style: const TextStyle(fontSize: 14, color: Colors.black87),
                 ),
                 const SizedBox(width: 18),
                 GestureDetector(
@@ -444,35 +448,12 @@ class _CommunityFeedPageState extends ConsumerState<CommunityFeedPage> {
                 const SizedBox(width: 6),
                 Text(
                   "$comments",
-                  style: const TextStyle(
-                    fontSize: 14,
-                    color: Colors.black87,
-                  ),
+                  style: const TextStyle(fontSize: 14, color: Colors.black87),
                 ),
               ],
             ),
           ),
         ],
-      ),
-    );
-  }
-}
-
-class NotificationsPage extends StatelessWidget {
-  const NotificationsPage({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        elevation: 0,
-        backgroundColor: Colors.white,
-        shadowColor: Colors.transparent,
-        surfaceTintColor: Colors.transparent,
-        title: const Text("Notifications"),
-      ),
-      body: const Center(
-        child: Text("No new notifications yet."),
       ),
     );
   }

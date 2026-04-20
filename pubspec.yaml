@@ -40,7 +40,8 @@ dependencies:
   image_cropper: ^12.1.1
   google_sign_in: ^6.2.1
   syncfusion_flutter_datepicker: ^32.1.25
-  js: ^0.6.7
+  firebase_messaging: ^16.2.0
+  flutter_local_notifications: ^20.1.0
   
 
 dev_dependencies:

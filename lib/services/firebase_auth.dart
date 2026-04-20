@@ -1,4 +1,5 @@
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:studently/logger.dart';
@@ -9,6 +10,18 @@ ValueNotifier<AuthService> authService = ValueNotifier(AuthService());
 class AuthService {
   final FirebaseAuth firebaseAuth = FirebaseAuth.instance;
 
+  GoogleSignIn _googleSignIn() {
+    if (kIsWeb) {
+      return GoogleSignIn(
+        clientId: AppConfig.googleClientId,
+      );
+    }
+
+    return GoogleSignIn(
+      serverClientId: AppConfig.googleClientId,
+    );
+  }
+
   User? get currentUser => firebaseAuth.currentUser;
 
   Stream<User?> get authStateChanges => firebaseAuth.authStateChanges();
@@ -16,9 +29,7 @@ class AuthService {
   Future<User?> signInWithGoogle() async {
     logger.i("[$runtimeType] SignInWithGoogle Started");
     try {
-      final GoogleSignIn googleSignIn = GoogleSignIn(
-        clientId: AppConfig.googleClientId,
-      );
+      final GoogleSignIn googleSignIn = _googleSignIn();
       
       final GoogleSignInAccount? googleUser = await googleSignIn.signIn();
       
@@ -40,7 +51,9 @@ class AuthService {
       logger.d("[$runtimeType] User: ${userCredential.user?.email}");
       
       // Clean up GoogleSignIn after successful authentication
-      await googleSignIn.disconnect();
+      try {
+        await googleSignIn.disconnect();
+      } catch (_) {}
       
       return userCredential.user;
     } catch (e) {
@@ -55,10 +68,10 @@ class AuthService {
     logger.i("[$runtimeType] SignOut Started");
     try {
       // Clean up GoogleSignIn
-      final GoogleSignIn googleSignIn = GoogleSignIn(
-        clientId: AppConfig.googleClientId,
-      );
-      await googleSignIn.disconnect();
+      final GoogleSignIn googleSignIn = _googleSignIn();
+      try {
+        await googleSignIn.disconnect();
+      } catch (_) {}
       
       await firebaseAuth.signOut();
       logger.i("[$runtimeType] SignOut Successful");

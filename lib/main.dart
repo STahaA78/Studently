@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:device_preview/device_preview.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:studently/utils/constants.dart';
+import 'package:studently/models/notifications.dart';
+import 'package:studently/providers/notifications_provider.dart';
 
 // Firebase imports
 import 'package:firebase_core/firebase_core.dart';
@@ -38,6 +40,7 @@ void main() async {
     await khStorage.init();
     await Hive.openBox('conversationsBox'); 
     await Hive.openBox('messagesBox');
+    await Hive.openBox<AppNotification>('notificationsBox');
     await Firebase.initializeApp(
       options: DefaultFirebaseOptions.currentPlatform,
     );
@@ -62,7 +65,16 @@ class MyApp extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    
+    ref.listen(authProvider, (previous, next) {
+      next.whenData((user) async {
+        if (user == null) {
+          await ref.read(notificationProvider.notifier).clearForLogout();
+          return;
+        }
+        await ref.read(notificationProvider.notifier).initializeForCurrentUser();
+      });
+    });
+
     // Watch the auth state
     final authState = ref.watch(authProvider);
 
