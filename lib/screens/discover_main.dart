@@ -18,7 +18,7 @@ class ConnectDiscoverPage extends StatefulWidget {
   State<ConnectDiscoverPage> createState() => _ConnectDiscoverPageState();
 }
 
-class _ConnectDiscoverPageState extends State<ConnectDiscoverPage> {
+class _ConnectDiscoverPageState extends State<ConnectDiscoverPage> with WidgetsBindingObserver {
   final TextEditingController _searchController = TextEditingController();
   final Color primaryBlue = const Color(0xFF0F74C5);
   final UserRepository _userRepository = UserRepository();
@@ -31,34 +31,47 @@ class _ConnectDiscoverPageState extends State<ConnectDiscoverPage> {
   String? selectedDepartmentName;
   String? selectedBatchYear;
   int _topCardIndex = 0;
+  final ValueNotifier<double> _swipeProgressNotifier = ValueNotifier<double>(0.0);
   Timer? _searchDebounceTimer;
+  bool _isDisposed = false;
 
-  // ---------------- SAFE SETSTATE ----------------
-  void _safeSetState(VoidCallback fn) {
-    if (!mounted) return;
-    if (SchedulerBinding.instance.schedulerPhase ==
-        SchedulerPhase.persistentCallbacks) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) setState(fn);
-      });
-    } else {
-      setState(fn);
-    }
-  }
-
-  // ---------------- INIT ----------------
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _discoverFuture = _loadDiscoverUsers();
     loadPendingRequestsCount();
   }
 
   @override
   void dispose() {
+    _isDisposed = true;
+    _swipeProgressNotifier.dispose();
+    WidgetsBinding.instance.removeObserver(this);
     _searchController.dispose();
     _searchDebounceTimer?.cancel();
     super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    // Reload pending count when app resumes (returning from another screen)
+    if (state == AppLifecycleState.resumed && mounted) {
+      loadPendingRequestsCount();
+    }
+  }
+
+  // ---------------- SAFE SETSTATE ----------------
+  void _safeSetState(VoidCallback fn) {
+    if (!mounted || _isDisposed) return;
+    if (SchedulerBinding.instance.schedulerPhase ==
+        SchedulerPhase.persistentCallbacks) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted && !_isDisposed) setState(fn);
+      });
+    } else {
+      if (mounted && !_isDisposed) setState(fn);
+    }
   }
 
   Future<List<User>> _loadDiscoverUsers() async {
@@ -113,6 +126,7 @@ class _ConnectDiscoverPageState extends State<ConnectDiscoverPage> {
       isSearchFocused = true;
       students.clear();
       _topCardIndex = 0;
+      _swipeProgressNotifier.value = 0.0;
       if (!recentSearches.contains(query)) {
         recentSearches.insert(0, query);
         if (recentSearches.length > 5) recentSearches.removeLast();
@@ -139,6 +153,7 @@ class _ConnectDiscoverPageState extends State<ConnectDiscoverPage> {
       isSearchFocused = false;
       students.clear();
       _topCardIndex = 0;
+      _swipeProgressNotifier.value = 0.0;
     });
     _discoverFuture = _loadDiscoverUsers();
   }
@@ -189,13 +204,15 @@ class _ConnectDiscoverPageState extends State<ConnectDiscoverPage> {
   }
 
   // ---------------- PENDING COUNT ----------------
-  Future<void> loadPendingRequestsCount() async {
+  Future<void> loadPendingRequestsCount() async {    if (!mounted || _isDisposed) return;
     try {
       final count = await _userRepository.fetchPendingRequestsCount();
-      if (!mounted) return;
+      if (!mounted || _isDisposed) return;
       _safeSetState(() => pendingRequestsCount = count);
     } catch (e) {
-      logger.e("[ConnectDiscoverPage] loadPendingRequestsCount failed: $e");
+      if (mounted && !_isDisposed) {
+        logger.e("[ConnectDiscoverPage] loadPendingRequestsCount failed: $e");
+      }
     }
   }
 
@@ -325,6 +342,7 @@ class _ConnectDiscoverPageState extends State<ConnectDiscoverPage> {
                                           selectedDepartmentName = null;
                                           selectedBatchYear = null;
                                           _topCardIndex = 0;
+                                          _swipeProgressNotifier.value = 0.0;
                                         });
                                         _discoverFuture = _loadDiscoverUsers();
                                       }
@@ -345,6 +363,7 @@ class _ConnectDiscoverPageState extends State<ConnectDiscoverPage> {
                                           selectedDepartmentName = tempDept;
                                           selectedBatchYear = tempBatch;
                                           _topCardIndex = 0;
+                                          _swipeProgressNotifier.value = 0.0;
                                         });
                                         _discoverFuture = _loadDiscoverUsers();
                                       }
@@ -407,8 +426,8 @@ class _ConnectDiscoverPageState extends State<ConnectDiscoverPage> {
                 context,
                 MaterialPageRoute(builder: (_) => const RequestsPage()),
               );
+              await loadPendingRequestsCount();
               if (result == true) {
-                await loadPendingRequestsCount();
                 _discoverFuture = _loadDiscoverUsers();
               }
             },
@@ -675,34 +694,61 @@ class _ConnectDiscoverPageState extends State<ConnectDiscoverPage> {
 
         final remaining = students.length - _topCardIndex;
         final visibleCount = remaining.clamp(0, 3);
+        final visibleIndexes = List<int>.generate(
+          visibleCount,
+          (i) => _topCardIndex + i,
+        );
 
         return Padding(
           padding: const EdgeInsets.fromLTRB(16, 16, 16, 25),
           child: Stack(
             children: [
-              // Back cards — static, offset slightly for depth effect
-              for (int i = visibleCount - 1; i >= 1; i--)
+              // Render back-to-front. Back cards scale according to the top card's drag.
+              for (final index in visibleIndexes.reversed)
                 Positioned.fill(
-                  child: Transform.translate(
-                    offset: Offset(0, i * -8.0),
-                    child: Transform.scale(
-                      scale: 1 - (i * 0.04),
-                      child: _buildSwipeCard(
-                          students[_topCardIndex + i],
-                          interactive: false),
-                    ),
-                  ),
+                  child: index == _topCardIndex
+                      // The top card is independent
+                      ? _DraggableCard(
+                          key: ValueKey(students[index].id),
+                          enabled: true,
+                          swipeNotifier: _swipeProgressNotifier,
+                          onSwipedLeft: _advanceCard,
+                          onSwipedRight: () => _onSwipeRight(students[index]),
+                          child: _buildSwipeCard(
+                            students[index],
+                            interactive: true,
+                          ),
+                        )
+                      : ValueListenableBuilder<double>(
+                          valueListenable: _swipeProgressNotifier,
+                          builder: (context, dragProgress, _) {
+                            final depth = index - _topCardIndex; // 1 or 2
+                            // Scale moves smoothly from (1 - depth*0.04) up to (1 - (depth-1)*0.04)
+                            final scale = (1.0 - (depth * 0.04)) + (0.04 * dragProgress);
+                            // Slide moves smoothly from depth offset up to (depth-1) offset
+                            // Use FractionalTranslation to move relative to card height.
+                            // -0.018 in FractionalTranslation is a slight move upwards.
+                            final slideRatio = -0.018 * depth + (0.018 * dragProgress);
+
+                            return FractionalTranslation(
+                              translation: Offset(0, slideRatio),
+                              child: Transform.scale(
+                                scale: scale,
+                                child: _DraggableCard(
+                                  key: ValueKey(students[index].id),
+                                  enabled: false,
+                                  onSwipedLeft: () {},
+                                  onSwipedRight: () {},
+                                  child: _buildSwipeCard(
+                                    students[index],
+                                    interactive: false,
+                                  ),
+                                ),
+                              ),
+                            );
+                          },
+                        ),
                 ),
-              // Top card — fully draggable
-              Positioned.fill(
-                child: _DraggableCard(
-                  key: ValueKey(students[_topCardIndex].id),
-                  onSwipedLeft: _advanceCard,
-                  onSwipedRight: () => _onSwipeRight(students[_topCardIndex]),
-                  child: _buildSwipeCard(students[_topCardIndex],
-                      interactive: true),
-                ),
-              ),
             ],
           ),
         );
@@ -951,20 +997,24 @@ class _ConnectDiscoverPageState extends State<ConnectDiscoverPage> {
 
 // ================================================================
 // _DraggableCard — zero external dependencies.
-// Uses only GestureDetector + Transform + a single
-// AnimationController that we fully control, so it never fires
+// Uses only GestureDetector + Transform + internal
+// AnimationControllers that we fully control, so it never fires
 // during Flutter Web's frame pipeline.
 // ================================================================
 class _DraggableCard extends StatefulWidget {
   final Widget child;
   final VoidCallback onSwipedLeft;
   final VoidCallback onSwipedRight;
+  final bool enabled;
+  final ValueNotifier<double>? swipeNotifier;
 
   const _DraggableCard({
     super.key,
     required this.child,
     required this.onSwipedLeft,
     required this.onSwipedRight,
+    required this.enabled,
+    this.swipeNotifier,
   });
 
   @override
@@ -972,7 +1022,7 @@ class _DraggableCard extends StatefulWidget {
 }
 
 class _DraggableCardState extends State<_DraggableCard>
-    with SingleTickerProviderStateMixin {
+    with TickerProviderStateMixin {
   Offset _offset = Offset.zero;
   late AnimationController _controller;
   late Animation<Offset> _animation;
@@ -980,16 +1030,19 @@ class _DraggableCardState extends State<_DraggableCard>
 
   static const double _swipeThreshold = 100.0;
 
-  // Safe setState for Flutter Web
-  void _safeSetState(VoidCallback fn) {
+  void _setStateIfMounted(VoidCallback fn) {
     if (!mounted) return;
-    if (SchedulerBinding.instance.schedulerPhase ==
-        SchedulerPhase.persistentCallbacks) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) setState(fn);
-      });
-    } else {
-      setState(fn);
+    setState(fn);
+  }
+
+  void _updateOffset(Offset newOffset) {
+    _setStateIfMounted(() => _offset = newOffset);
+    if (widget.enabled && widget.swipeNotifier != null) {
+      if (!mounted) return;
+      double screenWidth = MediaQuery.of(context).size.width;
+      // Progress hits 1.0 when dragged halfway off the screen
+      double progress = (newOffset.dx.abs() / (screenWidth * 0.6)).clamp(0.0, 1.0);
+      widget.swipeNotifier!.value = progress;
     }
   }
 
@@ -1002,8 +1055,18 @@ class _DraggableCardState extends State<_DraggableCard>
     );
     _animation = AlwaysStoppedAnimation(Offset.zero);
     _controller.addListener(() {
-      _safeSetState(() => _offset = _animation.value);
+      _updateOffset(_animation.value);
     });
+  }
+
+  @override
+  void didUpdateWidget(covariant _DraggableCard oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (!widget.enabled && oldWidget.enabled) {
+      _controller.stop();
+      _animating = false;
+      _offset = Offset.zero;
+    }
   }
 
   @override
@@ -1013,18 +1076,21 @@ class _DraggableCardState extends State<_DraggableCard>
   }
 
   void _onPanUpdate(DragUpdateDetails d) {
+    if (!widget.enabled) return;
     if (_animating) return;
-    _safeSetState(() => _offset += d.delta);
+    _updateOffset(_offset + d.delta);
   }
 
   void _onPanEnd(DragEndDetails d) {
+    if (!widget.enabled) return;
     if (_animating) return;
     if (_offset.dx.abs() >= _swipeThreshold) {
       _animating = true;
       final dir = _offset.dx > 0 ? 1.0 : -1.0;
+      double screenWidth = MediaQuery.of(context).size.width;
       _animation = Tween<Offset>(
         begin: _offset,
-        end: Offset(dir * 1200, _offset.dy),
+        end: Offset(dir * screenWidth * 1.5, _offset.dy),
       ).animate(
           CurvedAnimation(parent: _controller, curve: Curves.easeIn));
       _controller.forward(from: 0).then((_) {
@@ -1033,6 +1099,13 @@ class _DraggableCardState extends State<_DraggableCard>
         } else {
           widget.onSwipedLeft();
         }
+        if (mounted) {
+          _offset = Offset.zero;
+          _animating = false;
+          if (widget.swipeNotifier != null) {
+            widget.swipeNotifier!.value = 0.0;
+          }
+        }
       });
     } else {
       // Snap back
@@ -1040,26 +1113,87 @@ class _DraggableCardState extends State<_DraggableCard>
         begin: _offset,
         end: Offset.zero,
       ).animate(CurvedAnimation(
-          parent: _controller, curve: Curves.elasticOut));
-      _controller.duration = const Duration(milliseconds: 400);
+          parent: _controller, curve: Curves.easeOutQuint));
+      _controller.duration = const Duration(milliseconds: 300);
       _controller.forward(from: 0).then((_) {
         _controller.duration = const Duration(milliseconds: 250);
+        _animating = false;
       });
     }
   }
 
+  Widget _buildSwipeCue({required IconData icon, required Color color}) {
+    return Container(
+      width: 44,
+      height: 44,
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: color.withValues(alpha: 0.7), width: 2),
+      ),
+      child: Icon(icon, color: color, size: 24),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    final progress = (_offset.dx.abs() / (_swipeThreshold * 1.2)).clamp(0.0, 1.0);
+    final rightOpacity = _offset.dx > 0 ? progress : 0.0;
+    final leftOpacity = _offset.dx < 0 ? progress : 0.0;
+
+    final content = Transform.translate(
+      offset: _offset,
+      child: Transform.rotate(
+        angle: widget.enabled ? _offset.dx / 1200 : 0,
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            widget.child,
+            if (widget.enabled)
+              Positioned.fill(
+                child: Padding(
+                  padding: const EdgeInsets.only(right: 18),
+                  child: Align(
+                    alignment: Alignment.centerRight,
+                    child: Opacity(
+                      opacity: leftOpacity,
+                      child: _buildSwipeCue(
+                        icon: Icons.close_rounded,
+                        color: Colors.redAccent,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            if (widget.enabled)
+              Positioned.fill(
+                child: Padding(
+                  padding: const EdgeInsets.only(left: 18),
+                  child: Align(
+                    alignment: Alignment.centerLeft,
+                    child: Opacity(
+                      opacity: rightOpacity,
+                      child: _buildSwipeCue(
+                        icon: Icons.check_rounded,
+                        color: Colors.green,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+
+    if (!widget.enabled) {
+      return content;
+    }
+
     return GestureDetector(
       onPanUpdate: _onPanUpdate,
       onPanEnd: _onPanEnd,
-      child: Transform.translate(
-        offset: _offset,
-        child: Transform.rotate(
-          angle: _offset.dx / 1200,
-          child: widget.child,
-        ),
-      ),
+      child: content,
     );
   }
 }
