@@ -19,6 +19,7 @@ class UserRepository {
 		required String department,
 		required String batch,
 		required List<Interest> interests,
+		bool extractedFields = true,
 	}) async {
 		logger.i("[$runtimeType] Register User Initiated for email: $email");
 		final Map<String, dynamic> payload = {
@@ -29,6 +30,7 @@ class UserRepository {
 			"department": department,
 			"batch": batch,
 			"interests": interests.map((e) => e.toJson()).toList(),
+			"extracted_fields": extractedFields,
 		};
 		try {
 			final response = await _apiService.post(

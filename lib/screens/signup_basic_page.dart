@@ -34,6 +34,7 @@ class _SignupBasicPageState extends ConsumerState<SignupBasicPage> {
   String? _departmentCode; // Store the extracted department code
   bool _departmentExtracted = false; // Track if department was extracted
   bool _batchExtracted = false; // Track if batch was extracted
+  bool _extractedFields = true; // Track if extraction was successful
   
   DateTime? _selectedBirthday;
 
@@ -68,43 +69,68 @@ class _SignupBasicPageState extends ConsumerState<SignupBasicPage> {
     }
   }
 
-  /// Extracts department and batch from name
-  /// Example: "BSCS 2022 FAST NU LHR" -> department: "CS", batch: "2022"
+  /// Extracts department, batch, and name from Google profile name
+  /// Example: "Hassan Musa BSCS 2022 FAST NU LHR" -> name: "Hassan Musa", department: "CS", batch: "2022"
+  /// Supports: BS, MS, BBA, BA, MA, MBA, and other degree patterns (2-4 uppercase letters)
   void _extractDepartmentAndBatch(String fullName) {
     logger.d("[$runtimeType] Extracting dept/batch from: $fullName");
     
-    // Clean up the name
     final parts = fullName.split(' ');
     
     String department = '';
     String batch = '';
+    String extractedName = '';
+    int degreeIndex = -1;
     
-    // Look for patterns like BSCS, BSSE, BSIT, BSAI etc.
-    for (String part in parts) {
-      // Check if part starts with 'BS' and is followed by letters
-      if (part.startsWith('BS') && part.length > 2) {
-        // Extract letters after 'BS'
-        department = part.substring(2);
+    // Find the degree pattern using regex
+    // Matches: BS, MS, BBA, BA, MA, MBA, BSc, MSc, etc. (2-4 uppercase letters, optionally followed by lowercase)
+    final degreeRegex = RegExp(r'^[A-Z]{2,4}[a-z]*$');
+    
+    for (int i = 0; i < parts.length; i++) {
+      final part = parts[i];
+      if (degreeRegex.hasMatch(part) && part.length > 2) {
+        // Extract letters after the initial uppercase prefix (usually 2-3 chars)
+        // Examples: BSCS -> CS, BBA -> BA, MSc -> c (we take everything after first 2 chars)
+        int substringStart = (part.startsWith('BS') || part.startsWith('MS') || part.startsWith('BA') || part.startsWith('MA')) ? 2 : 3;
+        if (substringStart < part.length) {
+          department = part.substring(substringStart);
+        } else {
+          // For patterns like BBA, BA, MA, take the suffix after the first 2 chars if available
+          department = part.length > 2 ? part.substring(2) : part;
+        }
+        degreeIndex = i;
         break;
       }
     }
     
-    // Look for year/batch (4 digits)
-    for (String part in parts) {
-      if (RegExp(r'^\d{4}$').hasMatch(part)) {
-        batch = part;
-        break;
+    // Look for year/batch (4 digits) after the degree
+    if (degreeIndex != -1) {
+      for (int i = degreeIndex + 1; i < parts.length; i++) {
+        if (RegExp(r'^\d{4}$').hasMatch(parts[i])) {
+          batch = parts[i];
+          break;
+        }
       }
+      // Extract only the name part (before degree pattern)
+      extractedName = parts.sublist(0, degreeIndex).join(' ');
+    } else {
+      // No degree pattern found, use the whole name
+      extractedName = fullName;
+      logger.w("[$runtimeType] No degree pattern found in name");
     }
     
+    // Update UI state and track extraction success
     setState(() {
+      _nameController.text = extractedName;
       _departmentCode = department;
       _departmentExtracted = department.isNotEmpty;
       _batchController.text = batch;
       _batchExtracted = batch.isNotEmpty;
+      // Mark as successful extraction only if both department and batch were found
+      _extractedFields = department.isNotEmpty && batch.isNotEmpty;
     });
     
-    logger.d("[$runtimeType] Extracted - Department Code: $department, Batch: $batch");
+    logger.d("[$runtimeType] Extracted - Name: $extractedName, Department: $department, Batch: $batch, Success: $_extractedFields");
   }
 
   Future<void> _handleBirthdayPicker() async {
@@ -233,6 +259,7 @@ class _SignupBasicPageState extends ConsumerState<SignupBasicPage> {
                 interests: [],
               ),
               completeSignup: true,
+              extractedFields: _extractedFields,
             ),
           ),
         );
