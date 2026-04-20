@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:studently/utils/constants.dart';
 import 'package:studently/models/notifications.dart';
 import 'package:studently/providers/notifications_provider.dart';
+import 'package:studently/services/app_navigation.dart';
 
 // Firebase imports
 import 'package:firebase_core/firebase_core.dart';
@@ -72,6 +73,9 @@ class MyApp extends ConsumerWidget {
           return;
         }
         await ref.read(notificationProvider.notifier).initializeForCurrentUser();
+        WidgetsBinding.instance.addPostFrameCallback((_) async {
+          await ref.read(notificationProvider.notifier).processPendingTapIfAny();
+        });
       });
     });
 
@@ -86,6 +90,7 @@ class MyApp extends ConsumerWidget {
 
     return MaterialApp(
       debugShowCheckedModeBanner: false,
+      navigatorKey: appNavigatorKey,
       
       // REQUIRED FOR DEVICE PREVIEW: Injects the preview's locale settings
       locale: DevicePreview.locale(context),

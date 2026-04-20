@@ -60,6 +60,21 @@ class NotificationRepository {
     }
   }
 
+  Future<int?> fetchUnreadCount() async {
+    try {
+      final response = await _apiService.get('/notifications/unread-count');
+      if (response.statusCode != 200) return null;
+      final data = json.decode(response.body) as Map<String, dynamic>;
+      final count = data['unread_count'];
+      if (count is int) return count;
+      if (count is num) return count.toInt();
+      return null;
+    } catch (e) {
+      logger.e('Error fetching unread notification count: $e');
+      return null;
+    }
+  }
+
   /// 3. Give FastAPI the phone's unique Firebase token.
   /// We will trigger this inside your AuthProvider right after a successful login.
   Future<bool> registerFcmToken(String token) async {

@@ -1,7 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:studently/models/notifications.dart';
+import 'package:studently/providers/feed_provider.dart';
 import 'package:studently/providers/notifications_provider.dart';
+import 'package:studently/repositories/chat.dart';
+import 'package:studently/screens/chat_page.dart';
+import 'package:studently/screens/post_details_page.dart';
+import 'package:studently/screens/profile_main.dart';
 import 'package:studently/utils/time_ago.dart';
 
 class NotificationsPage extends ConsumerStatefulWidget {
@@ -62,8 +67,10 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
                                 final notification = state.notifications[index];
                                 return _NotificationCard(
                                   notification: notification,
-                                  onTap: () =>
-                                      controller.markAsRead(notification.id),
+                                  onTap: () => _handleNotificationTap(
+                                    context: context,
+                                    notification: notification,
+                                  ),
                                 );
                               },
                             ),
@@ -191,6 +198,79 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
         ),
       ),
     );
+  }
+
+  Future<void> _handleNotificationTap({
+    required BuildContext context,
+    required AppNotification notification,
+  }) async {
+    final controller = ref.read(notificationProvider.notifier);
+    await controller.markAsRead(notification.id);
+
+    switch (notification.type) {
+      case 'NEW_MESSAGE':
+        if (notification.entityId.isEmpty) return;
+        final otherUserId = notification.actorId;
+        String otherUserName = 'Chat';
+        if (otherUserId.isNotEmpty) {
+          try {
+            otherUserName = await ChatRepository().getUserName(otherUserId);
+          } catch (_) {}
+        }
+        if (!mounted) return;
+        await Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => ChatPage(
+              conversationId: notification.entityId,
+              otherUserId: otherUserId.isNotEmpty ? otherUserId : 'UNKNOWN',
+              otherUserName: otherUserName,
+            ),
+          ),
+        );
+        return;
+
+      case 'POST_LIKE':
+      case 'NEW_COMMENT':
+        if (notification.entityId.isEmpty) return;
+        try {
+          final repo = ref.read(postRepositoryProvider);
+          final post = await repo.getPostById(notification.entityId);
+          if (!mounted) return;
+          await Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => PostDetailsPage(postData: post),
+            ),
+          );
+        } catch (_) {}
+        return;
+
+      case 'FRIEND_REQUEST':
+        if (notification.actorId.isEmpty) return;
+        if (!mounted) return;
+        await Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => ProfilePage(userId: notification.actorId),
+          ),
+        );
+        return;
+
+      case 'FRIEND_REQUEST_ACCEPTED':
+        if (notification.actorId.isEmpty) return;
+        if (!mounted) return;
+        await Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => ProfilePage(userId: notification.actorId),
+          ),
+        );
+        return;
+
+      default:
+        return;
+    }
   }
 }
 
