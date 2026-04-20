@@ -10,6 +10,7 @@ import 'package:studently/repositories/user.dart';
 import 'package:studently/logger.dart';
 import 'package:studently/providers/backend_config_provider.dart';
 import 'dart:async';
+import 'package:flutter/foundation.dart' show kIsWeb;
 
 class ConnectDiscoverPage extends StatefulWidget {
   const ConnectDiscoverPage({super.key});
@@ -34,6 +35,7 @@ class _ConnectDiscoverPageState extends State<ConnectDiscoverPage> with WidgetsB
   final ValueNotifier<double> _swipeProgressNotifier = ValueNotifier<double>(0.0);
   Timer? _searchDebounceTimer;
   bool _isDisposed = false;
+  bool _isRefreshing = false;
 
   @override
   void initState() {
@@ -41,6 +43,13 @@ class _ConnectDiscoverPageState extends State<ConnectDiscoverPage> with WidgetsB
     WidgetsBinding.instance.addObserver(this);
     _discoverFuture = _loadDiscoverUsers();
     loadPendingRequestsCount();
+    
+    // Background refresh after a short delay to ensure fresh profiles
+    Future.delayed(const Duration(milliseconds: 500), () {
+      if (mounted && !_isDisposed) {
+        _backgroundRefreshDiscoverUsers();
+      }
+    });
   }
 
   @override
@@ -101,6 +110,56 @@ class _ConnectDiscoverPageState extends State<ConnectDiscoverPage> with WidgetsB
       _topCardIndex = 0;
     });
     return validUsers;
+  }
+
+  // Background refresh to ensure fresh profiles (silently refreshes in background)
+  Future<void> _backgroundRefreshDiscoverUsers() async {
+    if (_isRefreshing) return;
+    
+    try {
+      _isRefreshing = true;
+      final users = await _userRepository.discoverUsers();
+      if (!mounted || _isDisposed) return;
+      
+      final statuses = await _fetchConnectionStatusesForUsers(users);
+      var validUsers = users.where((user) => 
+        statuses.containsKey(user.id) && statuses[user.id] == "none"
+      ).toList();
+      
+      if (selectedDepartmentName != null) {
+        validUsers = validUsers.where((user) => user.department?.name == selectedDepartmentName).toList();
+      }
+      
+      if (selectedBatchYear != null) {
+        validUsers = validUsers.where((user) => user.batch.toString() == selectedBatchYear).toList();
+      }
+      
+      _safeSetState(() {
+        students = validUsers;
+        connectionStatus = statuses;
+        if (_topCardIndex >= students.length && students.isNotEmpty) {
+          _topCardIndex = 0;
+        }
+      });
+    } catch (e) {
+      logger.e("[ConnectDiscoverPage] _backgroundRefreshDiscoverUsers failed: $e");
+    } finally {
+      _isRefreshing = false;
+    }
+  }
+
+  // Manual refresh (triggered by user)
+  Future<void> _manualRefreshDiscoverUsers() async {
+    if (_isRefreshing) return;
+    
+    try {
+      _isRefreshing = true;
+      _safeSetState(() {
+        _discoverFuture = _loadDiscoverUsers();
+      });
+    } finally {
+      _isRefreshing = false;
+    }
   }
 
   // ---------------- SEARCH ----------------
@@ -403,6 +462,13 @@ class _ConnectDiscoverPageState extends State<ConnectDiscoverPage> with WidgetsB
                 fontWeight: FontWeight.w600,
                 fontSize: 20)),
         actions: [
+          // Refresh button (web only)
+          if (kIsWeb)
+            IconButton(
+              icon: const Icon(Icons.refresh, color: Colors.black),
+              tooltip: 'Refresh profiles',
+              onPressed: _isRefreshing ? null : _manualRefreshDiscoverUsers,
+            ),
           IconButton(
             icon: Stack(
               children: [

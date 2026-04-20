@@ -53,10 +53,7 @@ class User {
       password: json['password'],
       birthday: json['birthday'],
       department: json['department'] != null 
-        ? Department(
-            name: json['department']['name'] ?? '',
-            code: json['department']['code'] ?? '',
-          )
+        ? Department.fromJson(json['department'])
         : null,
       batch: json['batch'],
       interests: (json['interests'] as List<dynamic>?)?.map((e) => Interest.fromJson(e)).toList() ?? [],
@@ -70,15 +67,13 @@ class User {
       'id': id,
       'name': name,
       'email': email,
-      'friendsCount': friendsCount, // ADDED
+      'friendsCount': friendsCount,
       'password': password,
       'birthday': birthday,
-      'department': department != null
-        ? {'name': department!.name, 'code': department!.code}
-        : null,
+      'department': department?.toJson(),
       'batch': batch,
-      'university': university, // ADDED
-      'picture': picture, // Cloudflare R2 URL
+      'university': university,
+      'picture': picture,
       'interests': interests.map((i) => i.toJson()).toList(),
     };
   }
