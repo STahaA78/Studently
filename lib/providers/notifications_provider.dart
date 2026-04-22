@@ -63,6 +63,7 @@ class NotificationController extends Notifier<NotificationState> {
   String? _registeredToken;
   String? _initializedUid;
   bool _localNotificationsInitialized = false;
+  bool _consumedInitialLocalNotificationLaunch = false;
 
   @override
   NotificationState build() {
@@ -263,6 +264,24 @@ class NotificationController extends Notifier<NotificationState> {
           }
         },
       );
+
+      if (!_consumedInitialLocalNotificationLaunch) {
+        final launchDetails =
+            await _localNotifications.getNotificationAppLaunchDetails();
+        final launchResponse = launchDetails?.notificationResponse;
+        final launchPayload = launchResponse?.payload;
+        if (launchDetails?.didNotificationLaunchApp == true &&
+            launchPayload != null &&
+            launchPayload.isNotEmpty) {
+          try {
+            final data = jsonDecode(launchPayload) as Map<String, dynamic>;
+            await _routeByPayloadOrQueue(data);
+          } catch (e) {
+            logger.w('[NotificationController] Invalid launch payload: $e');
+          }
+        }
+        _consumedInitialLocalNotificationLaunch = true;
+      }
 
       const channel = AndroidNotificationChannel(
         'studently_notifications',
