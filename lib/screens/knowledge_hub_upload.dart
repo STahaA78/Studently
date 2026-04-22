@@ -48,17 +48,14 @@ class _AddResourcePageState extends ConsumerState<AddResourcePage> {
   String? _selectedSemester;
   int? _selectedYear;
   bool _isSolved = false;
-  // Text Controllers for Form Fields
-  final TextEditingController _quizNumberController = TextEditingController();
-  final TextEditingController _instructorController = TextEditingController();
+  // Mid Number Selection
+  int? _selectedMidNumber;
   
   // Upload state
   bool _isUploading = false;
 
   @override
   void dispose() {
-    _quizNumberController.dispose();
-    _instructorController.dispose();
     super.dispose();
   }
 
@@ -285,28 +282,18 @@ class _AddResourcePageState extends ConsumerState<AddResourcePage> {
         }
       }
 
-      if (_selectedType == "quiz" && _quizNumberController.text.isEmpty) {
-        logger.i("File Upload Ended - No Quiz Number");
-        throw Exception("Please enter quiz number");
-      }
-
-      if (_selectedType == "quiz" && _instructorController.text.isEmpty) {
-        logger.i("File Upload Ended - No Instructor Name");
-        throw Exception("Please enter instructor name");
+      if (_selectedType == "Mid" && _selectedMidNumber == null) {
+        logger.i("File Upload Ended - No Mid Number");
+        throw Exception("Please select mid number");
       }
 
       final resourceItemRequest = ResourceItemRequest(
         course: widget.course,
         type: _selectedType!,
-        semester: _selectedSemester!,
-        year: _selectedYear!,
-        quizNumber: _quizNumberController.text.isNotEmpty
-            ? int.parse(_quizNumberController.text)
-            : null,
-        instructorName: _instructorController.text.isNotEmpty
-            ? _instructorController.text
-            : null,
+        semester: _selectedSemester ?? 'Unknown',
+        year: _selectedYear ?? 0,
         isSolved: _isSolved,
+        midNumber: _selectedMidNumber,
       );
 
       // Use the provider to upload the resource
@@ -376,19 +363,12 @@ class _AddResourcePageState extends ConsumerState<AddResourcePage> {
   bool get _canShowUpload {
     if (_selectedType == null) return false;
 
-    if (_selectedType == "book") {
-      return true;
+    // Mid requires mid number selection
+    if (_selectedType == "Mid") {
+      return _selectedMidNumber != null;
     }
 
-    // final, midterm, quiz all require semester + year
-    if (_selectedSemester == null || _selectedYear == null) return false;
-
-    if (_selectedType == "quiz") {
-      return _quizNumberController.text.isNotEmpty &&
-          _instructorController.text.isNotEmpty;
-    }
-
-    // final or midterm
+    // Final can be submitted once type is selected
     return true;
   }
 
@@ -470,114 +450,41 @@ class _AddResourcePageState extends ConsumerState<AddResourcePage> {
             DropdownButtonFormField<String>(
               initialValue: _selectedType,
               items: const [
-                DropdownMenuItem(value: "final", child: Text("Final")),
-                DropdownMenuItem(value: "midterm", child: Text("Midterm")),
-                DropdownMenuItem(value: "quiz", child: Text("Quiz")),
-                DropdownMenuItem(value: "book", child: Text("Book")),
+                DropdownMenuItem(value: "Mid", child: Text("Midterm")),
+                DropdownMenuItem(value: "Final", child: Text("Final")),
               ],
               onChanged: (value) {
                 setState(() {
                   _selectedType = value;
+                  _selectedMidNumber = null; // Reset mid number when type changes
                 });
               },
               decoration: const InputDecoration(hintText: "Select Resource Type"),
             ),
             const SizedBox(height: 20),
 
-            /// Semester + Year — shown for final, midterm, and quiz
-            if (_selectedType == "final" ||
-                _selectedType == "midterm" ||
-                _selectedType == "quiz") ...[
-              Row(
-                children: [
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text(
-                          "Semester",
-                          style: TextStyle(fontWeight: FontWeight.w600),
-                        ),
-                        const SizedBox(height: 8),
-                        DropdownButtonFormField<String>(
-                          initialValue: _selectedSemester,
-                          isExpanded: true,
-                          items: const [
-                            DropdownMenuItem(value: "Fall", child: Text("Fall")),
-                            DropdownMenuItem(value: "Spring", child: Text("Spring")),
-                            DropdownMenuItem(value: "Summer", child: Text("Summer")),
-                          ],
-                          onChanged: (value) {
-                            setState(() {
-                              _selectedSemester = value;
-                            });
-                          },
-                          decoration: const InputDecoration(hintText: "Select Semester"),
-                        ),
-                      ],
-                    ),
-                  ),
-
-                  const SizedBox(width: 16),
-
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text(
-                          "Year",
-                          style: TextStyle(fontWeight: FontWeight.w600),
-                        ),
-                        const SizedBox(height: 8),
-                        DropdownButtonFormField<int>(
-                          initialValue: _selectedYear,
-                          isExpanded: true,
-                          items: List.generate(
-                            DateTime.now().year - 2009,
-                            (index) {
-                              int year = DateTime.now().year - index;
-                              return DropdownMenuItem(
-                                value: year,
-                                child: Text(year.toString()),
-                              );
-                            },
-                          ),
-                          onChanged: (value) {
-                            setState(() {
-                              _selectedYear = value;
-                            });
-                          },
-                          decoration: const InputDecoration(hintText: "Select Year"),
-                        ),
-                      ],
-                    ),
-                  ),
+            /// Mid Number — shown for Mid exams
+            if (_selectedType == "Mid") ...[
+              const Text("Mid Exam Number", style: TextStyle(fontWeight: FontWeight.w600)),
+              const SizedBox(height: 8),
+              DropdownButtonFormField<int>(
+                initialValue: _selectedMidNumber,
+                items: const [
+                  DropdownMenuItem(value: 1, child: Text("Mid 1")),
+                  DropdownMenuItem(value: 2, child: Text("Mid 2")),
                 ],
+                onChanged: (value) {
+                  setState(() {
+                    _selectedMidNumber = value;
+                  });
+                },
+                decoration: const InputDecoration(hintText: "Select Mid Number"),
               ),
               const SizedBox(height: 20),
             ],
 
-            /// Quiz-only Fields
-            if (_selectedType == "quiz") ...[
-              TextField(
-                controller: _quizNumberController,
-                keyboardType: TextInputType.number,
-                onChanged: (_) => setState(() {}), // triggers _canShowUpload rebuild
-                decoration: const InputDecoration(hintText: "Quiz Number"),
-              ),
-              const SizedBox(height: 16),
-              TextField(
-                controller: _instructorController,
-                onChanged: (_) => setState(() {}), // triggers _canShowUpload rebuild
-                decoration: const InputDecoration(hintText: "Instructor Name"),
-              ),
-              const SizedBox(height: 20),
-            ],
-
-            /// Solved Toggle — shown for final, midterm, and quiz
-            if (_selectedType == "final" ||
-                _selectedType == "midterm" ||
-                _selectedType == "quiz") ...[
+            /// Solved Toggle
+            if (_selectedType != null) ...[
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [

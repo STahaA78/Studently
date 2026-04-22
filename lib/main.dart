@@ -5,18 +5,21 @@ import 'package:studently/utils/constants.dart';
 
 // Firebase imports
 import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'firebase_options.dart';
 import 'package:email_otp/email_otp.dart';
 import 'screens/login_page.dart';
 // Hive imports
-import 'package:studently/storage/knowledge_hub.dart';
+import 'package:studently/storage/storage_manager.dart';
 import 'package:studently/utils/hive_init.dart';
 
-// Import the Auth Provider
+// Import the Auth and Config Providers
 import 'package:studently/providers/auth_provider.dart';
+import 'package:studently/providers/backend_config_provider.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'screens/community_feed_page.dart';
-void main() async {
+import 'screens/signup_basic_page.dart';
+  void main() async {
     EmailOTP.config(
       appName: "Studently",
       appEmail: "support@studently.com",
@@ -31,28 +34,22 @@ void main() async {
     await Hive.openBox('authBox');
     await Hive.openBox('feedBox');
     await Hive.openBox('profileFeedBox');
-    // Initialize KnowledgeHubStorage
-    final khStorage = KnowledgeHubStorage();
-    await khStorage.init();
     await Hive.openBox('conversationsBox'); 
     await Hive.openBox('messagesBox');
+    
+    // Initialize Storage Manager (handles config storage at app startup)
+    final storageManager = StorageManager();
+    await storageManager.initialize();
+    
     await Firebase.initializeApp(
       options: DefaultFirebaseOptions.currentPlatform,
     );
+    
     runApp(
-      ProviderScope(
-        child: DevicePreview(
-          enabled: true , // Set to false to disable Device Preview
-          builder: (context) => const MyApp(), // Wrap your app
-        ),
+      const ProviderScope(
+        child: MyApp(),
       ),
     );
-    // runApp(const MyApp());
-    // runApp(
-    //   const ProviderScope(
-    //     child: MyApp(),
-    //   ),
-    // );
   }
 
 class MyApp extends ConsumerWidget {
@@ -63,6 +60,9 @@ class MyApp extends ConsumerWidget {
     
     // Watch the auth state
     final authState = ref.watch(authProvider);
+    
+    // Trigger backend config loading on app startup
+    ref.watch(backendConfigProvider);
 
     final Color blue = AppStyle.blue;
     final Color white = AppStyle.white;
@@ -80,17 +80,27 @@ class MyApp extends ConsumerWidget {
       home: authState.when(
         data: (user) {
           if (user != null) return const CommunityFeedPage();
-          return const LoginPage();
+          
+          // Check if Firebase user is logged in but not yet registered in backend
+          // (This means new Google signup user)
+          final firebaseUser = FirebaseAuth.instance.currentUser;
+          if (firebaseUser != null && user == null) {
+            return const SignupBasicPage();
+          }
+          
+          return const LoginGooglePage();
         },
-        // If the provider hits an error (like a wrong password), stay on LoginPage
-        error: (err, stack) => const LoginPage(),
+        // If the provider hits an error (like a wrong password or cancelled Google signin), stay on LoginPage
+        error: (err, stack) {
+          return const LoginGooglePage();
+        },
         
         // Only show the full-screen loader if we have absolutely no data yet (initial app boot)
         // If we already have 'null' data (meaning we are on the login page), don't show the full screen loader!
         loading: () {
           // Check if we are transitioning FROM the login page
           if (authState.hasValue) {
-            return const LoginPage(); // Keep showing the login page so the button spinner works!
+            return const LoginGooglePage(); // Keep showing the login page so the button spinner works!
           }
           
           // Otherwise, show the boot-up spinner

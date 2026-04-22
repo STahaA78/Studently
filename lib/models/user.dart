@@ -24,12 +24,11 @@ class User {
   int? friendsCount;
   String? password;
   String? birthday; // MM/DD/YYYY
-  String? department;
+  Department? department;
   String? batch;
   List<Interest> interests;
   String? university;
-  String? profilePhotoUrl;
-  String? bio;
+  String? picture; // Cloudflare R2 URL
 
   User({
     required this.id,
@@ -42,41 +41,39 @@ class User {
     this.batch,
     List<Interest>? interests,
     this.university,
-    this.profilePhotoUrl,
-    this.bio,
+    this.picture,
   }) : interests = interests ?? [];
 
   factory User.fromJson(Map<String, dynamic> json) {
     return User(
-      id: json['_id'] ?? json['id'] ?? '',
+      id: json['id'] ?? json['_id'] ?? '',
       name: json['name'] ?? '',
       email: json['email'] ?? '',
-      friendsCount: json['friendsCount'] ?? 0,
+      friendsCount: json['friends_count']  ?? 0,
       password: json['password'],
       birthday: json['birthday'],
-      department: json['department'],
+      department: json['department'] != null 
+        ? Department.fromJson(json['department'])
+        : null,
       batch: json['batch'],
       interests: (json['interests'] as List<dynamic>?)?.map((e) => Interest.fromJson(e)).toList() ?? [],
       university: json['university'],
-      profilePhotoUrl: json['profilePhotoUrl'],
-      bio: json['bio'],
+      picture: json['picture'] ?? '',
     );
   }
 
   Map<String, dynamic> toJson() {
     return {
       'id': id,
-      '_id': id, // Adding this helps if MongoDB expects the ID here
       'name': name,
       'email': email,
-      'friendsCount': friendsCount, // ADDED
+      'friendsCount': friendsCount,
       'password': password,
       'birthday': birthday,
-      'department': department,
+      'department': department?.toJson(),
       'batch': batch,
-      'university': university, // ADDED
-      'bio': bio, // ADDED
-      'profilePhotoUrl': profilePhotoUrl, // FIXED: Now exactly matches fromJson!
+      'university': university,
+      'picture': picture,
       'interests': interests.map((i) => i.toJson()).toList(),
     };
   }

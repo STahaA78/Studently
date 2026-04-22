@@ -23,12 +23,14 @@ class InterestsSelectionPage extends ConsumerStatefulWidget {
   final List<Interest> initialInterests;
   final User? user;
   final bool completeSignup;
+  final bool extractedFields;
 
   const InterestsSelectionPage({
     super.key,
     this.initialInterests = const [],
     this.user,
     this.completeSignup = false,
+    this.extractedFields = true,
   });
 
   @override
@@ -48,15 +50,26 @@ class _InterestsSelectionPageState extends ConsumerState<InterestsSelectionPage>
   }
 
   Future<void> _completeRegistration() async {
-    ref.read(authProvider.notifier).signUp(
-      email: widget.user!.email,
-      password: widget.user!.password!,
-      name: widget.user!.name,
-      birthday: widget.user!.birthday!,
-      department: widget.user!.department!,
-      batch: widget.user!.batch!,
-      interests: selectedInterests,
-    );
+    try {
+      setState(() { _completionError = null; });
+      
+      // Call signup and wait for completion
+      await ref.read(authProvider.notifier).signUp(
+        name: widget.user!.name,
+        birthday: widget.user!.birthday!,
+        department: widget.user!.department!,
+        batch: widget.user!.batch!,
+        interests: selectedInterests,
+        extractedFields: widget.extractedFields,
+      );
+      
+      logger.i("[$runtimeType] Signup completed successfully");
+    } catch (e) {
+      logger.e("[$runtimeType] Signup error: $e");
+      setState(() {
+        _completionError = e.toString().replaceAll('Exception: ', '');
+      });
+    }
   }
 
   void _handleCompletion() {
@@ -356,9 +369,9 @@ class _InterestsSelectionPageState extends ConsumerState<InterestsSelectionPage>
                                 strokeWidth: 2.5,
                               ),
                             )
-                          : Text(
-                              widget.completeSignup ? 'Complete Signup ($selectedCount/5)' : 'Save ($selectedCount/5)',
-                              style: const TextStyle(
+                          : const Text(
+                              'Continue',
+                              style: TextStyle(
                                 fontSize: 16,
                                 color: Colors.white,
                               ),

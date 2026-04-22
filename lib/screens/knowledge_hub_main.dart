@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../widgets/custom_nav_bar.dart';
 import 'package:studently/models/knowledge_hub.dart';
@@ -252,6 +253,17 @@ class _KnowledgeHubPageState extends ConsumerState<KnowledgeHubPage> {
                     fontSize: 20,
                   ),
                 ),
+                actions: kIsWeb
+                    ? [
+                        IconButton(
+                          icon: const Icon(Icons.refresh, color: Colors.black),
+                          onPressed: () async {
+                            final refresh = ref.read(refreshAllCoursesProvider);
+                            await refresh();
+                          },
+                        ),
+                      ]
+                    : [],
                 bottom: PreferredSize(
                   preferredSize: const Size.fromHeight(8),
                   child: const SizedBox(),
@@ -281,112 +293,124 @@ class _KnowledgeHubPageState extends ConsumerState<KnowledgeHubPage> {
                   (context, index) {
                     final course = filteredCourses[index];
                     final isFirst = index == 0;
+                    final isLast = index == filteredCourses.length - 1;
 
-                    return Container(
-                      key: isFirst ? _firstCardKey : null,
-                      margin: const EdgeInsets.symmetric(
-                          horizontal: 20, vertical: 7),
-                      padding: const EdgeInsets.all(16),
-                      decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(30),
-                        border:
-                            Border.all(color: Colors.grey.shade300),
-                        color: Colors.white,
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            course.name,
-                            style: const TextStyle(
-                              fontWeight: FontWeight.w500,
-                              fontSize: 17,
-                            ),
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            course.code,
-                            style: const TextStyle(
-                                color: Colors.grey, fontSize: 13),
-                          ),
-                          const SizedBox(height: 10),
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.start,
+                    return Column(
+                      children: [
+                        Container(
+                          key: isFirst ? _firstCardKey : null,
+                          margin: const EdgeInsets.symmetric(
+                              horizontal: 20, vertical: 7),
+                          padding: const EdgeInsets.all(16),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Expanded(
-                                child: ElevatedButton.icon(
-                                  onPressed: () {
-                                    Navigator.push(
-                                      context,
-                                      MaterialPageRoute(
-                                        builder: (_) =>
-                                            RepositoryUserPage(
-                                                course: course),
-                                      ),
-                                    );
-                                  },
-                                
-                                  icon: const Icon(Icons.folder_open, size: 18),
-                                  label: const Text("Repository"),
-                                  style: ElevatedButton.styleFrom(
-                                    padding: const EdgeInsets.symmetric(
-                                        horizontal: 12, vertical: 8),
-                                    backgroundColor: blue,
-                                    shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(12),
-                                    ),
-                                  ),
+                              Text(
+                                course.name,
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.w500,
+                                  fontSize: 17,
                                 ),
                               ),
-                              const SizedBox(width: 5),
-                              Expanded(
-                                child: OutlinedButton.icon(
-                                  // CHANGED: Wired up Group Chat backend logic
-                                  onPressed: () async {
-                                    final convId = await ChatRepository()
-                                        .joinCourseGroupChat(course.code);
-                                
-                                    if (convId != null &&
-                                        context.mounted) {
-                                      Navigator.push(
-                                        context,
-                                        MaterialPageRoute(
-                                          builder: (_) => ChatPage(
-                                            conversationId: convId,
-                                            otherUserId: "GROUP",
-                                            otherUserName:
-                                                "${course.name} Group",
+                              const SizedBox(height: 4),
+                              Text(
+                                course.code,
+                                style: const TextStyle(
+                                    color: Colors.grey, fontSize: 13),
+                              ),
+                              const SizedBox(height: 10),
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.start,
+                                children: [
+                                  Expanded(
+                                    child: SizedBox(
+                                      height: 40,
+                                      child: ElevatedButton.icon(
+                                        onPressed: () {
+                                          Navigator.push(
+                                            context,
+                                            MaterialPageRoute(
+                                              builder: (_) =>
+                                                  RepositoryUserPage(
+                                                      course: course),
+                                            ),
+                                          );
+                                        },
+                                        icon: const Icon(Icons.folder_open, size: 18),
+                                        label: const Text("Repository"),
+                                        style: ElevatedButton.styleFrom(
+                                          padding: const EdgeInsets.symmetric(
+                                              horizontal: 12, vertical: 8),
+                                          backgroundColor: blue,
+                                          shape: RoundedRectangleBorder(
+                                            borderRadius: BorderRadius.circular(12),
                                           ),
                                         ),
-                                      );
-                                    } else if (context.mounted) {
-                                      ScaffoldMessenger.of(context)
-                                          .showSnackBar(
-                                        const SnackBar(
-                                          content: Text(
-                                              "Failed to join group chat."),
+                                      ),
+                                      ),
+                                  ),
+                                  const SizedBox(width: 5),
+                                  Expanded(
+                                    child: SizedBox(
+                                      height: 40,
+                                      child: OutlinedButton.icon(
+                                        // CHANGED: Wired up Group Chat backend logic
+                                        onPressed: () async {
+                                          final convId = await ChatRepository()
+                                              .joinCourseGroupChat(course.code);
+                                      
+                                          if (convId != null &&
+                                              context.mounted) {
+                                            Navigator.push(
+                                              context,
+                                              MaterialPageRoute(
+                                                builder: (_) => ChatPage(
+                                                  conversationId: convId,
+                                                  otherUserId: "GROUP",
+                                                  otherUserName:
+                                                      "${course.name} Group",
+                                                ),
+                                              ),
+                                            );
+                                          } else if (context.mounted) {
+                                            ScaffoldMessenger.of(context)
+                                                .showSnackBar(
+                                              const SnackBar(
+                                                content: Text(
+                                                    "Failed to join group chat."),
+                                              ),
+                                            );
+                                          }
+                                        },
+                                        icon: const Icon( Icons.forum_outlined, size: 18),
+                                        label: const Text("Group Chat"),
+                                        style: OutlinedButton.styleFrom(
+                                          padding: const EdgeInsets.symmetric(
+                                              horizontal: 12, vertical: 8),
+                                          foregroundColor: blue,
+                                          side: BorderSide(color: blue),
+                                          shape: RoundedRectangleBorder(
+                                            borderRadius:
+                                                BorderRadius.circular(12),
+                                          ),
                                         ),
-                                      );
-                                    }
-                                  },
-                                  icon: const Icon( Icons.forum_outlined, size: 18),
-                                  label: const Text("Group Chat"),
-                                  style: OutlinedButton.styleFrom(
-                                    padding: const EdgeInsets.symmetric(
-                                        horizontal: 12, vertical: 8),
-                                    foregroundColor: blue,
-                                    side: BorderSide(color: blue),
-                                    shape: RoundedRectangleBorder(
-                                      borderRadius:
-                                          BorderRadius.circular(12),
+                                      ),
                                     ),
                                   ),
-                                ),
+                                ],
                               ),
                             ],
                           ),
-                        ],
-                      ),
+                        ),
+                        if (!isLast)
+                          Divider(
+                            height: 0.75,
+                            thickness: 0.75,
+                            color: Colors.grey[300],
+                            indent: 30,
+                            endIndent: 30,
+                          ),
+                      ],
                     );
                   },
                   childCount: filteredCourses.length,

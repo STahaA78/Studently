@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import 'package:studently/screens/community_feed_page.dart';
 import 'package:studently/screens/discover_main.dart';
 import 'package:studently/screens/profile_main.dart';
@@ -77,27 +78,42 @@ class CustomNavBar extends StatelessWidget {
       }
     }
 
+    // Helper function to get SVG asset path based on selection state
+    String _getSvgAsset(int index, bool isSelected) {
+      final paths = [
+        ('assets/images/feed-outlined.svg', 'assets/images/feed-filled.svg'),
+        ('assets/images/connect-outlined.svg', 'assets/images/connect-filled.svg'),
+        ('assets/images/post-outlined.svg', 'assets/images/post-filled.svg'),
+        ('assets/images/knowledgehub-outlined.svg', 'assets/images/knowledgehub-filled.svg'),
+        ('assets/images/profile-outlined.svg', 'assets/images/profile-filled.svg'),
+      ];
+      return isSelected ? paths[index].$2 : paths[index].$1;
+    }
+
     return BottomNavigationBar(
+      backgroundColor: Colors.white,
       currentIndex: currentIndex,
       onTap: onItemTapped,
       type: BottomNavigationBarType.fixed,
       selectedItemColor: blue,
       unselectedItemColor: Colors.grey,
-      showUnselectedLabels: true,
-      items: const [
-        BottomNavigationBarItem(icon: Icon(Icons.home_filled), label: "Feed"),
-        BottomNavigationBarItem(icon: Icon(Icons.people_alt), label: "Connect"),
-        BottomNavigationBarItem(
-          icon: CircleAvatar(
-            radius: 15,
-            backgroundColor: blue,
-            child: Icon(Icons.add, color: Colors.white, size: 20),
+      showUnselectedLabels: false,
+      showSelectedLabels: false,
+      items: List.generate(5, (index) {
+        final assetPath = _getSvgAsset(index, currentIndex == index);
+        return BottomNavigationBarItem(
+          icon: SvgPicture.asset(
+            assetPath,
+            width: 24,
+            height: 24,
+            colorFilter: ColorFilter.mode(
+              currentIndex == index ? blue : Colors.grey,
+              BlendMode.srcIn,
+            ),
           ),
-          label: "Post",
-        ),
-        BottomNavigationBarItem(icon: Icon(Icons.grid_view), label: "Hub"),
-        BottomNavigationBarItem(icon: Icon(Icons.person), label: "Profile"),
-      ],
+          label: "",
+        );
+      }),
     );
   }
 }

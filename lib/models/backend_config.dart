@@ -1,6 +1,25 @@
 class Department {
   final String name;
-  Department({required this.name});
+  final String code;
+  
+  Department({required this.name, required this.code});
+  
+  factory Department.fromJson(Map<String, dynamic> json) {
+    return Department(
+      name: json['name'] ?? '',
+      code: json['code'] ?? '',
+    );
+  }
+  
+  Map<String, dynamic> toJson() {
+    return {
+      'name': name,
+      'code': code,
+    };
+  }
+  
+  @override
+  String toString() => name;
 }
 
 class Interest {
@@ -44,18 +63,20 @@ class BackendConfig {
   List<InterestCategory> interests;
   BatchRange batchRange; 
   CurrentTerm currentTerm;
+  List<String> allowedEmailDomains;
 
   BackendConfig({
     required this.departments,
     required this.interests,
     required this.batchRange,
     required this.currentTerm,
+    required this.allowedEmailDomains,
   });
 
   factory BackendConfig.fromJson(Map<String, dynamic> json) {
     return BackendConfig(
       departments: (json['departments'] as List)
-          .map((dept) => Department(name: dept['name']))
+          .map((dept) => Department(name: dept['name'], code: dept['code']))
           .toList(),
       interests: (json['interests'] as List)
           .map((cat) => InterestCategory(
@@ -76,6 +97,8 @@ class BackendConfig {
         term: json['current_term']['semester'],
         year: json['current_term']['year'].toString(),
       ),
+      allowedEmailDomains: List<String>.from(json['allowed_email_domains'])
+
     );
   }
 }

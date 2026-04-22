@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/scheduler.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'dart:typed_data';
 import 'package:studently/models/user.dart';
@@ -9,7 +10,6 @@ import 'package:studently/screens/interests.dart';
 import 'package:studently/screens/profile_photo_crop.dart';
 import 'package:studently/logger.dart';
 import 'package:studently/providers/auth_provider.dart';
-import 'package:studently/utils/authenticated_image.dart';
 
 class EditProfilePage extends ConsumerStatefulWidget {
   final User user;
@@ -26,13 +26,13 @@ class _EditProfilePageState extends ConsumerState<EditProfilePage> {
   String? selectedDepartment;
   String? selectedBatch;
   List<Interest> interests = [];
-  final List<String> departments = [
+  final List<String> _defaultDepartments = [
     'Computer Science',
     'IT',
     'ECE',
     'Mechanical',
   ];
-  final List<String> batches = ['2022', '2023', '2024', '2025'];
+  final List<String> _defaultBatches = ['2022', '2023', '2024', '2025'];
   bool isSaving = false;
   String? _departmentError;
   String? _batchError;
@@ -46,9 +46,37 @@ class _EditProfilePageState extends ConsumerState<EditProfilePage> {
   void initState() {
     super.initState();
     nameController = TextEditingController(text: widget.user.name);
-    selectedDepartment = widget.user.department;
-    selectedBatch = widget.user.batch;
+    selectedDepartment = widget.user.department?.name;
+    selectedBatch = widget.user.batch?.trim();
     interests = List<Interest>.from(widget.user.interests);
+  }
+
+  List<String> _buildDropdownOptions(List<String> defaults, String? current) {
+    final options = <String>[];
+    final seen = <String>{};
+
+    void addValue(String? raw) {
+      if (raw == null) return;
+      final value = raw.trim();
+      if (value.isEmpty) return;
+      if (seen.add(value)) {
+        options.add(value);
+      }
+    }
+
+    for (final item in defaults) {
+      addValue(item);
+    }
+    addValue(current);
+
+    return options;
+  }
+
+  String? _normalizeSelectedValue(String? value, List<String> options) {
+    if (value == null) return null;
+    final normalized = value.trim();
+    if (normalized.isEmpty) return null;
+    return options.contains(normalized) ? normalized : null;
   }
 
   @override
@@ -89,9 +117,25 @@ class _EditProfilePageState extends ConsumerState<EditProfilePage> {
     }
 
     setState(() => isSaving = true);
+    
+    // Get the Department object from backend config by matching the selected name
+    final configAsync = ref.watch(backendConfigProvider);
+    Department? selectedDepartmentObj;
+    
+    configAsync.whenData((config) {
+      for (final dept in config.departments) {
+        if (dept.name == selectedDepartment) {
+          selectedDepartmentObj = dept;
+          break;
+        }
+      }
+    });
+
     final updatedData = {
       'name': nameController.text.trim(),
-      'department': selectedDepartment,
+      'department': selectedDepartmentObj != null 
+        ? {'name': selectedDepartmentObj!.name, 'code': selectedDepartmentObj!.code}
+        : null,
       'batch': selectedBatch,
       'interests': interests,
     };
@@ -133,7 +177,38 @@ class _EditProfilePageState extends ConsumerState<EditProfilePage> {
   @override
   Widget build(BuildContext context) {
     final currentUser = ref.watch(authProvider).value ?? widget.user;
-    final bool hasPhoto = currentUser.profilePhotoUrl?.isNotEmpty ?? false;
+    final configAsync = ref.watch(backendConfigProvider);
+
+    final configDepartments = configAsync.maybeWhen(
+      data: (config) => config.departments.map((d) => d.name).toList(),
+      orElse: () => _defaultDepartments,
+    );
+
+    final configBatches = configAsync.maybeWhen(
+      data: (config) {
+        return List<String>.generate(
+          config.batchRange.end - config.batchRange.start + 1,
+          (i) => (config.batchRange.start + i).toString(),
+        );
+      },
+      orElse: () => _defaultBatches,
+    );
+
+    final departmentOptions = _buildDropdownOptions(
+      configDepartments,
+      selectedDepartment ?? widget.user.department?.name,
+    );
+    final batchOptions = _buildDropdownOptions(
+      configBatches,
+      selectedBatch ?? widget.user.batch,
+    );
+
+    final effectiveDepartmentValue =
+        _normalizeSelectedValue(selectedDepartment, departmentOptions);
+    final effectiveBatchValue =
+        _normalizeSelectedValue(selectedBatch, batchOptions);
+
+    final bool hasPhoto = currentUser.picture?.isNotEmpty ?? false;
     return Scaffold(
       backgroundColor: Colors.white,
       appBar: AppBar(
@@ -178,20 +253,25 @@ class _EditProfilePageState extends ConsumerState<EditProfilePage> {
                                 key: ValueKey<String?>(
                                   _croppedPhotoBytes != null
                                       ? 'cropped'
-                                      : currentUser.profilePhotoUrl,
+                                      : currentUser.picture,
                                 ),
                                 radius: 52,
                                 backgroundColor: Colors.grey.shade300,
                                 backgroundImage: _croppedPhotoBytes != null
                                     ? MemoryImage(_croppedPhotoBytes!)
                                     : (hasPhoto
-                                          ? AuthenticatedNetworkImage(
-                                              currentUser.profilePhotoUrl!,
+                                          ? NetworkImage(
+                                              currentUser.picture!,
                                             )
                                           : null),
                                 onBackgroundImageError: _croppedPhotoBytes == null && hasPhoto
                                     ? (exception, stackTrace) {
-                                        setState(() => _profileImageFailed = true);
+                                        // Defer setState to avoid calling it during paint phase
+                                        SchedulerBinding.instance.addPostFrameCallback((_) {
+                                          if (mounted) {
+                                            setState(() => _profileImageFailed = true);
+                                          }
+                                        });
                                       }
                                     : null,
                                 child: (_croppedPhotoBytes == null && (!hasPhoto || _profileImageFailed))
@@ -290,7 +370,7 @@ class _EditProfilePageState extends ConsumerState<EditProfilePage> {
                         borderRadius: BorderRadius.circular(25),
                       ),
                       child: DropdownButtonFormField<String>(
-                        initialValue: selectedDepartment,
+                        initialValue: effectiveDepartmentValue,
                         decoration: InputDecoration(
                           contentPadding: const EdgeInsets.symmetric(
                             horizontal: 18,
@@ -305,7 +385,7 @@ class _EditProfilePageState extends ConsumerState<EditProfilePage> {
                           Icons.keyboard_arrow_down_rounded,
                           color: Colors.grey,
                         ),
-                        items: departments
+                        items: departmentOptions
                             .map(
                               (dept) => DropdownMenuItem(
                                 value: dept,
@@ -351,7 +431,7 @@ class _EditProfilePageState extends ConsumerState<EditProfilePage> {
                         borderRadius: BorderRadius.circular(25),
                       ),
                       child: DropdownButtonFormField<String>(
-                        initialValue: selectedBatch,
+                        initialValue: effectiveBatchValue,
                         decoration: InputDecoration(
                           contentPadding: const EdgeInsets.symmetric(
                             horizontal: 18,
@@ -366,7 +446,7 @@ class _EditProfilePageState extends ConsumerState<EditProfilePage> {
                           Icons.keyboard_arrow_down_rounded,
                           color: Colors.grey,
                         ),
-                        items: batches
+                        items: batchOptions
                             .map(
                               (batch) => DropdownMenuItem(
                                 value: batch,
@@ -614,7 +694,7 @@ class _EditProfilePageState extends ConsumerState<EditProfilePage> {
   void _showEditPhotoOptions() async {
     // NEW: Quickly check the provider state to see if the user currently has a photo
     final currentUser = ref.read(authProvider).value ?? widget.user;
-    final bool hasPhoto = currentUser.profilePhotoUrl?.isNotEmpty ?? false;
+    final bool hasPhoto = currentUser.picture?.isNotEmpty ?? false;
 
     final action = await showModalBottomSheet<String>(
       context: context,

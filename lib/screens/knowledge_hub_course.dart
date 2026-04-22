@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:studently/screens/knowledge_hub_upload.dart';
 import 'package:studently/screens/knowledge_hub_resource.dart';
@@ -6,6 +7,7 @@ import '../widgets/custom_nav_bar.dart';
 import 'package:studently/models/knowledge_hub.dart';
 import 'package:studently/logger.dart';
 import 'package:studently/providers/knowledge_hub_provider.dart';
+import 'package:js/js_util.dart' as js_util;
 
 class RepositoryUserPage extends ConsumerStatefulWidget {
   final Course course;
@@ -28,7 +30,26 @@ class _RepositoryUserPageState extends ConsumerState<RepositoryUserPage>
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 4, vsync: this);
+    _tabController = TabController(length: 2, vsync: this);
+  }
+
+  /// Check if the app is running as a PWA (Progressive Web App)
+  bool _isPWA() {
+    if (!kIsWeb) return false;
+    try {
+      // Check if running in standalone mode (installed as PWA)
+      final dynamic window = js_util.getProperty(js_util.globalThis, 'window');
+      final dynamic navigator = js_util.getProperty(window, 'navigator');
+      
+      // Check for standalone mode
+      final dynamic standalone = js_util.getProperty(navigator, 'standalone');
+      if (standalone == true) return true;
+      
+      return false;
+    } catch (e) {
+      logger.w('Error checking PWA status: $e');
+      return false;
+    }
   }
 
   @override
@@ -37,7 +58,7 @@ class _RepositoryUserPageState extends ConsumerState<RepositoryUserPage>
     final resourcesAsyncValue = ref.watch(resourcesByCourseProvider(widget.course.code)); // Uses cache first
 
     return DefaultTabController(
-      length: 4, // number of tabs
+      length: 2, // number of tabs
       child: Scaffold(
         backgroundColor: Colors.white,
         body: NestedScrollView(
@@ -71,6 +92,14 @@ class _RepositoryUserPageState extends ConsumerState<RepositoryUserPage>
                   ],
                 ),
                 actions: [
+                  if (kIsWeb)
+                    IconButton(
+                      icon: const Icon(Icons.refresh, color: Colors.black),
+                      onPressed: () async {
+                        final refresh = ref.read(refreshResourcesForCourseProvider(widget.course.code));
+                        await refresh();
+                      },
+                    ),
                   IconButton(
                     icon: const Icon(Icons.add, color: Colors.black, size: 28),
                     onPressed: () async {
@@ -96,8 +125,6 @@ class _RepositoryUserPageState extends ConsumerState<RepositoryUserPage>
                     tabs: const [
                       Tab(text: "Finals"),
                       Tab(text: "Midterms"),
-                      Tab(text: "Quizzes"),
-                      Tab(text: "Books"),
                     ],
                   ),
                 ),
@@ -139,8 +166,8 @@ class _RepositoryUserPageState extends ConsumerState<RepositoryUserPage>
               width: double.infinity,
               child: ElevatedButton(
                 onPressed: () {
-                  // Force refresh the resources for this course
-                  ref.read(resourcesCourseFreshProvider(widget.course.code));
+                  // Invalidate cache and fetch fresh data
+                  ref.invalidate(resourcesByCourseProvider(widget.course.code));
                 },
                 style: ElevatedButton.styleFrom(
                   backgroundColor: blue,
@@ -170,10 +197,8 @@ class _RepositoryUserPageState extends ConsumerState<RepositoryUserPage>
     return TabBarView(
       controller: _tabController,
       children: [
-        _buildRefreshableFileList('final', blue),
-        _buildRefreshableFileList('midterm', blue),
-        _buildRefreshableFileList('quiz', blue),
-        _buildRefreshableFileList('book', blue),
+        _buildRefreshableFileList('Final', blue),
+        _buildRefreshableFileList('Mid', blue),
       ],
     );
   }
@@ -190,17 +215,14 @@ class _RepositoryUserPageState extends ConsumerState<RepositoryUserPage>
     );
   }
 
-  /// Build file list for a specific resource type
+  /// Build file list for a specific resource type, grouped by year and semester
   Widget _buildFileList(String resourceType, Color blue) {
     final entries = _resourceGroupFetched?.resources[resourceType] ?? [];
     if (entries.isEmpty) {
       Map<String, String> resourceNames = {
-        'final': 'Finals',
-        'quiz': 'Quizzes',
-        'midterm': 'Midterms',
-        'book': 'Books',
+        'Final': 'Finals',
+        'Mid': 'Midterms',
       };
-      // Wrap empty state in SingleChildScrollView to make it scrollable for refresh
       return SingleChildScrollView(
         physics: const AlwaysScrollableScrollPhysics(),
         child: SizedBox(
@@ -212,40 +234,161 @@ class _RepositoryUserPageState extends ConsumerState<RepositoryUserPage>
         ),
       );
     }
-    return ListView.builder(
-      padding: const EdgeInsets.all(16),
-      itemCount: entries.length,
-      itemBuilder: (context, index) {
-        final item = entries[index];
 
-        return GestureDetector(
-          onTap: () {
-            // Handle file tap, e.g., open or download the file
-            logger.i("Tapped on resource: Year ${item.year} - ${item.semester} - ID: ${item.id}");
-            Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (context) => PdfGalleryScreen(
-                  resources: entries,
-                  initialIndex: index,
-                  courseCode: widget.course.code,
-                ),
+    // Separate miscellaneous items (year=0 and semester='Unknown')
+    final miscItems = entries.where((e) => e.year == 0 && e.semester == 'Unknown').toList();
+    final regularItems = entries.where((e) => !(e.year == 0 && e.semester == 'Unknown')).toList();
+
+    // Group regular entries by year, then by semester
+    Map<int, Map<String, List<ResourceItem>>> entriesByYearAndSemester = {};
+    for (var entry in regularItems) {
+      if (!entriesByYearAndSemester.containsKey(entry.year)) {
+        entriesByYearAndSemester[entry.year] = {};
+      }
+      if (!entriesByYearAndSemester[entry.year]!.containsKey(entry.semester)) {
+        entriesByYearAndSemester[entry.year]![entry.semester] = [];
+      }
+      entriesByYearAndSemester[entry.year]![entry.semester]!.add(entry);
+    }
+
+    // Sort years in descending order
+    final sortedYears = entriesByYearAndSemester.keys.toList()..sort((a, b) => b.compareTo(a));
+
+    return ListView(
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      children: [
+        // Miscellaneous section
+        if (miscItems.isNotEmpty) ...[
+          ExpansionTile(
+            title: const Text(
+              "Miscellaneous",
+              style: TextStyle(
+                fontWeight: FontWeight.w600,
+                fontSize: 16,
               ),
-            );
+            ),
+            initiallyExpanded: true,
+            tilePadding: const EdgeInsets.symmetric(horizontal: 0),
+            shape: const RoundedRectangleBorder(
+              side: BorderSide.none,
+            ),
+            collapsedShape: const RoundedRectangleBorder(
+              side: BorderSide.none,
+            ),
+            children: [
+              ListView.builder(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                padding: const EdgeInsets.only(bottom: 12),
+                itemCount: miscItems.length,
+                itemBuilder: (context, itemIndex) {
+                  final item = miscItems[itemIndex];
+                  final isLastItem = itemIndex == miscItems.length - 1;
+
+                  return _buildResourceTile(item, entries, isLastItem);
+                },
+              ),
+            ],
+          ),
+        ],
+
+        // Year sections
+        ...sortedYears.map((year) {
+          final semesterMap = entriesByYearAndSemester[year]!;
+          final sortedSemesters = semesterMap.keys.toList()
+            ..sort((a, b) => a.compareTo(b));
+
+          return ExpansionTile(
+            title: Text(
+              "$year",
+              style: const TextStyle(
+                fontWeight: FontWeight.w500,
+                fontSize: 16,
+              ),
+            ),
+            initiallyExpanded: true,
+            tilePadding: const EdgeInsets.symmetric(horizontal: 0),
+            shape: const RoundedRectangleBorder(
+              side: BorderSide.none,
+            ),
+            collapsedShape: const RoundedRectangleBorder(
+              side: BorderSide.none,
+            ),
+            children: [
+              ...sortedSemesters.map((semester) {
+                final semesterItems = semesterMap[semester]!;
+
+                return Column(
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.only(left: 16, top: 4, bottom: 8),
+                      child: Align(
+                        alignment: Alignment.centerLeft,
+                        child: Text(
+                          semester,
+                          style: const TextStyle(
+                            fontWeight: FontWeight.w500,
+                            fontSize: 15,
+                            color: Colors.grey,
+                          ),
+                        ),
+                      ),
+                    ),
+                    ListView.builder(
+                      shrinkWrap: true,
+                      physics: const NeverScrollableScrollPhysics(),
+                      padding: const EdgeInsets.only(bottom: 12),
+                      itemCount: semesterItems.length,
+                      itemBuilder: (context, itemIndex) {
+                        final item = semesterItems[itemIndex];
+                        final isLastItem = itemIndex == semesterItems.length - 1;
+
+                        return _buildResourceTile(item, entries, isLastItem);
+                      },
+                    ),
+                  ],
+                );
+              })
+            ],
+          );
+        })
+      ],
+    );
+  }
+
+  /// Helper method to build individual resource tile
+  Widget _buildResourceTile(ResourceItem item, List<ResourceItem> allEntries, bool isLastItem) {
+    return Column(
+      children: [
+        GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: () {
+            logger.i("Tapped on resource: Year ${item.year} - ${item.semester} - ID: ${item.id}");
+            
+            // For web (non-PWA), open PDF in a new tab
+            if (kIsWeb && !_isPWA()) {
+              try {
+                final dynamic window = js_util.getProperty(js_util.globalThis, 'window');
+                js_util.callMethod(window, 'open', [item.fileUrl, '_blank']);
+              } catch (e) {
+                logger.e('Error opening PDF in new tab: $e');
+              }
+            } else {
+              // For PWA and mobile, use SfPdfViewer
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => PdfGalleryScreen(
+                    resources: allEntries,
+                    initialIndex: allEntries.indexOf(item),
+                    courseCode: widget.course.code,
+                  ),
+                ),
+              );
+            }
           },
           child: Container(
-            margin: const EdgeInsets.only(bottom: 12),
-            padding: const EdgeInsets.all(14),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(12),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.grey.withValues(alpha: 0.20),
-                  blurRadius: 4,
-                ),
-              ],
-            ),
+            padding: const EdgeInsets.symmetric(vertical: 14 ,horizontal: 14),
             child: Row(
               children: [
                 Container(
@@ -263,39 +406,32 @@ class _RepositoryUserPageState extends ConsumerState<RepositoryUserPage>
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        "Year ${item.year} - ${item.semester}",
-                        style: const TextStyle(
-                            fontWeight: FontWeight.w600, fontSize: 15),
+                        item.type == 'Mid'
+                            ? "${item.midNumber != null ? 'Mid-${item.midNumber}' : ''} ${item.isSolved == true ? 'Solved' : 'Unsolved'}"
+                            : (item.isSolved == true ? 'Solved' : 'Unsolved'),
+                        style: TextStyle(
+                          color: item.isSolved == true
+                              ? Colors.green
+                              : Colors.grey,
+                          fontSize: 13,
+                        ),
                       ),
-                      if (resourceType != 'book')
-                        Text(
-                          item.isSolved == true ? "Solved" : "Unsolved",
-                          style: TextStyle(
-                            color: item.isSolved == true
-                                ? Colors.green
-                                : Colors.red,
-                            fontSize: 13,
-                          ),
-                        ),
-                      if (resourceType == 'quiz')
-                        Text(
-                          "Quiz ${item.quizNumber}",
-                          style: const TextStyle(
-                              color: Colors.grey, fontSize: 13),
-                        ),
-                      Text(
-                        "Instructor: ${item.instructorName ?? "Unknown"}",
-                        style:
-                            const TextStyle(color: Colors.grey, fontSize: 13),
-                      )
                     ],
                   ),
                 ),
               ],
             ),
           ),
-        );
-      },
+        ),
+        if (!isLastItem)
+          Divider(
+            height: 0.75,
+            thickness: 0.75,
+            color: Colors.grey[300],
+            indent: 30,
+            endIndent: 30,
+          ),
+      ],
     );
   }
 }

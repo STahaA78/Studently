@@ -25,9 +25,10 @@ class FeedNotifier extends AsyncNotifier<List<Post>> {
   Future<List<Post>> build() async {
     ref.keepAlive();
     
-    // Watch authProvider to trigger a rebuild (and thus name hydration) when user profile changes
-    final authState = ref.watch(authProvider);
-    final currentUser = authState.value;
+    // Only watch the current user ID to avoid rebuilding when profile changes
+    // Use select() to extract only the user ID, preventing unnecessary rebuilds when name/picture change
+    ref.watch(authProvider.select((state) => state.value?.id));
+    final currentUser = ref.read(authProvider).value;
 
     final String? cachedJson = _feedBox.get(_feedKey);
     List<Post> cachedPosts = [];
@@ -224,8 +225,9 @@ class ProfileFeedNotifier extends AsyncNotifier<List<Post>> {
   @override
   Future<List<Post>> build() async {
     ref.keepAlive();
-    final authState = ref.watch(authProvider);
-    final currentUser = authState.value;
+    // Only watch the current user ID to prevent rebuild when profile name/picture changes
+    ref.watch(authProvider.select((state) => state.value?.id));
+    final currentUser = ref.read(authProvider).value;
 
     final String? cachedJson = _profileBox.get('profile_$userId');
     List<Post> cachedPosts = [];

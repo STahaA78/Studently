@@ -31,21 +31,19 @@ class Course {
 
 class ResourceItemRequest {
   final Course course;
-  final String type;
+  final String type; // 'Mid' or 'Final'
   final int year;
   final String semester;
-  final String? instructorName;
-  final int? quizNumber;
   final bool? isSolved;
+  final int? midNumber; // Optional, 1 or 2
 
   ResourceItemRequest({
     required this.course,
     required this.type,
     required this.year,
     required this.semester,
-    this.instructorName,
-    this.quizNumber,
     this.isSolved,
+    this.midNumber,
   });
 
   Map<String, dynamic> toJson() {
@@ -54,9 +52,8 @@ class ResourceItemRequest {
       'type': type,
       'year': year,
       'semester': semester,
-      'instructorName': instructorName,
-      'quizNumber': quizNumber,
-      'isSolved': isSolved,
+      'is_solved': isSolved,
+      'mid_number': midNumber,
     };
   }
 }
@@ -67,72 +64,84 @@ class ResourceItem {
   final String id;
 
   @HiveField(1)
-  final int year;
+  final Course course;
 
   @HiveField(2)
-  final String semester;
+  final String type; // 'Mid' or 'Final'
 
   @HiveField(3)
-  final String? instructorName;
+  final int year;
 
   @HiveField(4)
-  final int? quizNumber;
+  final String semester;
 
   @HiveField(5)
   final bool? isSolved;
 
   @HiveField(6)
-  final String filePath;
+  final int? midNumber; // Optional, 1 or 2
 
   @HiveField(7)
-  final DateTime uploadedAt;
+  final String fileUrl;
 
   @HiveField(8)
-  final String? localFilePath; // Local storage path for downloaded files
+  final DateTime uploadedAt;
 
   @HiveField(9)
-  final String? type; // Resource type: 'final', 'quiz', 'midterm', 'book'
+  final String uploadedBy;
+
+  @HiveField(10)
+  final bool approved;
+
+  @HiveField(11)
+  final String? localFilePath; // Local storage path for downloaded files
 
   ResourceItem({
     required this.id,
+    required this.course,
+    required this.type,
     required this.year,
     required this.semester,
-    this.instructorName,
-    this.quizNumber,
     this.isSolved,
-    required this.filePath,
+    this.midNumber,
+    required this.fileUrl,
     required this.uploadedAt,
+    required this.uploadedBy,
+    required this.approved,
     this.localFilePath,
-    this.type,
   });
 
   factory ResourceItem.fromJson(Map<String, dynamic> json) {
     return ResourceItem(
       id: json['id'],
+      course: Course.fromJson(json['course']),
+      type: json['type'],
       year: json['year'],
       semester: json['semester'],
-      instructorName: json['instructorName'],
-      quizNumber: json['quizNumber'],
-      filePath: json['filePath'],
-      isSolved: json['isSolved'],
-      uploadedAt: DateTime.parse(json['uploadedAt']),
-      type: json['type'] ?? '',
+      isSolved: json['is_solved'],
+      midNumber: json['mid_number'],
+      fileUrl: (json['file_url'] as String).replaceAll(' ', '%20'),
+      uploadedAt: DateTime.parse(json['uploaded_at']),
+      uploadedBy: json['uploaded_by'],
+      approved: json['approved'] ?? false,
     );
   }
 
   // Create a copy with updated fields
-  ResourceItem copyWith({String? localFilePath, String? type}) {
+  ResourceItem copyWith({String? localFilePath}) {
     return ResourceItem(
       id: id,
+      course: course,
+      type: type,
       year: year,
       semester: semester,
-      instructorName: instructorName,
-      quizNumber: quizNumber,
       isSolved: isSolved,
-      filePath: filePath,
+      midNumber: midNumber,
+      fileUrl: fileUrl,
       uploadedAt: uploadedAt,
+      uploadedBy: uploadedBy,
+      approved: approved,
       localFilePath: localFilePath ?? this.localFilePath,
-      type: type ?? this.type,
     );
   }
 }

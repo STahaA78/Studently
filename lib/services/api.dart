@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'dart:convert';
+import 'dart:async';
 import 'package:studently/config.dart';
 import 'package:studently/services/firebase_auth.dart';
 import 'package:studently/logger.dart';
@@ -31,12 +32,38 @@ class ApiService {
       };
     }
 
-    final token = await user.getIdToken();
+    try {
+      // Add timeout to prevent hanging on token fetch
+      String? token;
+      try {
+        token = await user.getIdToken().timeout(
+          const Duration(seconds: 10),
+        );
+      } catch (e) {
+        if (e is TimeoutException) {
+          logger.w("[$runtimeType] getIdToken timed out after 10 seconds");
+          token = null;
+        } else {
+          rethrow;
+        }
+      }
 
-    return {
-      "Content-Type": "application/json",
-      "Authorization": "Bearer $token",
-    };
+      if (token == null) {
+        return {
+          "Content-Type": "application/json",
+        };
+      }
+
+      return {
+        "Content-Type": "application/json",
+        "Authorization": "Bearer $token",
+      };
+    } catch (e) {
+      logger.e("[$runtimeType] Error getting auth token: $e");
+      return {
+        "Content-Type": "application/json",
+      };
+    }
   }
 
   /// ===============================
@@ -256,6 +283,26 @@ class ApiService {
     } catch (e) {
 
       logger.e("[$runtimeType] Download failed: $e");
+      throw Exception('Error occurred: $e');
+    }
+  }
+
+  /// ===============================
+  /// DOWNLOAD FROM EXTERNAL URL
+  /// ===============================
+  Future<http.Response> downloadFromUrl(String externalUrl) async {
+
+    logger.i("[$runtimeType] Download from external URL: $externalUrl");
+
+    try {
+
+      final response = await http.get(Uri.parse(externalUrl));
+
+      return _handleResponse(response);
+
+    } catch (e) {
+
+      logger.e("[$runtimeType] Download from external URL failed: $e");
       throw Exception('Error occurred: $e');
     }
   }

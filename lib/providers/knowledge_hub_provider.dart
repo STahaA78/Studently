@@ -55,21 +55,12 @@ final allResourceGroupsProvider =
 
 // ==================== DOWNLOAD PROVIDERS ====================
 
-/// Provider for getting the download URL for a resource
-/// Parameters: resourceId
-final resourceDownloadUrlProvider = Provider.family<String, String>(
-  (ref, resourceId) {
-    final repository = ref.watch(knowledgeHubRepositoryProvider);
-    return repository.getDownloadUrl(resourceId);
-  },
-);
-
-/// Provider for downloading resource file content
-/// Parameters: resourceId
-final downloadResourceFileProvider =
-    FutureProvider.family<Uint8List, String>((ref, resourceId) async {
+/// Provider for downloading resource file from a direct Cloudflare URL
+/// Parameters: fileUrl (direct Cloudflare R2 URL)
+final downloadResourceFromUrlProvider =
+    FutureProvider.family<Uint8List, String>((ref, fileUrl) async {
   final repository = ref.watch(knowledgeHubRepositoryProvider);
-  return repository.downloadResourceFile(resourceId);
+  return repository.downloadFromUrl(fileUrl);
 });
 
 /// Provider for getting local file path of a cached resource
@@ -156,7 +147,7 @@ final refreshResourcesForCourseProvider =
     // Wait for fresh data to be fetched and cached
     await ref.watch(resourcesCourseFreshProvider(courseId).future);
     // Invalidate main provider to pick up updated cache
-    ref.invalidate(resourcesByCourseProvider);
+    ref.invalidate(resourcesByCourseProvider(courseId));
   };
 });
 

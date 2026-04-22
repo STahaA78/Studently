@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:studently/models/knowledge_hub.dart';
 import 'package:studently/providers/knowledge_hub_provider.dart';
-import 'package:studently/storage/knowledge_hub.dart';
+import 'package:studently/storage/storage_manager.dart';
 import 'package:syncfusion_flutter_pdfviewer/pdfviewer.dart';
 import 'package:studently/logger.dart';
 import 'dart:typed_data';
@@ -47,32 +47,59 @@ class _PdfGalleryScreenState extends ConsumerState<PdfGalleryScreen> {
         shadowColor: Colors.transparent,
         surfaceTintColor: Colors.transparent,
         elevation: 0,
+        toolbarHeight: 140,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back_ios_new_rounded,
               color: Colors.black87),
           onPressed: () => Navigator.pop(context),
         ),
         title: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          crossAxisAlignment: CrossAxisAlignment.center,
           children: [
+            // Course name and code
             Text(
-              "${currentItem.year} - ${currentItem.semester}",
+              "${currentItem.course.name} (${currentItem.course.code})",
               style: const TextStyle(
                 color: Colors.black,
-                fontWeight: FontWeight.w600,
-                fontSize: 20,
+                fontWeight: FontWeight.w700,
+                fontSize: 17,
               ),
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              textAlign: TextAlign.center,
             ),
+            const SizedBox(height: 10),
+            // Type, Year, Semester, Mid number and Status (if applicable)
             Text(
-              "${_currentIndex + 1} of $totalResources",
+              _buildResourceLabel(currentItem),
               style: const TextStyle(
                 color: Colors.grey,
                 fontWeight: FontWeight.w500,
-                fontSize: 12,
+                fontSize: 13,
+              ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+            const SizedBox(height: 8),
+            // Page indicator
+            Text(
+              "${_currentIndex + 1} of $totalResources",
+              style: const TextStyle(
+                color: Colors.blue,
+                fontWeight: FontWeight.w600,
+                fontSize: 13,
               ),
             ),
           ],
         ),
         centerTitle: true,
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.download, color: Colors.black87),
+            onPressed: () => _downloadAndCacheFile(context, ref, currentItem),
+          ),
+        ],
         bottom: PreferredSize(
           preferredSize: const Size.fromHeight(8),
           child: SizedBox(),
@@ -89,7 +116,6 @@ class _PdfGalleryScreenState extends ConsumerState<PdfGalleryScreen> {
         },
         itemBuilder: (context, index) {
           final item = widget.resources[index];
-          final downloadUrl = ref.watch(resourceDownloadUrlProvider(item.id));
           final localFilePath =
               ref.watch(resourceLocalFilePathProvider((widget.courseCode, item.id)));
 
@@ -100,7 +126,6 @@ class _PdfGalleryScreenState extends ConsumerState<PdfGalleryScreen> {
                   context,
                   ref,
                   item,
-                  downloadUrl,
                   localFilePath,
                 ),
               ),
@@ -111,12 +136,11 @@ class _PdfGalleryScreenState extends ConsumerState<PdfGalleryScreen> {
     );
   }
 
-  /// Build PDF viewer with support for local cached files
+  /// Build PDF viewer with support for local cached files and network streaming
   Widget _buildPdfViewer(
     BuildContext context,
     WidgetRef ref,
     ResourceItem item,
-    String downloadUrl,
     String? localFilePath,
   ) {
     // If local file exists and is accessible, use it
@@ -134,73 +158,72 @@ class _PdfGalleryScreenState extends ConsumerState<PdfGalleryScreen> {
       }
     }
 
-    // Otherwise, download from network and optionally cache it
-    return FutureBuilder<Uint8List>(
-      future: _downloadAndCacheFile(context, ref, item),
-      builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return Center(
-            child: const CircularProgressIndicator(),
-            );
-        }
+    // Otherwise, stream from Cloudflare R2 URL
+    if (item.fileUrl.isNotEmpty) {
+      logger.i('Streaming PDF from Cloudflare R2: ${item.fileUrl}');
+      return SfPdfViewer.network(
+        item.fileUrl,
+        key: ValueKey(item.id),
+        onDocumentLoadFailed: (details) {
+          logger.e("Error loading network PDF: ${details.error} - ${details.description}");
+        },
+      );
+    }
 
-        if (snapshot.hasError) {
-          return Center(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                const Icon(Icons.error, color: Colors.red, size: 48),
-                const SizedBox(height: 16),
-                Text('Error: ${snapshot.error}'),
-              ],
-            ),
-          );
-        }
-
-        if (snapshot.hasData) {
-          return SfPdfViewer.memory(
-            snapshot.data!,
-            key: ValueKey(item.id),
-            onDocumentLoadFailed: (details) {
-              logger.e("Error: ${details.error} - ${details.description}");
-            },
-          );
-        }
-
-        return const Center(child: Text('No data'));
-      },
-    );
+    return const Center(child: Text('No file URL available'));
   }
 
-  /// Download file and cache it locally
-  Future<Uint8List> _downloadAndCacheFile(
+  /// Download file from Cloudflare R2 and cache it locally
+  void _downloadAndCacheFile(
     BuildContext context,
     WidgetRef ref,
     ResourceItem item,
   ) async {
     try {
-      final fileBytes = await ref.read(
-        downloadResourceFileProvider(item.id).future,
+      if (item.fileUrl.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('No file URL available')),
+        );
+        return;
+      }
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Downloading file...')),
       );
 
-      // Save to local storage asynchronously
-      _savePdfLocally(ref, item, fileBytes);
+      // Download from Cloudflare URL
+      final fileBytes = await ref.read(
+        downloadResourceFromUrlProvider(item.fileUrl).future,
+      );
 
-      return fileBytes;
+      // Save to local storage
+      await _savePdfLocally(ref, item, fileBytes);
+
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).clearSnackBars();
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('File downloaded and cached successfully')),
+        );
+      }
     } catch (e) {
       logger.e('Error downloading file: $e');
-      rethrow;
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).clearSnackBars();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error downloading file: $e')),
+        );
+      }
     }
   }
 
   /// Save PDF file locally and update resource path
-  void _savePdfLocally(
+  Future<void> _savePdfLocally(
     WidgetRef ref,
     ResourceItem item,
     Uint8List fileBytes,
   ) async {
     try {
-      final storage = KnowledgeHubStorage();
+      final storage = StorageManager().knowledgeHubStorage;
       final cacheDir = await storage.getDownloadsCacheDir();
       
       // Create file path
@@ -226,5 +249,33 @@ class _PdfGalleryScreenState extends ConsumerState<PdfGalleryScreen> {
       logger.e('Error saving PDF locally: $e');
       // Don't rethrow - the file was already downloaded, just local caching failed
     }
+  }
+
+  /// Build a descriptive label for the resource (Type, Year, Semester, Mid number, Status)
+  String _buildResourceLabel(ResourceItem item) {
+    final parts = <String>[];
+    
+    // Add type (Mid/Final)
+    parts.add(item.type);
+    
+    // Add year if not 0 (misc)
+    if (item.year != 0) {
+      parts.add('${item.year}');
+    }
+    
+    // Add semester if not 'Unknown'
+    if (item.semester != 'Unknown') {
+      parts.add(item.semester);
+    }
+    
+    // Add mid number if available
+    if (item.midNumber != null && item.midNumber! > 0) {
+      parts.add('Mid ${item.midNumber}');
+    }
+    
+    // Add status
+    parts.add(item.isSolved == true ? 'Solved' : 'Unsolved');
+    
+    return parts.join(' • ');
   }
 }

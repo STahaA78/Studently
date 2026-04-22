@@ -1,12 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../widgets/custom_nav_bar.dart';
-import 'package:studently/models/user.dart';
-import 'package:studently/repositories/user.dart';
 import 'package:studently/logger.dart';
-import 'package:studently/screens/profile_main.dart';
+import 'package:studently/models/user.dart';
 import 'package:studently/providers/auth_provider.dart';
-import 'package:studently/utils/authenticated_image.dart';
+import 'package:studently/repositories/user.dart';
+import 'package:studently/screens/profile_main.dart';
+import 'package:studently/widgets/custom_nav_bar.dart';
+
 class RequestsPage extends ConsumerStatefulWidget {
   const RequestsPage({super.key});
 
@@ -17,234 +17,301 @@ class RequestsPage extends ConsumerStatefulWidget {
 class _RequestsPageState extends ConsumerState<RequestsPage> {
   final Color primaryBlue = const Color(0xFF0F74C5);
 
-  /// TEMP logged-in user id
-  final String currentUserId = "6989b03caf678f41033614ea";
-
   Future<List<User>>? _requestsFuture;
+  List<User> _currentRequests = [];
+  bool _hasLoadedRequests = false;
+  bool _didChangeRequests = false;
+  final Set<String> _inFlightRequestIds = <String>{};
 
-  // ---------------- INIT ----------------
   @override
   void initState() {
     super.initState();
-    _requestsFuture = UserRepository().fetchPendingRequests();
-  }
+    _requestsFuture = _loadAndCacheRequests();
 
-  // ---------------- FETCH REQUESTS ----------------
-  Future<void> loadPendingRequests() async {
-    setState(() {
-      _requestsFuture = UserRepository().fetchPendingRequests();
+    // Fetch fresh data after first frame so cached UI appears quickly.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _refreshRequestsInBackground();
     });
   }
 
- // ---------------- RESPOND REQUEST ----------------
-  Future<void> respondRequest(String requesterId, String action) async {
-    try {
-      // 1. Tell Riverpod to handle the Optimistic Cache Update AND the API call
-      await ref.read(authProvider.notifier).respondToFriendRequest(requesterId, action);
-      
-      // 2. Refresh the list to remove the card they just clicked
-      setState(() {
-        _requestsFuture = UserRepository().fetchPendingRequests();
-      });
-      
-      // 3. (Removed the Navigator.pop so they can stay on the page and answer more requests)
+  Future<List<User>> _loadAndCacheRequests() async {
+    final requests = await UserRepository().fetchPendingRequests();
+    _currentRequests = requests;
+    _hasLoadedRequests = true;
+    return requests;
+  }
 
+  Future<void> _refreshRequestsInBackground() async {
+    try {
+      final freshRequests = await UserRepository().fetchPendingRequests();
+      if (!mounted) return;
+      setState(() {
+        _currentRequests = freshRequests;
+        _hasLoadedRequests = true;
+      });
+      logger.i("[RequestsPage] Background refresh completed");
+    } catch (e) {
+      logger.e("[RequestsPage] Background refresh failed: $e");
+    }
+  }
+
+  Future<void> _reloadRequests() async {
+    if (!mounted) return;
+    setState(() {
+      _requestsFuture = _loadAndCacheRequests();
+    });
+  }
+
+  Future<void> respondRequest(String requesterId, String action) async {
+    if (_inFlightRequestIds.contains(requesterId)) return;
+
+    User? removedUser;
+    try {
+      setState(() {
+        _inFlightRequestIds.add(requesterId);
+        final index = _currentRequests.indexWhere((u) => u.id == requesterId);
+        if (index != -1) {
+          removedUser = _currentRequests[index];
+          _currentRequests.removeAt(index);
+          _didChangeRequests = true;
+        }
+      });
+
+      await ref
+          .read(authProvider.notifier)
+          .respondToFriendRequest(requesterId, action);
+
+      if (!mounted) return;
+      setState(() {
+        _inFlightRequestIds.remove(requesterId);
+      });
+      logger.i("[RequestsPage] respondRequest successful for $requesterId");
     } catch (e) {
       logger.e("[RequestsPage] respondRequest failed: $e");
-      if (!mounted) return; // Good practice to keep this here before using context!
+      if (!mounted) return;
+
+      setState(() {
+        _inFlightRequestIds.remove(requesterId);
+        if (removedUser != null &&
+            !_currentRequests.any((u) => u.id == removedUser!.id)) {
+          _currentRequests.insert(0, removedUser!);
+        }
+      });
+
+      await _reloadRequests();
+      if (!mounted) return;
+
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Failed to respond to request."), backgroundColor: Colors.red),
+        const SnackBar(
+          content: Text("Failed to respond to request."),
+          backgroundColor: Colors.red,
+        ),
       );
     }
   }
-  // ---------------- INITIALS ----------------
-  String getInitials(String name) {
-    if (name.trim().isEmpty) return "?";
-    final parts = name.trim().split(RegExp(r"\s+"));
-    return parts.map((e) => e[0]).take(2).join().toUpperCase();
-  }
 
-  // ---------------- UI ----------------
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.white,
-      appBar: AppBar(
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, result) {
+        if (didPop) return;
+        Navigator.pop(context, _didChangeRequests);
+      },
+      child: Scaffold(
         backgroundColor: Colors.white,
-        elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.chevron_left, color: Colors.black),
-          onPressed: () => Navigator.pop(context),
-        ),
-        centerTitle: true,
-        title: const Text(
-          "Pending Requests",
-          style: TextStyle(
-            color: Colors.black,
-            fontWeight: FontWeight.w600,
+        appBar: AppBar(
+          backgroundColor: Colors.white,
+          elevation: 0,
+          leading: IconButton(
+            icon: const Icon(Icons.chevron_left, color: Colors.black),
+            onPressed: () => Navigator.pop(context, _didChangeRequests),
+          ),
+          centerTitle: true,
+          title: const Text(
+            "Pending Requests",
+            style: TextStyle(
+              color: Colors.black,
+              fontWeight: FontWeight.w600,
+            ),
           ),
         ),
-      ),
-      body: FutureBuilder<List<User>>(
-        future: _requestsFuture,
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
-          }
-          if (snapshot.hasError) {
-            return Center(
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 32),
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(Icons.cloud_off_rounded, size: 80, color: Colors.grey[400]),
-                    const SizedBox(height: 24),
-                    const Text(
-                      "Connection Issue",
-                      style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      "We couldn't reach our Backend. Please check your internet and try again.",
-                      textAlign: TextAlign.center,
-                      style: TextStyle(color: Colors.grey[600], fontSize: 14),
-                    ),
-                    const SizedBox(height: 32),
-                    SizedBox(
-                      width: double.infinity,
-                      child: ElevatedButton(
-                        onPressed: () {
-                          setState(() {
-                            _requestsFuture = UserRepository().fetchPendingRequests();
-                          });
-                        },
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: primaryBlue,
-                          foregroundColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(vertical: 16),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(25)),
-                        ),
-                        child: const Text("Try Again", style: TextStyle(fontSize: 18, color: Colors.white)),
+        body: FutureBuilder<List<User>>(
+          future: _requestsFuture,
+          builder: (context, snapshot) {
+            if (snapshot.connectionState == ConnectionState.waiting &&
+                !_hasLoadedRequests) {
+              return const Center(child: CircularProgressIndicator());
+            }
+
+            if (snapshot.hasError && !_hasLoadedRequests) {
+              return Center(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 32),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(
+                        Icons.cloud_off_rounded,
+                        size: 80,
+                        color: Colors.grey[400],
                       ),
+                      const SizedBox(height: 24),
+                      const Text(
+                        "Connection Issue",
+                        style: TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        "We couldn't reach our Backend. Please check your internet and try again.",
+                        textAlign: TextAlign.center,
+                        style: TextStyle(color: Colors.grey[600], fontSize: 14),
+                      ),
+                      const SizedBox(height: 32),
+                      SizedBox(
+                        width: double.infinity,
+                        child: ElevatedButton(
+                          onPressed: _reloadRequests,
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: primaryBlue,
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(vertical: 16),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(25),
+                            ),
+                          ),
+                          child: const Text(
+                            "Try Again",
+                            style: TextStyle(fontSize: 18, color: Colors.white),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            }
+
+            final requests = _currentRequests;
+            if (requests.isEmpty) {
+              return const Center(
+                child: Text(
+                  "No pending requests",
+                  style: TextStyle(color: Colors.grey),
+                ),
+              );
+            }
+
+            return ListView.builder(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
+              itemCount: requests.length,
+              itemBuilder: (context, index) {
+                return _buildRequestCard(requests[index]);
+              },
+            );
+          },
+        ),
+        bottomNavigationBar: const CustomNavBar(currentIndex: 1),
+      ),
+    );
+  }
+
+  Widget _buildRequestCard(User user) {
+    final isProcessing = _inFlightRequestIds.contains(user.id);
+
+    return GestureDetector(
+      onTap: isProcessing
+          ? null
+          : () async {
+              final bool? changed = await Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => ProfilePage(userId: user.id),
+                ),
+              );
+
+              if (changed == true && mounted) {
+                setState(() {
+                  _didChangeRequests = true;
+                  _requestsFuture = _loadAndCacheRequests();
+                });
+              }
+            },
+      child: Opacity(
+        opacity: isProcessing ? 0.5 : 1.0,
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          child: Row(
+            children: [
+              CircleAvatar(
+                radius: 25,
+                backgroundColor: Colors.grey[300],
+                backgroundImage:
+                    user.picture != null && user.picture!.isNotEmpty
+                        ? NetworkImage(user.picture!)
+                        : null,
+                child: user.picture == null || user.picture!.isEmpty
+                    ? const Icon(Icons.person, size: 32, color: Colors.grey)
+                    : null,
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      user.name,
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w500,
+                        fontSize: 15,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      "${user.department?.name ?? 'N/A'} • Batch ${user.batch}",
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Colors.grey[600],
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                     ),
                   ],
                 ),
               ),
-            );
-          }
-          final requests = snapshot.data ?? [];
-          if (requests.isEmpty) {
-            return const Center(
-              child: Text(
-                "No pending requests",
-                style: TextStyle(color: Colors.grey),
+              const SizedBox(width: 8),
+              GestureDetector(
+                onTap:
+                    isProcessing ? null : () => respondRequest(user.id, "reject"),
+                child: Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    border: Border.all(color: Colors.red, width: 2),
+                  ),
+                  child: const Icon(Icons.close, color: Colors.red, size: 18),
+                ),
               ),
-            );
-          }
-          return ListView.builder(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
-            itemCount: requests.length,
-            itemBuilder: (context, index) {
-              return _buildRequestCard(requests[index]);
-            },
-          );
-        },
-      ),
-      bottomNavigationBar: const CustomNavBar(currentIndex: 1),
-    );
-  }
-
-  // ---------------- REQUEST CARD ----------------
-  Widget _buildRequestCard(User user) {
-    return GestureDetector(
-      onTap: () async {
-        final bool? changed = await Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (_) => ProfilePage(
-              userId: user.id,
-            ),
+              const SizedBox(width: 8),
+              GestureDetector(
+                onTap:
+                    isProcessing ? null : () => respondRequest(user.id, "accept"),
+                child: Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: primaryBlue,
+                  ),
+                  child: const Icon(Icons.check, color: Colors.white, size: 18),
+                ),
+              ),
+            ],
           ),
-        );
-        if (changed == true) {
-          setState(() {
-            _requestsFuture = UserRepository().fetchPendingRequests();
-          });
-        }
-      },
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-        child: Row(
-          children: [
-            // Avatar
-            CircleAvatar(
-              radius: 25,
-              backgroundColor: Colors.grey[300],
-              backgroundImage: user.profilePhotoUrl != null &&
-                      user.profilePhotoUrl!.isNotEmpty
-                  ? AuthenticatedNetworkImage(user.profilePhotoUrl!)
-                  : null,
-              child: user.profilePhotoUrl == null ||
-                      user.profilePhotoUrl!.isEmpty
-                  ? const Icon(Icons.person, size: 32, color: Colors.grey)
-                  : null,
-            ),
-            const SizedBox(width: 12),
-            // Name and Department/Batch
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    user.name,
-                    style: const TextStyle(
-                      fontWeight: FontWeight.w500,
-                      fontSize: 15,
-                    ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    "${user.department} • Batch ${user.batch}",
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: Colors.grey[600],
-                    ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(width: 8),
-            // Decline button (X)
-            GestureDetector(
-              onTap: () => respondRequest(user.id, "reject"),
-              child: Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  border: Border.all(color: Colors.red, width: 2),
-                ),
-                child: const Icon(Icons.close, color: Colors.red, size: 18),
-              ),
-            ),
-            const SizedBox(width: 8),
-            // Accept button (checkmark)
-            GestureDetector(
-              onTap: () => respondRequest(user.id, "accept"),
-              child: Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: primaryBlue,
-                ),
-                child: const Icon(Icons.check, color: Colors.white, size: 18),
-              ),
-            ),
-          ],
         ),
       ),
     );

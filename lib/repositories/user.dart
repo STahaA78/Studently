@@ -16,9 +16,10 @@ class UserRepository {
 		required String name,
 		required String email,
 		required String birthday,
-		required String department,
+		required Department department,
 		required String batch,
 		required List<Interest> interests,
+		bool extractedFields = true,
 	}) async {
 		logger.i("[$runtimeType] Register User Initiated for email: $email");
 		final Map<String, dynamic> payload = {
@@ -26,9 +27,13 @@ class UserRepository {
 			"name": name,
 			"email": email,
 			"birthday": birthday,
-			"department": department,
+			"department": {
+				"name": department.name,
+				"code": department.code,
+			},
 			"batch": batch,
 			"interests": interests.map((e) => e.toJson()).toList(),
+			"extracted_fields": extractedFields,
 		};
 		try {
 			final response = await _apiService.post(
@@ -50,16 +55,24 @@ class UserRepository {
 	// Fetch User Profile for Profile Page and User Requests
 	//(userId is optional, defaults to "0" for logged in user)
 
-	Future<User> fetchUserProfile(String userId) async {
+	Future<User> fetchUserProfile({String userId = "0"}) async {
 		logger.i("[$runtimeType] Fetch User Profile Initiated for userId: $userId");
 		try {
 			final response = await _apiService.get('/users/$userId/profile');
-			final data = jsonDecode(response.body);
-      logger.d( "[$runtimeType] Raw API Response: $data");
-			logger.i("[$runtimeType] Fetch User Profile Completed Successfully");
-			return User.fromJson(data);
+			logger.d("[$runtimeType] Raw Response Status: ${response.statusCode}, Body Length: ${response.body.length}");
+			
+			try {
+				final data = jsonDecode(response.body);
+				logger.d("[$runtimeType] Decoded JSON successfully");
+				logger.i("[$runtimeType] Fetch User Profile Completed Successfully");
+				return User.fromJson(data);
+			} on FormatException catch (e) {
+				final bodyPreview = response.body.length > 200 ? response.body.substring(0, 200) : response.body;
+				logger.e("[$runtimeType] JSON Parse Error: $e, Body: $bodyPreview");
+				rethrow;
+			}
 		} catch (e) {
-			logger.e("[$runtimeType] Fetch User Profile Failed with error: $e");
+			logger.e("[$runtimeType] Fetch User Profile Failed: $e");
 			rethrow;
 		}
 	}
@@ -275,4 +288,6 @@ class UserRepository {
       "Name": f['name'].toString()
     }).toList();
   }
+
 }
+
