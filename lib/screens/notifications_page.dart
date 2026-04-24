@@ -29,6 +29,7 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
   Widget build(BuildContext context) {
     final state = ref.watch(notificationProvider);
     final controller = ref.read(notificationProvider.notifier);
+    final sections = _groupNotifications(state.notifications);
 
     return Scaffold(
       backgroundColor: const Color(0xFFF5F7FB),
@@ -38,8 +39,8 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
         shadowColor: Colors.transparent,
         surfaceTintColor: Colors.transparent,
         title: const Text(
-          "Notifications",
-          style: TextStyle(fontWeight: FontWeight.w700),
+          "Inbox",
+          style: TextStyle(fontWeight: FontWeight.w700, letterSpacing: 0.2),
         ),
       ),
       body: SafeArea(
@@ -58,18 +59,48 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
                         ? _buildEmpty()
                         : RefreshIndicator(
                             onRefresh: controller.refreshFromServer,
-                            child: ListView.separated(
+                            child: ListView.builder(
                               padding: const EdgeInsets.fromLTRB(16, 0, 16, 20),
-                              itemCount: state.notifications.length,
-                              separatorBuilder: (_, index) =>
-                                  SizedBox(key: ValueKey(index), height: 10),
-                              itemBuilder: (context, index) {
-                                final notification = state.notifications[index];
-                                return _NotificationCard(
-                                  notification: notification,
-                                  onTap: () => _handleNotificationTap(
-                                    context: context,
-                                    notification: notification,
+                              itemCount: sections.length,
+                              itemBuilder: (context, sectionIndex) {
+                                final section = sections[sectionIndex];
+                                return Padding(
+                                  padding: const EdgeInsets.only(bottom: 14),
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Padding(
+                                        padding: const EdgeInsets.fromLTRB(
+                                          2,
+                                          2,
+                                          2,
+                                          8,
+                                        ),
+                                        child: Text(
+                                          section.title,
+                                          style: const TextStyle(
+                                            color: Color(0xFF4B5563),
+                                            fontSize: 12,
+                                            fontWeight: FontWeight.w700,
+                                            letterSpacing: 0.6,
+                                          ),
+                                        ),
+                                      ),
+                                      ...section.items.map(
+                                        (notification) => Padding(
+                                          padding:
+                                              const EdgeInsets.only(bottom: 10),
+                                          child: _NotificationCard(
+                                            notification: notification,
+                                            onTap: () => _handleNotificationTap(
+                                              context: context,
+                                              notification: notification,
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                    ],
                                   ),
                                 );
                               },
@@ -87,35 +118,36 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
     required int totalCount,
     required VoidCallback onMarkAllRead,
   }) {
+    final bool hasUnread = unreadCount > 0;
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 16),
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 14),
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
       decoration: BoxDecoration(
         gradient: const LinearGradient(
-          colors: [Color(0xFF1565C0), Color(0xFF42A5F5)],
+          colors: [Color(0xFF0F4C97), Color(0xFF2D7CCF)],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
-        borderRadius: BorderRadius.circular(18),
+        borderRadius: BorderRadius.circular(20),
         boxShadow: const [
           BoxShadow(
-            color: Color(0x331565C0),
-            blurRadius: 16,
-            offset: Offset(0, 8),
+            color: Color(0x330F4C97),
+            blurRadius: 18,
+            offset: Offset(0, 10),
           ),
         ],
       ),
       child: Row(
         children: [
           Container(
-            width: 46,
-            height: 46,
+            width: 48,
+            height: 48,
             decoration: BoxDecoration(
               color: Colors.white.withOpacity(0.22),
               borderRadius: BorderRadius.circular(14),
             ),
             child: const Icon(
-              Icons.notifications_active_rounded,
+              Icons.notifications_none_rounded,
               color: Colors.white,
             ),
           ),
@@ -125,7 +157,7 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  "$unreadCount unread",
+                  hasUnread ? "$unreadCount unread" : "All caught up",
                   style: const TextStyle(
                     color: Colors.white,
                     fontSize: 18,
@@ -134,7 +166,7 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
                 ),
                 const SizedBox(height: 2),
                 Text(
-                  "$totalCount total notifications",
+                  "$totalCount notifications in your inbox",
                   style: const TextStyle(
                     color: Color(0xE6FFFFFF),
                     fontSize: 13,
@@ -145,11 +177,11 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
             ),
           ),
           TextButton(
-            onPressed: unreadCount > 0 ? onMarkAllRead : null,
+            onPressed: hasUnread ? onMarkAllRead : null,
             style: TextButton.styleFrom(
               foregroundColor: Colors.white,
               disabledForegroundColor: const Color(0xA6FFFFFF),
-              backgroundColor: Colors.white.withOpacity(0.16),
+              backgroundColor: Colors.white.withOpacity(0.18),
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(12),
               ),
@@ -287,14 +319,14 @@ class _NotificationCard extends StatelessWidget {
     return Material(
       color: Colors.transparent,
       child: InkWell(
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(18),
         onTap: onTap,
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 180),
-          padding: const EdgeInsets.all(14),
+          padding: const EdgeInsets.fromLTRB(14, 14, 12, 14),
           decoration: BoxDecoration(
             color: notification.isRead ? Colors.white : const Color(0xFFF1F7FF),
-            borderRadius: BorderRadius.circular(16),
+            borderRadius: BorderRadius.circular(18),
             border: Border.all(
               color: notification.isRead
                   ? const Color(0xFFE6EBF3)
@@ -315,8 +347,15 @@ class _NotificationCard extends StatelessWidget {
                 width: 42,
                 height: 42,
                 decoration: BoxDecoration(
-                  color: style.backgroundColor,
-                  borderRadius: BorderRadius.circular(12),
+                  gradient: LinearGradient(
+                    colors: [
+                      style.backgroundColor,
+                      style.backgroundColor.withOpacity(0.75),
+                    ],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                  borderRadius: BorderRadius.circular(13),
                 ),
                 child: Icon(style.icon, color: style.foregroundColor, size: 21),
               ),
@@ -330,6 +369,8 @@ class _NotificationCard extends StatelessWidget {
                         Expanded(
                           child: Text(
                             notification.message,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
                             style: TextStyle(
                               fontWeight: notification.isRead
                                   ? FontWeight.w500
@@ -373,7 +414,13 @@ class _NotificationCard extends StatelessWidget {
                             ),
                           ),
                         ),
-                        const SizedBox(width: 8),
+                        const SizedBox(width: 10),
+                        const Icon(
+                          Icons.schedule_rounded,
+                          size: 13,
+                          color: Color(0xFF94A3B8),
+                        ),
+                        const SizedBox(width: 4),
                         Text(
                           formatTimeAgo(notification.createdAt),
                           style: const TextStyle(
@@ -381,6 +428,12 @@ class _NotificationCard extends StatelessWidget {
                             fontSize: 12.5,
                             fontWeight: FontWeight.w500,
                           ),
+                        ),
+                        const Spacer(),
+                        const Icon(
+                          Icons.chevron_right_rounded,
+                          size: 20,
+                          color: Color(0xFF9CA3AF),
                         ),
                       ],
                     ),
@@ -443,6 +496,66 @@ class _NotificationCard extends StatelessWidget {
         );
     }
   }
+}
+
+class _NotificationSection {
+  final String title;
+  final List<AppNotification> items;
+
+  const _NotificationSection({
+    required this.title,
+    required this.items,
+  });
+}
+
+List<_NotificationSection> _groupNotifications(List<AppNotification> items) {
+  final now = DateTime.now();
+  final today = <AppNotification>[];
+  final yesterday = <AppNotification>[];
+  final earlier = <AppNotification>[];
+
+  bool isSameDay(DateTime a, DateTime b) {
+    return a.year == b.year && a.month == b.month && a.day == b.day;
+  }
+
+  final nowDate = DateTime(now.year, now.month, now.day);
+  final yesterdayDate = nowDate.subtract(const Duration(days: 1));
+
+  for (final item in items) {
+    final itemDate = DateTime(
+      item.createdAt.year,
+      item.createdAt.month,
+      item.createdAt.day,
+    );
+    if (isSameDay(itemDate, nowDate)) {
+      today.add(item);
+    } else if (isSameDay(itemDate, yesterdayDate)) {
+      yesterday.add(item);
+    } else {
+      earlier.add(item);
+    }
+  }
+
+  final sections = <_NotificationSection>[];
+  if (today.isNotEmpty) {
+    sections.add(_NotificationSection(
+      title: "TODAY",
+      items: today,
+    ));
+  }
+  if (yesterday.isNotEmpty) {
+    sections.add(_NotificationSection(
+      title: "YESTERDAY",
+      items: yesterday,
+    ));
+  }
+  if (earlier.isNotEmpty) {
+    sections.add(_NotificationSection(
+      title: "EARLIER",
+      items: earlier,
+    ));
+  }
+  return sections;
 }
 
 class _NotificationVisualStyle {
