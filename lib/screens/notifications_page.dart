@@ -143,7 +143,7 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
             width: 48,
             height: 48,
             decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.22),
+              color: Colors.white.withValues(alpha: 0.22),
               borderRadius: BorderRadius.circular(14),
             ),
             child: const Icon(
@@ -181,7 +181,7 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
             style: TextButton.styleFrom(
               foregroundColor: Colors.white,
               disabledForegroundColor: const Color(0xA6FFFFFF),
-              backgroundColor: Colors.white.withOpacity(0.18),
+              backgroundColor: Colors.white.withValues(alpha: 0.18),
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(12),
               ),
@@ -249,7 +249,7 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
             otherUserName = await ChatRepository().getUserName(otherUserId);
           } catch (_) {}
         }
-        if (!mounted) return;
+        if (!context.mounted) return;
         await Navigator.push(
           context,
           MaterialPageRoute(
@@ -268,7 +268,7 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
         try {
           final repo = ref.read(postRepositoryProvider);
           final post = await repo.getPostById(notification.entityId);
-          if (!mounted) return;
+          if (!context.mounted) return;
           await Navigator.push(
             context,
             MaterialPageRoute(
@@ -280,7 +280,7 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
 
       case 'FRIEND_REQUEST':
         if (notification.actorId.isEmpty) return;
-        if (!mounted) return;
+        if (!context.mounted) return;
         await Navigator.push(
           context,
           MaterialPageRoute(
@@ -291,7 +291,7 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
 
       case 'FRIEND_REQUEST_ACCEPTED':
         if (notification.actorId.isEmpty) return;
-        if (!mounted) return;
+        if (!context.mounted) return;
         await Navigator.push(
           context,
           MaterialPageRoute(
@@ -350,7 +350,7 @@ class _NotificationCard extends StatelessWidget {
                   gradient: LinearGradient(
                     colors: [
                       style.backgroundColor,
-                      style.backgroundColor.withOpacity(0.75),
+                      style.backgroundColor.withValues(alpha: 0.75),
                     ],
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,

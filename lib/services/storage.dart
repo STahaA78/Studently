@@ -1,10 +1,12 @@
 import 'package:hive_flutter/hive_flutter.dart';
+import 'package:studently/models/knowledge_hub.dart';
+import 'package:studently/models/notifications.dart';
 import 'package:studently/storage/backend_config.dart';
 import 'package:studently/storage/knowledge_hub.dart';
 import 'package:studently/storage/auth_storage.dart';
 import 'package:studently/storage/feed_storage.dart';
 import 'package:studently/storage/chat_storage.dart';
-import 'package:studently/utils/hive_init.dart';
+import 'package:studently/storage/notifications.dart';
 import 'package:studently/logger.dart';
 
 class StorageService {
@@ -22,6 +24,7 @@ class StorageService {
   late AuthStorage _authStorage;
   late FeedStorage _feedStorage;
   late ChatStorage _chatStorage;
+  late NotificationStorage _notificationStorage;
 
   bool _isAppStorageInitialized = false;
   bool _isUserStorageInitialized = false;
@@ -52,8 +55,7 @@ class StorageService {
     try {
       logger.i('[StorageService] Initializing app storage');
 
-      // Initialize Hive with all adapters
-      await HiveInit.initializeHive();
+      await _initializeHive();
 
       // Open all the core provider boxes
       _authBox = await Hive.openBox('authBox');
@@ -61,11 +63,13 @@ class StorageService {
       _profileFeedBox = await Hive.openBox('profileFeedBox');
       _conversationsBox = await Hive.openBox('conversationsBox');
       _messagesBox = await Hive.openBox('messagesBox');
+      await Hive.openBox('notificationsBox');
 
       // Initialize dedicated storage wrappers
       _authStorage = AuthStorage(_authBox);
       _feedStorage = FeedStorage(_feedBox, _profileFeedBox);
       _chatStorage = ChatStorage(_conversationsBox, _messagesBox);
+      _notificationStorage = NotificationStorage();
 
       // Initialize the dedicated backend config storage
       _backendConfigStorage = BackendConfigStorage();
@@ -77,6 +81,23 @@ class StorageService {
     } catch (e) {
       logger.e('[StorageService] Error initializing app storage: $e');
       rethrow;
+    }
+  }
+
+  Future<void> _initializeHive() async {
+    await Hive.initFlutter();
+    _registerHiveAdapters();
+  }
+
+  void _registerHiveAdapters() {
+    if (!Hive.isAdapterRegistered(0)) {
+      Hive.registerAdapter(CourseAdapter());
+    }
+    if (!Hive.isAdapterRegistered(1)) {
+      Hive.registerAdapter(ResourceItemAdapter());
+    }
+    if (!Hive.isAdapterRegistered(10)) {
+      Hive.registerAdapter(AppNotificationAdapter());
     }
   }
 
@@ -199,6 +220,13 @@ class StorageService {
       throw Exception('App storage not initialized.');
     }
     return _chatStorage;
+  }
+
+  NotificationStorage get notificationStorage {
+    if (!_isAppStorageInitialized) {
+      throw Exception('App storage not initialized.');
+    }
+    return _notificationStorage;
   }
 
   BackendConfigStorage get backendConfigStorage {

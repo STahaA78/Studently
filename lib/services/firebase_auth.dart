@@ -29,9 +29,7 @@ class AuthService {
   Future<User?> signInWithGoogle() async {
     logger.i("[$runtimeType] SignInWithGoogle Started");
     try {
-      final GoogleSignIn googleSignIn = GoogleSignIn(
-        clientId: AppConfig.googleClientId,
-      );
+      final GoogleSignIn googleSignIn = _googleSignIn();
 
       final GoogleSignInAccount? googleUser = await googleSignIn.signIn();
 

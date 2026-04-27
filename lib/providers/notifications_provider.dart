@@ -18,7 +18,7 @@ import 'package:studently/screens/profile_main.dart';
 import 'package:studently/services/app_navigation.dart';
 import 'package:studently/services/chat_presence.dart';
 import 'package:studently/services/firebase_auth.dart';
-import 'package:studently/storage/notifications.dart';
+import 'package:studently/services/storage.dart';
 
 class NotificationState {
   final List<AppNotification> notifications;
@@ -48,7 +48,7 @@ class NotificationState {
 
 class NotificationController extends Notifier<NotificationState> {
   final NotificationRepository _repository = NotificationRepository();
-  final NotificationStorage _storage = NotificationStorage();
+  final _storage = StorageService().notificationStorage;
   final FirebaseMessaging _messaging = FirebaseMessaging.instance;
   final FlutterLocalNotificationsPlugin _localNotifications =
       FlutterLocalNotificationsPlugin();
@@ -202,18 +202,18 @@ class NotificationController extends Notifier<NotificationState> {
       if (!_isSessionCompatible(uid)) return;
       final messageType = message.data['type']?.toString();
       final entityId = message.data['entity_id']?.toString();
-      final isActiveChatMessage = messageType == 'NEW_MESSAGE' &&
-          entityId != null &&
+      final isActiveChatMessage =
+          messageType == 'NEW_MESSAGE' &&
           entityId == ChatPresence.activeConversationId;
 
       await _handleForegroundMessage(message);
 
       // If user is already in this conversation, keep notifications quiet and
       // avoid pulling this message-notification into the list.
-      if (isActiveChatMessage) {
-        _removeConversationMessageNotifications(entityId!);
+      if (isActiveChatMessage && entityId != null) {
+        _removeConversationMessageNotifications(entityId);
         try {
-          await ChatRepository().markChatAsRead(entityId!);
+          await ChatRepository().markChatAsRead(entityId);
         } catch (_) {}
         return;
       }
@@ -221,7 +221,9 @@ class NotificationController extends Notifier<NotificationState> {
       await refreshFromServer();
     });
 
-    _messageOpenedSub = FirebaseMessaging.onMessageOpenedApp.listen((message) async {
+    _messageOpenedSub = FirebaseMessaging.onMessageOpenedApp.listen((
+      message,
+    ) async {
       if (!_isSessionCompatible(uid)) return;
       await refreshFromServer();
       await _routeByPayloadOrQueue(message.data);
@@ -247,8 +249,9 @@ class NotificationController extends Notifier<NotificationState> {
     if (_localNotificationsInitialized) return;
 
     try {
-      const androidSettings =
-          AndroidInitializationSettings('@drawable/ic_launcher_foreground');
+      const androidSettings = AndroidInitializationSettings(
+        '@drawable/ic_launcher_foreground',
+      );
       const settings = InitializationSettings(android: androidSettings);
       await _localNotifications.initialize(
         settings: settings,
@@ -260,14 +263,16 @@ class NotificationController extends Notifier<NotificationState> {
             await refreshFromServer();
             await _routeByPayloadOrQueue(data);
           } catch (e) {
-            logger.w('[NotificationController] Invalid local notification payload: $e');
+            logger.w(
+              '[NotificationController] Invalid local notification payload: $e',
+            );
           }
         },
       );
 
       if (!_consumedInitialLocalNotificationLaunch) {
-        final launchDetails =
-            await _localNotifications.getNotificationAppLaunchDetails();
+        final launchDetails = await _localNotifications
+            .getNotificationAppLaunchDetails();
         final launchResponse = launchDetails?.notificationResponse;
         final launchPayload = launchResponse?.payload;
         if (launchDetails?.didNotificationLaunchApp == true &&
@@ -291,7 +296,8 @@ class NotificationController extends Notifier<NotificationState> {
       );
       await _localNotifications
           .resolvePlatformSpecificImplementation<
-              AndroidFlutterLocalNotificationsPlugin>()
+            AndroidFlutterLocalNotificationsPlugin
+          >()
           ?.createNotificationChannel(channel);
 
       _localNotificationsInitialized = true;
@@ -322,7 +328,8 @@ class NotificationController extends Notifier<NotificationState> {
           android: AndroidNotificationDetails(
             'studently_notifications',
             'Studently Notifications',
-            channelDescription: 'Foreground notifications for Studently updates.',
+            channelDescription:
+                'Foreground notifications for Studently updates.',
             icon: 'ic_launcher_foreground',
             importance: Importance.high,
             priority: Priority.max,
@@ -338,7 +345,9 @@ class NotificationController extends Notifier<NotificationState> {
         payload: jsonEncode(message.data),
       );
     } catch (e) {
-      logger.w('[NotificationController] Foreground local notification skipped: $e');
+      logger.w(
+        '[NotificationController] Foreground local notification skipped: $e',
+      );
     }
   }
 
@@ -352,18 +361,13 @@ class NotificationController extends Notifier<NotificationState> {
   List<AppNotification> _filterVisibleNotifications(
     List<AppNotification> input,
   ) {
-    return input
-        .where(
-          (n) => n.type != 'NEW_MESSAGE',
-        )
-        .toList();
+    return input.where((n) => n.type != 'NEW_MESSAGE').toList();
   }
 
   void _removeConversationMessageNotifications(String conversationId) {
     final next = state.notifications
         .where(
-          (n) =>
-              !(n.type == 'NEW_MESSAGE' && n.entityId == conversationId),
+          (n) => !(n.type == 'NEW_MESSAGE' && n.entityId == conversationId),
         )
         .toList();
     state = state.copyWith(notifications: next);
@@ -377,9 +381,7 @@ class NotificationController extends Notifier<NotificationState> {
     } catch (_) {}
   }
 
-  Future<void> _routeByPayloadOrQueue(
-    Map<String, dynamic> payload,
-  ) async {
+  Future<void> _routeByPayloadOrQueue(Map<String, dynamic> payload) async {
     _pendingTapPayload = payload;
     await processPendingTapIfAny();
   }
@@ -520,5 +522,5 @@ class NotificationController extends Notifier<NotificationState> {
 
 final notificationProvider =
     NotifierProvider<NotificationController, NotificationState>(
-  NotificationController.new,
-);
+      NotificationController.new,
+    );
