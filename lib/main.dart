@@ -10,25 +10,17 @@ import 'package:studently/services/app_navigation.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'firebase_options.dart';
-import 'package:email_otp/email_otp.dart';
 import 'screens/login_page.dart';
-// Hive imports
-import 'package:studently/storage/knowledge_hub.dart';
+import 'package:studently/storage/storage_manager.dart';
 import 'package:studently/utils/hive_init.dart';
 
-// Import the Auth Provider
+// Import the Auth and Config Providers
 import 'package:studently/providers/auth_provider.dart';
+import 'package:studently/providers/backend_config_provider.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'screens/community_feed_page.dart';
 import 'screens/signup_basic_page.dart';
-void main() async {
-    EmailOTP.config(
-      appName: "Studently",
-      appEmail: "support@studently.com",
-      otpLength: 6,
-      otpType: OTPType.numeric,
-      emailTheme: EmailTheme.v1,
-    );
+  void main() async {
     WidgetsFlutterBinding.ensureInitialized();
   
     // Initialize Hive with all adapters
@@ -36,24 +28,18 @@ void main() async {
     await Hive.openBox('authBox');
     await Hive.openBox('feedBox');
     await Hive.openBox('profileFeedBox');
-    // Initialize KnowledgeHubStorage
-    final khStorage = KnowledgeHubStorage();
-    await khStorage.init();
     await Hive.openBox('conversationsBox'); 
     await Hive.openBox('messagesBox');
     await Hive.openBox<AppNotification>('notificationsBox');
+    
+    // Initialize Storage Manager (handles config storage at app startup)
+    final storageManager = StorageManager();
+    await storageManager.initialize();
+    
     await Firebase.initializeApp(
       options: DefaultFirebaseOptions.currentPlatform,
     );
-    // runApp(
-    //   ProviderScope(
-    //     child: DevicePreview(
-    //       enabled: true , // Set to false to disable Device Preview
-    //       builder: (context) => const MyApp(), // Wrap your app
-    //     ),
-    //   ),
-    // );
-    // runApp(const MyApp());
+    
     runApp(
       const ProviderScope(
         child: MyApp(),
@@ -81,6 +67,9 @@ class MyApp extends ConsumerWidget {
 
     // Watch the auth state
     final authState = ref.watch(authProvider);
+    
+    // Trigger backend config loading on app startup
+    ref.watch(backendConfigProvider);
 
     final Color blue = AppStyle.blue;
     final Color white = AppStyle.white;

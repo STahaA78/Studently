@@ -29,7 +29,9 @@ class AuthService {
   Future<User?> signInWithGoogle() async {
     logger.i("[$runtimeType] SignInWithGoogle Started");
     try {
-      final GoogleSignIn googleSignIn = _googleSignIn();
+      final GoogleSignIn googleSignIn = GoogleSignIn(
+        clientId: AppConfig.googleClientId,
+      );
       
       final GoogleSignInAccount? googleUser = await googleSignIn.signIn();
       
@@ -51,9 +53,7 @@ class AuthService {
       logger.d("[$runtimeType] User: ${userCredential.user?.email}");
       
       // Clean up GoogleSignIn after successful authentication
-      try {
-        await googleSignIn.disconnect();
-      } catch (_) {}
+      await googleSignIn.disconnect();
       
       return userCredential.user;
     } catch (e) {
@@ -68,10 +68,10 @@ class AuthService {
     logger.i("[$runtimeType] SignOut Started");
     try {
       // Clean up GoogleSignIn
-      final GoogleSignIn googleSignIn = _googleSignIn();
-      try {
-        await googleSignIn.disconnect();
-      } catch (_) {}
+      final GoogleSignIn googleSignIn = GoogleSignIn(
+        clientId: AppConfig.googleClientId,
+      );
+      await googleSignIn.disconnect();
       
       await firebaseAuth.signOut();
       logger.i("[$runtimeType] SignOut Successful");

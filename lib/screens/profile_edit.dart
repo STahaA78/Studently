@@ -46,7 +46,7 @@ class _EditProfilePageState extends ConsumerState<EditProfilePage> {
   void initState() {
     super.initState();
     nameController = TextEditingController(text: widget.user.name);
-    selectedDepartment = widget.user.department?.trim();
+    selectedDepartment = widget.user.department?.name;
     selectedBatch = widget.user.batch?.trim();
     interests = List<Interest>.from(widget.user.interests);
   }
@@ -117,9 +117,25 @@ class _EditProfilePageState extends ConsumerState<EditProfilePage> {
     }
 
     setState(() => isSaving = true);
+    
+    // Get the Department object from backend config by matching the selected name
+    final configAsync = ref.watch(backendConfigProvider);
+    Department? selectedDepartmentObj;
+    
+    configAsync.whenData((config) {
+      for (final dept in config.departments) {
+        if (dept.name == selectedDepartment) {
+          selectedDepartmentObj = dept;
+          break;
+        }
+      }
+    });
+
     final updatedData = {
       'name': nameController.text.trim(),
-      'department': selectedDepartment,
+      'department': selectedDepartmentObj != null 
+        ? {'name': selectedDepartmentObj!.name, 'code': selectedDepartmentObj!.code}
+        : null,
       'batch': selectedBatch,
       'interests': interests,
     };
@@ -180,7 +196,7 @@ class _EditProfilePageState extends ConsumerState<EditProfilePage> {
 
     final departmentOptions = _buildDropdownOptions(
       configDepartments,
-      selectedDepartment ?? widget.user.department,
+      selectedDepartment ?? widget.user.department?.name,
     );
     final batchOptions = _buildDropdownOptions(
       configBatches,

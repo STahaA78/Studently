@@ -4,13 +4,14 @@ import 'dart:typed_data';
 import 'package:studently/models/knowledge_hub.dart';
 import 'package:studently/services/api.dart';
 import 'package:studently/storage/knowledge_hub.dart';
+import 'package:studently/storage/storage_manager.dart';
 import 'package:studently/logger.dart';
 
 /// Unified KnowledgeHub Repository combining all course and resource operations
 class KnowledgeHubRepository {
   // Get the Singleton instance of our API engine
   final ApiService _apiService = ApiService();
-  final KnowledgeHubStorage _storage = KnowledgeHubStorage();
+  KnowledgeHubStorage get _storage => StorageManager().knowledgeHubStorage;
 
   // ==================== COURSE OPERATIONS ====================
 

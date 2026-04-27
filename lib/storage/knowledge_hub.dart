@@ -13,6 +13,7 @@ class KnowledgeHubStorage {
   late Box<Course> _coursesBox;
   late Box<ResourceItem> _resourcesBox;
   late Box<String> _downloadedFilesBox;
+  bool _isInitialized = false;
 
   static final KnowledgeHubStorage _instance =
       KnowledgeHubStorage._internal();
@@ -25,11 +26,16 @@ class KnowledgeHubStorage {
 
   /// Initialize storage boxes
   Future<void> init() async {
+    if (_isInitialized) {
+      return;
+    }
+
     try {
       _coursesBox = await Hive.openBox<Course>(_coursesBoxName);
       _resourcesBox = await Hive.openBox<ResourceItem>(_resourcesBoxName);
       _downloadedFilesBox =
           await Hive.openBox<String>(_downloadedFilesBoxName);
+      _isInitialized = true;
       logger.i('[KnowledgeHubStorage] Initialized successfully');
     } catch (e) {
       // Handle schema migration errors by clearing corrupted boxes
@@ -45,6 +51,7 @@ class KnowledgeHubStorage {
           _resourcesBox = await Hive.openBox<ResourceItem>(_resourcesBoxName);
           _downloadedFilesBox =
               await Hive.openBox<String>(_downloadedFilesBoxName);
+          _isInitialized = true;
           logger.i('[KnowledgeHubStorage] Boxes cleared and reinitialized after schema migration');
         } catch (clearError) {
           logger.e('[KnowledgeHubStorage] Error during schema migration: $clearError');
@@ -57,10 +64,25 @@ class KnowledgeHubStorage {
     }
   }
 
+  bool _ensureInitialized({bool throwOnFailure = false}) {
+    if (_isInitialized) {
+      return true;
+    }
+
+    const message =
+        '[KnowledgeHubStorage] Accessed before initialization. Call init() first.';
+    if (throwOnFailure) {
+      throw StateError(message);
+    }
+    logger.w(message);
+    return false;
+  }
+
   // ==================== COURSES ====================
 
   /// Save courses to local storage
   Future<void> saveCourses(List<Course> courses) async {
+    _ensureInitialized(throwOnFailure: true);
     try {
       await _coursesBox.clear();
       for (var course in courses) {
@@ -75,6 +97,10 @@ class KnowledgeHubStorage {
 
   /// Get all cached courses
   List<Course> getCachedCourses() {
+    if (!_ensureInitialized()) {
+      return [];
+    }
+
     try {
       final courses = _coursesBox.values.toList();
       logger.i('[KnowledgeHubStorage] Retrieved ${courses.length} cached courses');
@@ -87,6 +113,10 @@ class KnowledgeHubStorage {
 
   /// Check if courses are cached
   bool hasCachedCourses() {
+    if (!_ensureInitialized()) {
+      return false;
+    }
+
     return _coursesBox.isNotEmpty;
   }
 
@@ -95,6 +125,7 @@ class KnowledgeHubStorage {
   /// Save resources for a course (replaces old resources)
   Future<void> saveResourcesForCourse(
       String courseCode, List<ResourceItem> resources) async {
+    _ensureInitialized(throwOnFailure: true);
     try {
       // First, clear old resources for this course
       final coursePrefix = '$courseCode:';
@@ -121,6 +152,10 @@ class KnowledgeHubStorage {
 
   /// Get cached resources for a course
   List<ResourceItem> getCachedResourcesForCourse(String courseCode) {
+    if (!_ensureInitialized()) {
+      return [];
+    }
+
     try {
       final coursePrefix = '$courseCode:';
       final resources = _resourcesBox.values
@@ -149,6 +184,7 @@ class KnowledgeHubStorage {
   /// Update resource with local file path
   Future<void> updateResourceWithLocalPath(
       String courseCode, String resourceId, String localFilePath) async {
+    _ensureInitialized(throwOnFailure: true);
     try {
       final key = '$courseCode:$resourceId';
       final resource = _resourcesBox.get(key);
@@ -166,6 +202,10 @@ class KnowledgeHubStorage {
 
   /// Get local file path for resource
   String? getLocalFilePath(String courseCode, String resourceId) {
+    if (!_ensureInitialized()) {
+      return null;
+    }
+
     try {
       final key = '$courseCode:$resourceId';
       final resource = _resourcesBox.get(key);
@@ -180,6 +220,7 @@ class KnowledgeHubStorage {
 
   /// Get app's cache directory for downloaded files
   Future<String> getDownloadsCacheDir() async {
+    _ensureInitialized(throwOnFailure: true);
     try {
       final tempDir = await getTemporaryDirectory();
       final downloadsDir = Directory('${tempDir.path}/studently_downloads');
@@ -198,6 +239,7 @@ class KnowledgeHubStorage {
   /// Save downloaded file metadata to track which files are downloaded
   Future<void> markFileAsDownloaded(
       String courseCode, String resourceId, String fileName) async {
+    _ensureInitialized(throwOnFailure: true);
     try {
       final key = '$courseCode:$resourceId:$fileName';
       await _downloadedFilesBox.put(key, fileName);
@@ -211,6 +253,10 @@ class KnowledgeHubStorage {
 
   /// Check if file is already downloaded
   bool isFileDownloaded(String courseCode, String resourceId, String fileName) {
+    if (!_ensureInitialized()) {
+      return false;
+    }
+
     try {
       final key = '$courseCode:$resourceId:$fileName';
       return _downloadedFilesBox.containsKey(key);
@@ -222,6 +268,7 @@ class KnowledgeHubStorage {
 
   /// Clear knowledge hub storage
   Future<void> clearStorage() async {
+    _ensureInitialized(throwOnFailure: true);
     try {
       await _coursesBox.clear();
       await _resourcesBox.clear();
@@ -235,6 +282,14 @@ class KnowledgeHubStorage {
 
   /// Get knowledge hub storage statistics
   Map<String, int> getStorageStats() {
+    if (!_ensureInitialized()) {
+      return {
+        'courses': 0,
+        'resources': 0,
+        'downloadedFiles': 0,
+      };
+    }
+
     return {
       'courses': _coursesBox.length,
       'resources': _resourcesBox.length,

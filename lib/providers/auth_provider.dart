@@ -6,6 +6,8 @@ import 'package:studently/repositories/user.dart';
 import 'package:studently/models/user.dart'; 
 import 'package:studently/models/backend_config.dart'; 
 import 'package:studently/logger.dart';
+import 'package:studently/providers/backend_config_provider.dart';
+import 'package:studently/storage/storage_manager.dart';
 import 'dart:typed_data';
 final userRepositoryProvider = Provider<UserRepository>((ref) {
   return UserRepository();
@@ -58,16 +60,35 @@ class AuthNotifier extends AsyncNotifier<User?> {
     // 4. Check Firebase session
     if (firebaseUser != null) {
       if (cachedUser != null) {
+        await _ensureUserStorageInitialized();
+
         // INSTANT UI: Return cached data but trigger a refresh in the background
         _refreshProfileInBackground(firebaseUser.uid);
+
         return cachedUser;
       }
       
       // No cache found, but logged into Firebase: Fetch fresh from FastAPI
-      return await _fetchAndSaveFreshProfile(firebaseUser.uid);
+      final freshUser = await _fetchAndSaveFreshProfile(firebaseUser.uid);
+
+      await _ensureUserStorageInitialized();
+      
+      return freshUser;
     }
     
     return null; // Not logged in
+  }
+
+  Future<void> _ensureUserStorageInitialized() async {
+    try {
+      final storageManager = StorageManager();
+      if (!storageManager.isUserStorageInitialized) {
+        await storageManager.initializeUserStorage();
+        logger.i("[$runtimeType] User storage initialized");
+      }
+    } catch (e) {
+      logger.w("[$runtimeType] Error initializing user storage: $e");
+    }
   }
 
   // --- Helper Methods ---
@@ -113,6 +134,7 @@ class AuthNotifier extends AsyncNotifier<User?> {
   /// Sign in with Google and check if user exists in backend
   /// If user exists -> fetch and login
   /// If user is new -> store Firebase user and signal for signup flow
+  /// Also validates email domain against allowed organizations
   Future<void> signInWithGoogle() async {
     state = const AsyncValue<User?>.loading();
     try {
@@ -127,24 +149,72 @@ class AuthNotifier extends AsyncNotifier<User?> {
 
       logger.d("[$runtimeType] Firebase Google signin successful: ${firebaseUser.email}");
 
-      // Step 2: Call /profile endpoint to check if user exists
+      if (firebaseUser.email == null) {
+        throw Exception("Google account does not have an email associated.");
+      }
+
+      // Step 2: Validate email domain against allowed organizations
+      try {
+        final config = ref.read(backendConfigProvider);
+        final email = firebaseUser.email!;
+        final emailDomain = email.split('@').last.toLowerCase();
+        
+        logger.d("[$runtimeType] Validating email domain: $emailDomain");
+        
+        final isAllowed = config.whenData((cfg) {
+          final allowed = cfg.allowedEmailDomains.any((domain) => 
+            emailDomain.endsWith(domain.toLowerCase())
+          );
+          
+          if (!allowed) {
+            logger.w("[$runtimeType] Email domain not in allowed list: $emailDomain");
+          } else {
+            logger.i("[$runtimeType] Email domain validated: $emailDomain");
+          }
+          
+          return allowed;
+        });
+        
+        // Check if domain validation passed
+        await isAllowed.when(
+          data: (allowed) {
+            if (!allowed) {
+              throw Exception("Your email domain is not authorized for signup. Please use your organization email.");
+            }
+          },
+          error: (error, stack) {
+            logger.w("[$runtimeType] Could not validate email domain: $error");
+            // Continue - backend will validate domain
+          },
+          loading: () {
+            logger.w("[$runtimeType] Config still loading, backend will validate domain");
+            // Continue - backend will validate domain
+          },
+        );
+      } catch (e) {
+        logger.e("[$runtimeType] Email validation error", error: e);
+        await authService.value.signOut();
+        state = AsyncValue.error(e, StackTrace.current);
+        return;
+      }
+
+      // Step 3: Call /profile endpoint to check if user exists
       final userRepo = ref.read(userRepositoryProvider);
       
       try {
-        if (firebaseUser.email == null) {
-          throw Exception("Google account does not have an email associated.");
-        }
-
         // Try to fetch user profile - this determines if user exists
         final user = await userRepo.fetchUserProfile(); // Uses default "0" for logged-in user
         
-        // Step 3a: User exists in backend - save profile and login
+        // Step 4a: User exists in backend - save profile and login
         logger.i("[$runtimeType] Existing user detected: ${user.email}");
         _authBox.put(_userKey, jsonEncode(user.toJson()));
+        
+        await _ensureUserStorageInitialized();
+        
         state = AsyncValue.data(user);
         
       } catch (e) {
-        // Step 3b: User doesn't exist in backend (404 or error)
+        // Step 4b: User doesn't exist in backend (404 or error)
         // Check if error indicates user not found
         final errorString = e.toString().toLowerCase();
         if (errorString.contains('404') || errorString.contains('not found')) {
@@ -175,9 +245,10 @@ class AuthNotifier extends AsyncNotifier<User?> {
   Future<void> signUp({
     required String name,
     required String birthday, 
-    required String department,
+    required Department department,
     required String batch,
-    required List<Interest> interests, 
+    required List<Interest> interests,
+    bool extractedFields = true,
   }) async {
     state = const AsyncValue<User?>.loading();
     try {
@@ -195,12 +266,16 @@ class AuthNotifier extends AsyncNotifier<User?> {
         department: department,
         batch: batch,
         interests: interests,
+        extractedFields: extractedFields,
       );
       
       if (success) {
         final user = await _fetchAndSaveFreshProfile(firebaseUser.uid);
         // Clear signup flag after successful signup
         setSignupInProgress(false);
+        
+        await _ensureUserStorageInitialized();
+        
         state = AsyncValue.data(user);
       } else {
         throw Exception("Backend registration failed");
@@ -213,6 +288,17 @@ class AuthNotifier extends AsyncNotifier<User?> {
 
   Future<void> logout() async {
     logger.i("[$runtimeType] Logging out...");
+    
+    // Clear user-specific storage before signing out
+    try {
+      final storageManager = StorageManager();
+      await storageManager.clearUserStorage();
+      logger.i("[$runtimeType] User storage cleared");
+    } catch (e) {
+      logger.w("[$runtimeType] Error clearing user storage: $e");
+      // Continue even if clearing fails
+    }
+    
     await authService.value.signOut();
     
     // 5. Delete from Hive
@@ -242,6 +328,20 @@ class AuthNotifier extends AsyncNotifier<User?> {
     
     final currentUser = state.value;
     if (currentUser != null) {
+      // Convert department data to Department object if provided
+      Department? updatedDepartment;
+      if (updatedData['department'] != null) {
+        final deptData = updatedData['department'];
+        if (deptData is Map<String, dynamic>) {
+          updatedDepartment = Department(
+            name: deptData['name'] ?? '',
+            code: deptData['code'] ?? '',
+          );
+        } else if (deptData is Department) {
+          updatedDepartment = deptData;
+        }
+      }
+
       // 2. Locally merge the newly saved data with the existing profile
       final updatedUser = User(
         id: currentUser.id,
@@ -249,7 +349,7 @@ class AuthNotifier extends AsyncNotifier<User?> {
         birthday: currentUser.birthday,
         picture: currentUser.picture,
         name: updatedData['name'] ?? currentUser.name,
-        department: updatedData['department'] ?? currentUser.department,
+        department: updatedDepartment ?? currentUser.department,
         batch: updatedData['batch'] ?? currentUser.batch,
         interests: updatedData['interests'] != null 
             ? List<Interest>.from(updatedData['interests']) 
