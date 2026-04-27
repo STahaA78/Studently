@@ -2,14 +2,15 @@ import 'package:flutter/material.dart';
 import 'package:device_preview/device_preview.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:studently/utils/constants.dart';
+import 'package:studently/models/notifications.dart';
+import 'package:studently/providers/notifications_provider.dart';
+import 'package:studently/services/app_navigation.dart';
 
 // Firebase imports
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'firebase_options.dart';
-import 'package:email_otp/email_otp.dart';
 import 'screens/login_page.dart';
-// Hive imports
 import 'package:studently/storage/storage_manager.dart';
 import 'package:studently/utils/hive_init.dart';
 
@@ -20,13 +21,6 @@ import 'package:hive_flutter/hive_flutter.dart';
 import 'screens/community_feed_page.dart';
 import 'screens/signup_basic_page.dart';
   void main() async {
-    EmailOTP.config(
-      appName: "Studently",
-      appEmail: "support@studently.com",
-      otpLength: 6,
-      otpType: OTPType.numeric,
-      emailTheme: EmailTheme.v1,
-    );
     WidgetsFlutterBinding.ensureInitialized();
   
     // Initialize Hive with all adapters
@@ -36,6 +30,7 @@ import 'screens/signup_basic_page.dart';
     await Hive.openBox('profileFeedBox');
     await Hive.openBox('conversationsBox'); 
     await Hive.openBox('messagesBox');
+    await Hive.openBox<AppNotification>('notificationsBox');
     
     // Initialize Storage Manager (handles config storage at app startup)
     final storageManager = StorageManager();
@@ -57,7 +52,19 @@ class MyApp extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    
+    ref.listen(authProvider, (previous, next) {
+      next.whenData((user) async {
+        if (user == null) {
+          await ref.read(notificationProvider.notifier).clearForLogout();
+          return;
+        }
+        await ref.read(notificationProvider.notifier).initializeForCurrentUser();
+        WidgetsBinding.instance.addPostFrameCallback((_) async {
+          await ref.read(notificationProvider.notifier).processPendingTapIfAny();
+        });
+      });
+    });
+
     // Watch the auth state
     final authState = ref.watch(authProvider);
     
@@ -72,6 +79,7 @@ class MyApp extends ConsumerWidget {
 
     return MaterialApp(
       debugShowCheckedModeBanner: false,
+      navigatorKey: appNavigatorKey,
       
       // REQUIRED FOR DEVICE PREVIEW: Injects the preview's locale settings
       locale: DevicePreview.locale(context),

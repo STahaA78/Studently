@@ -22,6 +22,12 @@ Future<List<Post>> getFeed({int skip = 0, int limit = 10}) async {
   return jsonData.map((e) => Post.fromJson(e as Map<String, dynamic>)).toList();
 }
 
+Future<Post> getPostById(String postId) async {
+  final response = await api.get('/feed/$postId');
+  final data = jsonDecode(response.body) as Map<String, dynamic>;
+  return Post.fromJson(data);
+}
+
   /// LIKE POST
   Future<void> likePost(String postId) async {
 

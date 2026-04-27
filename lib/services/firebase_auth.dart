@@ -1,4 +1,5 @@
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:studently/logger.dart';
@@ -8,6 +9,18 @@ ValueNotifier<AuthService> authService = ValueNotifier(AuthService());
 
 class AuthService {
   final FirebaseAuth firebaseAuth = FirebaseAuth.instance;
+
+  GoogleSignIn _googleSignIn() {
+    if (kIsWeb) {
+      return GoogleSignIn(
+        clientId: AppConfig.googleClientId,
+      );
+    }
+
+    return GoogleSignIn(
+      serverClientId: AppConfig.googleClientId,
+    );
+  }
 
   User? get currentUser => firebaseAuth.currentUser;
 

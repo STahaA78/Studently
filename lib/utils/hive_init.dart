@@ -1,5 +1,6 @@
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:studently/models/knowledge_hub.dart';
+import 'package:studently/models/notifications.dart';
 
 /// Centralized Hive initialization and adapter registration
 /// This keeps all Hive setup in one place, making it easy to maintain
@@ -16,6 +17,7 @@ class HiveInit {
     // KnowledgeHub adapters
     Hive.registerAdapter(CourseAdapter());
     Hive.registerAdapter(ResourceItemAdapter());
+    Hive.registerAdapter(AppNotificationAdapter());
 
     // Add new model adapters here as needed
     // Hive.registerAdapter(MyNewModelAdapter());
