@@ -34,6 +34,14 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
   final userRepository = UserRepository();
   final Set<String> failedProfileImages = {};
 
+  String _resolveMediaUrl(String url) {
+    final lower = url.toLowerCase();
+    if (lower.startsWith('http://') || lower.startsWith('https://')) {
+      return url;
+    }
+    return apiService.getCompleteUrl(url);
+  }
+
   @override
   void initState() {
     super.initState();
@@ -605,7 +613,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                 children: [
                   Positioned.fill(
                     child: Image.network(
-                      apiService.getCompleteUrl(imageUrl),
+                      _resolveMediaUrl(imageUrl),
                       fit: BoxFit.cover,
                       errorBuilder: (context, error, stackTrace) {
                         return Container(
