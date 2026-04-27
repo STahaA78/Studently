@@ -5,6 +5,7 @@ import 'package:studently/models/chat.dart';
 import 'package:studently/repositories/chat.dart';
 import 'package:studently/services/socket.dart';
 import 'package:studently/services/firebase_auth.dart';
+import 'package:studently/services/chat_presence.dart';
 import 'package:studently/logger.dart';
 import 'package:studently/services/storage.dart';
 import 'dart:async';
@@ -55,6 +56,7 @@ class ChatNotifier extends Notifier<ChatState> {
 
   // FIXED: Forcefully clears the active ID using the constructor to bypass copyWith null-trap
   void clearActiveChat() {
+    ChatPresence.setActiveConversation(null);
     state = ChatState(
       conversations: state.conversations,
       activeMessages: const [],
@@ -89,6 +91,7 @@ class ChatNotifier extends Notifier<ChatState> {
     // 3. Clean up the listener and SOCKET when the provider is destroyed
     ref.onDispose(() {
       logger.i("[ChatProvider] Provider Disposed - Closing WebSocket");
+      ChatPresence.setActiveConversation(null);
       _lifecycleListener.dispose();
       _socketSubscription?.cancel(); // Unplug the listener
       socketService.disconnect();
@@ -251,6 +254,7 @@ class ChatNotifier extends Notifier<ChatState> {
   }
 
   Future<void> loadMessagesForChat(String conversationId) async {
+    ChatPresence.setActiveConversation(conversationId);
     state = state.copyWith(
       activeConversationId: conversationId,
       isLoading: true,

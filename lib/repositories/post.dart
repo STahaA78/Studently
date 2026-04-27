@@ -28,6 +28,12 @@ class PostRepository {
     }
   }
 
+Future<Post> getPostById(String postId) async {
+  final response = await _apiService.get('/feed/$postId');
+  final data = jsonDecode(response.body) as Map<String, dynamic>;
+  return Post.fromJson(data);
+}
+
   /// Likes a specific post by its ID
   Future<void> likePost(String postId) async {
     logger.i("[$runtimeType] Like Post Initiated for postId: $postId");

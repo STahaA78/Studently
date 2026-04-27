@@ -14,6 +14,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:studently/models/chat.dart';
 import 'package:studently/providers/chat_provider.dart';
+import 'package:studently/services/chat_presence.dart';
 import 'package:studently/services/firebase_auth.dart';
 import 'package:studently/logger.dart';
 
@@ -82,6 +83,8 @@ class _ChatPageState extends ConsumerState<ChatPage> {
 
   @override
   void dispose() {
+    ChatPresence.setActiveConversation(null);
+
     _messageController.dispose();
     _scrollController.dispose();
     _recordTimer?.cancel();

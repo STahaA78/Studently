@@ -1,15 +1,14 @@
 import 'package:flutter/material.dart';
-import 'package:device_preview/device_preview.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:studently/app_style.dart';
+import 'package:studently/providers/notifications_provider.dart';
+import 'package:studently/services/app_navigation.dart';
 
 // Firebase imports
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'firebase_options.dart';
-import 'package:email_otp/email_otp.dart';
 import 'screens/login_page.dart';
-// Hive imports
 import 'package:studently/services/storage.dart';
 
 // Import the Auth and Config Providers
@@ -19,18 +18,10 @@ import 'screens/community_feed_page.dart';
 import 'screens/signup_basic_page.dart';
 
 void main() async {
-  EmailOTP.config(
-    appName: "Studently",
-    appEmail: "support@studently.com",
-    otpLength: 6,
-    otpType: OTPType.numeric,
-    emailTheme: EmailTheme.v1,
-  );
   WidgetsFlutterBinding.ensureInitialized();
 
-  // Initialize Storage Service (handles config storage and Hive boxes at app startup)
-  final storageService = StorageService();
-  await storageService.initialize();
+  // Initialize centralized storage (Hive init + box opens + storage wrappers).
+  await StorageService().initialize();
 
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
 
@@ -42,6 +33,19 @@ class MyApp extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    ref.listen(authProvider, (previous, next) {
+      next.whenData((user) async {
+        if (user == null) {
+          await ref.read(notificationProvider.notifier).clearForLogout();
+          return;
+        }
+        await ref.read(notificationProvider.notifier).initializeForCurrentUser();
+        WidgetsBinding.instance.addPostFrameCallback((_) async {
+          await ref.read(notificationProvider.notifier).processPendingTapIfAny();
+        });
+      });
+    });
+
     // Watch the auth state
     final authState = ref.watch(authProvider);
 
@@ -50,9 +54,7 @@ class MyApp extends ConsumerWidget {
 
     return MaterialApp(
       debugShowCheckedModeBanner: false,
-
-      // REQUIRED FOR DEVICE PREVIEW: Injects the preview's locale settings
-      locale: DevicePreview.locale(context),
+      navigatorKey: appNavigatorKey,
 
       // Dynamic Routing Magic
       home: authState.when(
@@ -90,18 +92,6 @@ class MyApp extends ConsumerWidget {
           );
         },
       ),
-
-      // MERGED BUILDER: Combines DevicePreview with your custom MediaQuery
-      builder: (context, child) {
-        // 1. Let DevicePreview build its frame and tools
-        final devicePreviewChild = DevicePreview.appBuilder(context, child);
-
-        // 2. Apply your global "no bold text" rule to the preview
-        return MediaQuery(
-          data: MediaQuery.of(context).copyWith(boldText: false),
-          child: devicePreviewChild,
-        );
-      },
 
       // Global theme settings
       theme: AppStyle.theme,

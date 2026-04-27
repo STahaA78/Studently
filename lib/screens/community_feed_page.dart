@@ -3,7 +3,9 @@ import 'package:studently/services/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'direct_messages_page.dart';
 import '../widgets/custom_nav_bar.dart';
+import '../widgets/notification_badge_icon.dart';
 import 'post_details_page.dart';
+import 'notifications_page.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:studently/app_style.dart';
@@ -11,6 +13,7 @@ import '../screens/profile_main.dart';
 import '../services/api.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../providers/feed_provider.dart';
+import '../providers/notifications_provider.dart';
 
 class CommunityFeedPage extends ConsumerStatefulWidget {
   const CommunityFeedPage({super.key});
@@ -89,6 +92,9 @@ class _CommunityFeedPageState extends ConsumerState<CommunityFeedPage> {
   @override
   Widget build(BuildContext context) {
     final feedAsync = ref.watch(feedProvider);
+    final unreadCount = ref.watch(
+      notificationProvider.select((s) => s.unreadCount),
+    );
 
     return Scaffold(
       backgroundColor: Colors.white,
@@ -132,12 +138,8 @@ class _CommunityFeedPageState extends ConsumerState<CommunityFeedPage> {
                       ],
                     ),
                     actions: [
-                      IconButton(
-                        icon: const Icon(
-                          Icons.notifications_none_rounded,
-                          color: Colors.black,
-                          size: 26,
-                        ),
+                      NotificationBadgeIcon(
+                        unreadCount: unreadCount,
                         onPressed: () {
                           Navigator.push(
                             context,
@@ -453,24 +455,6 @@ class _CommunityFeedPageState extends ConsumerState<CommunityFeedPage> {
           ),
         ],
       ),
-    );
-  }
-}
-
-class NotificationsPage extends StatelessWidget {
-  const NotificationsPage({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        elevation: 0,
-        backgroundColor: Colors.white,
-        shadowColor: Colors.transparent,
-        surfaceTintColor: Colors.transparent,
-        title: const Text("Notifications"),
-      ),
-      body: const Center(child: Text("No new notifications yet.")),
     );
   }
 }

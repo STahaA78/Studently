@@ -111,6 +111,71 @@ class ApiService {
   }
 
   /// ===============================
+  /// PUT
+  /// ===============================
+  Future<http.Response> put(String endpoint, {Map<String, dynamic>? body}) async {
+
+    logger.i("[$runtimeType] PUT request to $endpoint Initiated");
+
+    final url = Uri.parse("$_baseUrl$endpoint");
+
+    try {
+
+      final response = await http.put(
+        url,
+        headers: await _getAuthHeaders(),
+        body: body != null ? jsonEncode(body) : null,
+      );
+
+      logger.i("[$runtimeType] PUT request Completed ${response.statusCode}");
+
+      return _handleResponse(response);
+
+    } on SocketException {
+
+      logger.e("[$runtimeType] No Internet connection");
+      throw Exception('No Internet connection');
+
+    } catch (e) {
+
+      logger.e("[$runtimeType] PUT request Failed: $e");
+      throw Exception('Error occurred: $e');
+    }
+  }
+
+  /// ===============================
+  /// DELETE
+  /// ===============================
+  Future<http.Response> delete(String endpoint) async {
+
+    logger.i("[$runtimeType] DELETE request to $endpoint Initiated");
+
+    final url = Uri.parse("$_baseUrl$endpoint");
+
+    try {
+
+      final response = await http.delete(
+        url,
+        headers: await _getAuthHeaders(),
+      );
+
+      logger.i("[$runtimeType] DELETE request Completed ${response.statusCode}");
+
+      return _handleResponse(response);
+
+    } on SocketException {
+
+      logger.e("[$runtimeType] No Internet connection");
+      throw Exception('No Internet connection');
+
+    } catch (e) {
+
+      logger.e("[$runtimeType] DELETE request Failed: $e");
+      throw Exception('Error occurred: $e');
+    }
+  }
+
+  /// ===============================
   /// PATCH
   /// ===============================
   Future<http.Response> patch(
