@@ -27,14 +27,6 @@ class _CommunityFeedPageState extends ConsumerState<CommunityFeedPage> {
   final ApiService api = ApiService();
   final ScrollController scrollController = ScrollController();
 
-  String _resolveMediaUrl(String url) {
-    final lower = url.toLowerCase();
-    if (lower.startsWith('http://') || lower.startsWith('https://')) {
-      return url;
-    }
-    return api.getCompleteUrl(url);
-  }
-
   @override
   void initState() {
     super.initState();
@@ -405,7 +397,7 @@ class _CommunityFeedPageState extends ConsumerState<CommunityFeedPage> {
             Padding(
               padding: const EdgeInsets.only(top: 10),
               child: Image.network(
-                _resolveMediaUrl(post.mediaUrls.first),
+                api.getCompleteUrl(post.mediaUrls.first),
                 fit: BoxFit.cover,
                 errorBuilder: (context, error, stackTrace) {
                   return const SizedBox();
