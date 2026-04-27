@@ -130,10 +130,7 @@ class _RequestsPageState extends ConsumerState<RequestsPage> {
           centerTitle: true,
           title: const Text(
             "Pending Requests",
-            style: TextStyle(
-              color: Colors.black,
-              fontWeight: FontWeight.w600,
-            ),
+            style: TextStyle(color: Colors.black, fontWeight: FontWeight.w600),
           ),
         ),
         body: FutureBuilder<List<User>>(
@@ -228,9 +225,7 @@ class _RequestsPageState extends ConsumerState<RequestsPage> {
           : () async {
               final bool? changed = await Navigator.push(
                 context,
-                MaterialPageRoute(
-                  builder: (_) => ProfilePage(userId: user.id),
-                ),
+                MaterialPageRoute(builder: (_) => ProfilePage(userId: user.id)),
               );
 
               if (changed == true && mounted) {
@@ -251,8 +246,8 @@ class _RequestsPageState extends ConsumerState<RequestsPage> {
                 backgroundColor: Colors.grey[300],
                 backgroundImage:
                     user.picture != null && user.picture!.isNotEmpty
-                        ? NetworkImage(user.picture!)
-                        : null,
+                    ? NetworkImage(user.picture!)
+                    : null,
                 child: user.picture == null || user.picture!.isEmpty
                     ? const Icon(Icons.person, size: 32, color: Colors.grey)
                     : null,
@@ -274,10 +269,7 @@ class _RequestsPageState extends ConsumerState<RequestsPage> {
                     const SizedBox(height: 4),
                     Text(
                       "${user.department?.name ?? 'N/A'} • Batch ${user.batch}",
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: Colors.grey[600],
-                      ),
+                      style: TextStyle(fontSize: 12, color: Colors.grey[600]),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                     ),
@@ -286,8 +278,9 @@ class _RequestsPageState extends ConsumerState<RequestsPage> {
               ),
               const SizedBox(width: 8),
               GestureDetector(
-                onTap:
-                    isProcessing ? null : () => respondRequest(user.id, "reject"),
+                onTap: isProcessing
+                    ? null
+                    : () => respondRequest(user.id, "reject"),
                 child: Container(
                   padding: const EdgeInsets.all(8),
                   decoration: BoxDecoration(
@@ -299,8 +292,9 @@ class _RequestsPageState extends ConsumerState<RequestsPage> {
               ),
               const SizedBox(width: 8),
               GestureDetector(
-                onTap:
-                    isProcessing ? null : () => respondRequest(user.id, "accept"),
+                onTap: isProcessing
+                    ? null
+                    : () => respondRequest(user.id, "accept"),
                 child: Container(
                   padding: const EdgeInsets.all(8),
                   decoration: BoxDecoration(

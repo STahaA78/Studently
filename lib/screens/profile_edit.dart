@@ -117,11 +117,11 @@ class _EditProfilePageState extends ConsumerState<EditProfilePage> {
     }
 
     setState(() => isSaving = true);
-    
+
     // Get the Department object from backend config by matching the selected name
     final configAsync = ref.watch(backendConfigProvider);
     Department? selectedDepartmentObj;
-    
+
     configAsync.whenData((config) {
       for (final dept in config.departments) {
         if (dept.name == selectedDepartment) {
@@ -133,9 +133,12 @@ class _EditProfilePageState extends ConsumerState<EditProfilePage> {
 
     final updatedData = {
       'name': nameController.text.trim(),
-      'department': selectedDepartmentObj != null 
-        ? {'name': selectedDepartmentObj!.name, 'code': selectedDepartmentObj!.code}
-        : null,
+      'department': selectedDepartmentObj != null
+          ? {
+              'name': selectedDepartmentObj!.name,
+              'code': selectedDepartmentObj!.code,
+            }
+          : null,
       'batch': selectedBatch,
       'interests': interests,
     };
@@ -144,7 +147,9 @@ class _EditProfilePageState extends ConsumerState<EditProfilePage> {
       // If user selected a new profile photo, upload it first
       if (_croppedPhotoBytes != null) {
         logger.i('Uploading profile photo...');
-        await ref.read(authProvider.notifier).updateProfilePhoto(
+        await ref
+            .read(authProvider.notifier)
+            .updateProfilePhoto(
               filePath: _croppedPhotoFileName ?? 'profile_photo.jpg',
               fileBytes: _croppedPhotoBytes,
               filename: _croppedPhotoFileName ?? 'profile_photo.jpg',
@@ -203,10 +208,14 @@ class _EditProfilePageState extends ConsumerState<EditProfilePage> {
       selectedBatch ?? widget.user.batch,
     );
 
-    final effectiveDepartmentValue =
-        _normalizeSelectedValue(selectedDepartment, departmentOptions);
-    final effectiveBatchValue =
-        _normalizeSelectedValue(selectedBatch, batchOptions);
+    final effectiveDepartmentValue = _normalizeSelectedValue(
+      selectedDepartment,
+      departmentOptions,
+    );
+    final effectiveBatchValue = _normalizeSelectedValue(
+      selectedBatch,
+      batchOptions,
+    );
 
     final bool hasPhoto = currentUser.picture?.isNotEmpty ?? false;
     return Scaffold(
@@ -260,21 +269,26 @@ class _EditProfilePageState extends ConsumerState<EditProfilePage> {
                                 backgroundImage: _croppedPhotoBytes != null
                                     ? MemoryImage(_croppedPhotoBytes!)
                                     : (hasPhoto
-                                          ? NetworkImage(
-                                              currentUser.picture!,
-                                            )
+                                          ? NetworkImage(currentUser.picture!)
                                           : null),
-                                onBackgroundImageError: _croppedPhotoBytes == null && hasPhoto
+                                onBackgroundImageError:
+                                    _croppedPhotoBytes == null && hasPhoto
                                     ? (exception, stackTrace) {
                                         // Defer setState to avoid calling it during paint phase
-                                        SchedulerBinding.instance.addPostFrameCallback((_) {
-                                          if (mounted) {
-                                            setState(() => _profileImageFailed = true);
-                                          }
-                                        });
+                                        SchedulerBinding.instance
+                                            .addPostFrameCallback((_) {
+                                              if (mounted) {
+                                                setState(
+                                                  () => _profileImageFailed =
+                                                      true,
+                                                );
+                                              }
+                                            });
                                       }
                                     : null,
-                                child: (_croppedPhotoBytes == null && (!hasPhoto || _profileImageFailed))
+                                child:
+                                    (_croppedPhotoBytes == null &&
+                                        (!hasPhoto || _profileImageFailed))
                                     ? const Icon(
                                         Icons.person,
                                         size: 48,

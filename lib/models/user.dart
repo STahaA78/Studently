@@ -4,16 +4,10 @@ class FriendStatus {
   final String id;
   final String status; // "friends", "incoming_request", "none"
 
-  FriendStatus({
-    required this.id,
-    required this.status,
-  });
+  FriendStatus({required this.id, required this.status});
 
   factory FriendStatus.fromJson(Map<String, dynamic> json) {
-    return FriendStatus(
-      id: json['id'] ?? '',
-      status: json['status'] ?? 'none',
-    );
+    return FriendStatus(id: json['id'] ?? '', status: json['status'] ?? 'none');
   }
 }
 
@@ -49,14 +43,18 @@ class User {
       id: json['id'] ?? json['_id'] ?? '',
       name: json['name'] ?? '',
       email: json['email'] ?? '',
-      friendsCount: json['friends_count']  ?? 0,
+      friendsCount: json['friends_count'] ?? 0,
       password: json['password'],
       birthday: json['birthday'],
-      department: json['department'] != null 
-        ? Department.fromJson(json['department'])
-        : null,
+      department: json['department'] != null
+          ? Department.fromJson(json['department'])
+          : null,
       batch: json['batch'],
-      interests: (json['interests'] as List<dynamic>?)?.map((e) => Interest.fromJson(e)).toList() ?? [],
+      interests:
+          (json['interests'] as List<dynamic>?)
+              ?.map((e) => Interest.fromJson(e))
+              .toList() ??
+          [],
       university: json['university'],
       picture: json['picture'] ?? '',
     );

@@ -5,7 +5,7 @@ import 'package:studently/models/user.dart' as studently_user;
 import 'package:studently/models/backend_config.dart';
 import 'package:studently/logger.dart';
 import 'package:flutter_svg/flutter_svg.dart';
-import 'package:studently/utils/constants.dart';
+import 'package:studently/app_style.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:studently/services/firebase_auth.dart';
@@ -36,14 +36,14 @@ class _SignupBasicPageState extends ConsumerState<SignupBasicPage> {
   bool _departmentExtracted = false; // Track if department was extracted
   bool _batchExtracted = false; // Track if batch was extracted
   bool _extractedFields = true; // Track if extraction was successful
-  
+
   DateTime? _selectedBirthday;
 
   @override
   void initState() {
     super.initState();
     _initializeFields();
-    
+
     _nameFocus.addListener(() {
       if (!_nameFocus.hasFocus) _validateName();
     });
@@ -52,7 +52,9 @@ class _SignupBasicPageState extends ConsumerState<SignupBasicPage> {
     // If user gets signed out (e.g., abandoned signup), navigate back to login
     FirebaseAuth.instance.authStateChanges().listen((user) {
       if (user == null && mounted) {
-        logger.i("[$runtimeType] Firebase user signed out, navigating back to login");
+        logger.i(
+          "[$runtimeType] Firebase user signed out, navigating back to login",
+        );
         // Use pushReplacementNamed to safely replace the current route
         Navigator.of(context).pushReplacementNamed('/');
       }
@@ -64,7 +66,7 @@ class _SignupBasicPageState extends ConsumerState<SignupBasicPage> {
     final googleSignUpUser = authService.value.currentUser;
     if (googleSignUpUser != null) {
       _nameController.text = googleSignUpUser.displayName ?? '';
-      
+
       // Extract department and batch from name
       _extractDepartmentAndBatch(_nameController.text);
     }
@@ -75,24 +77,30 @@ class _SignupBasicPageState extends ConsumerState<SignupBasicPage> {
   /// Supports: BS, MS, BBA, BA, MA, MBA, and other degree patterns (2-4 uppercase letters)
   void _extractDepartmentAndBatch(String fullName) {
     logger.d("[$runtimeType] Extracting dept/batch from: $fullName");
-    
+
     final parts = fullName.split(' ');
-    
+
     String department = '';
     String batch = '';
     String extractedName = '';
     int degreeIndex = -1;
-    
+
     // Find the degree pattern using regex
     // Matches: BS, MS, BBA, BA, MA, MBA, BSc, MSc, etc. (2-4 uppercase letters, optionally followed by lowercase)
     final degreeRegex = RegExp(r'^[A-Z]{2,4}[a-z]*$');
-    
+
     for (int i = 0; i < parts.length; i++) {
       final part = parts[i];
       if (degreeRegex.hasMatch(part) && part.length > 2) {
         // Extract letters after the initial uppercase prefix (usually 2-3 chars)
         // Examples: BSCS -> CS, BBA -> BA, MSc -> c (we take everything after first 2 chars)
-        int substringStart = (part.startsWith('BS') || part.startsWith('MS') || part.startsWith('BA') || part.startsWith('MA')) ? 2 : 3;
+        int substringStart =
+            (part.startsWith('BS') ||
+                part.startsWith('MS') ||
+                part.startsWith('BA') ||
+                part.startsWith('MA'))
+            ? 2
+            : 3;
         if (substringStart < part.length) {
           department = part.substring(substringStart);
         } else {
@@ -103,7 +111,7 @@ class _SignupBasicPageState extends ConsumerState<SignupBasicPage> {
         break;
       }
     }
-    
+
     // Look for year/batch (4 digits) after the degree
     if (degreeIndex != -1) {
       for (int i = degreeIndex + 1; i < parts.length; i++) {
@@ -119,7 +127,7 @@ class _SignupBasicPageState extends ConsumerState<SignupBasicPage> {
       extractedName = fullName;
       logger.w("[$runtimeType] No degree pattern found in name");
     }
-    
+
     // Update UI state and track extraction success
     setState(() {
       _nameController.text = extractedName;
@@ -130,8 +138,10 @@ class _SignupBasicPageState extends ConsumerState<SignupBasicPage> {
       // Mark as successful extraction only if both department and batch were found
       _extractedFields = department.isNotEmpty && batch.isNotEmpty;
     });
-    
-    logger.d("[$runtimeType] Extracted - Name: $extractedName, Department: $department, Batch: $batch, Success: $_extractedFields");
+
+    logger.d(
+      "[$runtimeType] Extracted - Name: $extractedName, Department: $department, Batch: $batch, Success: $_extractedFields",
+    );
   }
 
   Future<void> _handleBirthdayPicker() async {
@@ -139,7 +149,9 @@ class _SignupBasicPageState extends ConsumerState<SignupBasicPage> {
       context: context,
       builder: (BuildContext context) {
         return Dialog(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
           elevation: 8,
           child: Container(
             height: 450,
@@ -180,18 +192,19 @@ class _SignupBasicPageState extends ConsumerState<SignupBasicPage> {
                       borderRadius: BorderRadius.circular(12),
                     ),
                     child: SfDateRangePicker(
-                      onSelectionChanged: (DateRangePickerSelectionChangedArgs args) {
-                        if (args.value is DateTime) {
-                          setState(() {
-                            _selectedBirthday = args.value as DateTime;
-                            // Format as MM/DD/YYYY as expected by backend
-                            _birthdayController.text = 
-                                "${_selectedBirthday!.month}/${_selectedBirthday!.day}/${_selectedBirthday!.year}";
-                            _birthdayError = null;
-                          });
-                          Navigator.pop(context);
-                        }
-                      },
+                      onSelectionChanged:
+                          (DateRangePickerSelectionChangedArgs args) {
+                            if (args.value is DateTime) {
+                              setState(() {
+                                _selectedBirthday = args.value as DateTime;
+                                // Format as MM/DD/YYYY as expected by backend
+                                _birthdayController.text =
+                                    "${_selectedBirthday!.month}/${_selectedBirthday!.day}/${_selectedBirthday!.year}";
+                                _birthdayError = null;
+                              });
+                              Navigator.pop(context);
+                            }
+                          },
                       selectionMode: DateRangePickerSelectionMode.single,
                       initialSelectedDate: _selectedBirthday,
                       // Restrict selection to past dates only
@@ -202,7 +215,7 @@ class _SignupBasicPageState extends ConsumerState<SignupBasicPage> {
                       monthViewSettings: DateRangePickerMonthViewSettings(
                         viewHeaderHeight: 40,
                         viewHeaderStyle: DateRangePickerViewHeaderStyle(
-                          backgroundColor: const Color(0xFF1976D2),
+                          backgroundColor: AppStyle.primaryBlue,
                           textStyle: const TextStyle(
                             color: Colors.white,
                             fontWeight: FontWeight.w500,
@@ -213,7 +226,7 @@ class _SignupBasicPageState extends ConsumerState<SignupBasicPage> {
                         color: Colors.white,
                         fontWeight: FontWeight.w600,
                       ),
-                      todayHighlightColor: const Color(0xFF1976D2),
+                      todayHighlightColor: AppStyle.primaryBlue,
                       toggleDaySelection: true,
                     ),
                   ),
@@ -229,21 +242,26 @@ class _SignupBasicPageState extends ConsumerState<SignupBasicPage> {
   Future<void> _handleCompletion() async {
     final name = _nameController.text.trim();
     final birthday = _birthdayController.text.trim();
-    final departmentCode = _departmentCode ?? ''; // The extracted department code
+    final departmentCode =
+        _departmentCode ?? ''; // The extracted department code
     final batch = _batchController.text.trim();
-    
-    logger.i("[$runtimeType] Google Signup Completion - Name: $name, Birthday: $birthday, Department Code: $departmentCode");
-    
+
+    logger.i(
+      "[$runtimeType] Google Signup Completion - Name: $name, Birthday: $birthday, Department Code: $departmentCode",
+    );
+
     if (_validateBirthday() && _validateName()) {
-      setState(() { _completionError = null; });
-      
+      setState(() {
+        _completionError = null;
+      });
+
       // Get the Firebase user (already signed in)
       final googleSignUpUser = authService.value.currentUser;
-      
+
       if (googleSignUpUser != null) {
         // Get the full Department object from backend config
         final backendConfigAsync = ref.watch(backendConfigProvider);
-        
+
         backendConfigAsync.when(
           data: (config) {
             // Find the Department object that matches the extracted code
@@ -255,10 +273,14 @@ class _SignupBasicPageState extends ConsumerState<SignupBasicPage> {
               }
             }
             // Use first department as fallback if not found
-            department ??= config.departments.isNotEmpty ? config.departments.first : null;
+            department ??= config.departments.isNotEmpty
+                ? config.departments.first
+                : null;
 
             if (department == null) {
-              setState(() => _completionError = 'Department not found in config');
+              setState(
+                () => _completionError = 'Department not found in config',
+              );
               return;
             }
 
@@ -287,10 +309,14 @@ class _SignupBasicPageState extends ConsumerState<SignupBasicPage> {
             );
           },
           loading: () {
-            setState(() => _completionError = 'Loading department information...');
+            setState(
+              () => _completionError = 'Loading department information...',
+            );
           },
           error: (error, stack) {
-            setState(() => _completionError = 'Error loading department information');
+            setState(
+              () => _completionError = 'Error loading department information',
+            );
             logger.e("[$runtimeType] Error loading backend config: $error");
           },
         );
@@ -331,11 +357,12 @@ class _SignupBasicPageState extends ConsumerState<SignupBasicPage> {
 
   @override
   Widget build(BuildContext context) {
-    final Color blue = const Color(0xFF1976D2);
+    final Color blue = AppStyle.primaryBlue;
     final Size screenSize = MediaQuery.of(context).size;
     final bool isLandscape = screenSize.width > screenSize.height;
-    final double formWidth =
-        isLandscape ? screenSize.width * 0.6 : screenSize.width * 0.85;
+    final double formWidth = isLandscape
+        ? screenSize.width * 0.6
+        : screenSize.width * 0.85;
 
     return Scaffold(
       backgroundColor: Colors.white,
@@ -353,8 +380,9 @@ class _SignupBasicPageState extends ConsumerState<SignupBasicPage> {
                     children: [
                       Padding(
                         padding: const EdgeInsets.only(
-                            left: AppStyle.backButtonLeftPadding,
-                            bottom: AppStyle.backButtonBottomPadding),
+                          left: AppStyle.backButtonLeftPadding,
+                          bottom: AppStyle.backButtonBottomPadding,
+                        ),
                         child: IconButton(
                           padding: EdgeInsets.zero,
                           icon: const Icon(
@@ -376,7 +404,9 @@ class _SignupBasicPageState extends ConsumerState<SignupBasicPage> {
                   ),
                   Padding(
                     padding: const EdgeInsets.only(
-                        left: AppStyle.signUpPageTitleLeftPadding, right: 40),
+                      left: AppStyle.signUpPageTitleLeftPadding,
+                      right: 40,
+                    ),
                     child: ConstrainedBox(
                       constraints: BoxConstraints(maxWidth: 400),
                       child: Column(
@@ -424,11 +454,7 @@ class _SignupBasicPageState extends ConsumerState<SignupBasicPage> {
               const Text(
                 "Complete your profile",
                 textAlign: TextAlign.center,
-                style: TextStyle(
-                  fontSize: 15,
-                  color: Colors.grey,
-                  height: 1.4,
-                ),
+                style: TextStyle(fontSize: 15, color: Colors.grey, height: 1.4),
               ),
               const SizedBox(height: 40),
 
@@ -442,7 +468,9 @@ class _SignupBasicPageState extends ConsumerState<SignupBasicPage> {
                     const Text(
                       'Full Name',
                       style: TextStyle(
-                          fontWeight: FontWeight.w500, fontSize: 15),
+                        fontWeight: FontWeight.w500,
+                        fontSize: 15,
+                      ),
                     ),
                     const SizedBox(height: 6),
                     SizedBox(
@@ -454,7 +482,9 @@ class _SignupBasicPageState extends ConsumerState<SignupBasicPage> {
                         decoration: InputDecoration(
                           hintText: 'Full Name',
                           contentPadding: const EdgeInsets.symmetric(
-                              horizontal: 18, vertical: 14),
+                            horizontal: 18,
+                            vertical: 14,
+                          ),
                           border: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(16),
                           ),
@@ -469,7 +499,9 @@ class _SignupBasicPageState extends ConsumerState<SignupBasicPage> {
                           fillColor: Colors.grey[200],
                         ),
                         onChanged: (_) {
-                          if (_nameError != null) setState(() => _nameError = null);
+                          if (_nameError != null) {
+                            setState(() => _nameError = null);
+                          }
                         },
                       ),
                     ),
@@ -491,220 +523,249 @@ class _SignupBasicPageState extends ConsumerState<SignupBasicPage> {
                     const Text(
                       'Department',
                       style: TextStyle(
-                          fontWeight: FontWeight.w500, fontSize: 15),
+                        fontWeight: FontWeight.w500,
+                        fontSize: 15,
+                      ),
                     ),
                     const SizedBox(height: 6),
                     if (_departmentExtracted) ...[
                       // Read-only display if extracted - show full name from config
-                      ref.watch(backendConfigProvider).when(
-                        data: (config) {
-                          // Find the department name for the extracted code
-                          String deptName = _departmentCode!;
-                          for (final dept in config.departments) {
-                            if (dept.code.toUpperCase() == _departmentCode!.toUpperCase()) {
-                              deptName = dept.name;
-                              break;
-                            }
-                          }
-                          return SizedBox(
-                            height: 50,
-                            child: TextField(
-                              controller: TextEditingController(text: deptName),
-                              enabled: false,
-                              decoration: InputDecoration(
-                                contentPadding: const EdgeInsets.symmetric(
-                                    horizontal: 18, vertical: 14),
-                                border: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(16),
-                                ),
-                                disabledBorder: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(16),
-                                  borderSide: const BorderSide(
-                                    color: Color(0xFFD0D0D0),
-                                    width: 1.2,
+                      ref
+                          .watch(backendConfigProvider)
+                          .when(
+                            data: (config) {
+                              // Find the department name for the extracted code
+                              String deptName = _departmentCode!;
+                              for (final dept in config.departments) {
+                                if (dept.code.toUpperCase() ==
+                                    _departmentCode!.toUpperCase()) {
+                                  deptName = dept.name;
+                                  break;
+                                }
+                              }
+                              return SizedBox(
+                                height: 50,
+                                child: TextField(
+                                  controller: TextEditingController(
+                                    text: deptName,
+                                  ),
+                                  enabled: false,
+                                  decoration: InputDecoration(
+                                    contentPadding: const EdgeInsets.symmetric(
+                                      horizontal: 18,
+                                      vertical: 14,
+                                    ),
+                                    border: OutlineInputBorder(
+                                      borderRadius: BorderRadius.circular(16),
+                                    ),
+                                    disabledBorder: OutlineInputBorder(
+                                      borderRadius: BorderRadius.circular(16),
+                                      borderSide: const BorderSide(
+                                        color: Color(0xFFD0D0D0),
+                                        width: 1.2,
+                                      ),
+                                    ),
+                                    filled: true,
+                                    fillColor: Colors.grey[200],
                                   ),
                                 ),
-                                filled: true,
-                                fillColor: Colors.grey[200],
-                              ),
+                              );
+                            },
+                            loading: () => const SizedBox(
+                              height: 50,
+                              child: Center(child: CircularProgressIndicator()),
                             ),
-                          );
-                        },
-                        loading: () => const SizedBox(
-                          height: 50,
-                          child: Center(child: CircularProgressIndicator()),
-                        ),
-                        error: (error, stack) => SizedBox(
-                          height: 50,
-                          child: TextField(
-                            controller: TextEditingController(text: _departmentCode!),
-                            enabled: false,
-                            decoration: InputDecoration(
-                              contentPadding: const EdgeInsets.symmetric(
-                                  horizontal: 18, vertical: 14),
-                              border: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(16),
-                              ),
-                              disabledBorder: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(16),
-                                borderSide: const BorderSide(
-                                  color: Color(0xFFD0D0D0),
-                                  width: 1.2,
+                            error: (error, stack) => SizedBox(
+                              height: 50,
+                              child: TextField(
+                                controller: TextEditingController(
+                                  text: _departmentCode!,
+                                ),
+                                enabled: false,
+                                decoration: InputDecoration(
+                                  contentPadding: const EdgeInsets.symmetric(
+                                    horizontal: 18,
+                                    vertical: 14,
+                                  ),
+                                  border: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(16),
+                                  ),
+                                  disabledBorder: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(16),
+                                    borderSide: const BorderSide(
+                                      color: Color(0xFFD0D0D0),
+                                      width: 1.2,
+                                    ),
+                                  ),
+                                  filled: true,
+                                  fillColor: Colors.grey[200],
                                 ),
                               ),
-                              filled: true,
-                              fillColor: Colors.grey[200],
                             ),
+                          ),
+                    ] else ...[
+                      // Editable dropdown if not extracted
+                      ref
+                          .watch(backendConfigProvider)
+                          .when(
+                            data: (config) {
+                              return SizedBox(
+                                height: 50,
+                                child: DropdownButtonFormField<String>(
+                                  initialValue: _departmentCode,
+                                  hint: const Text('Select Department'),
+                                  items: config.departments.map((dept) {
+                                    return DropdownMenuItem<String>(
+                                      value: dept.code,
+                                      child: Text(dept.name),
+                                    );
+                                  }).toList(),
+                                  onChanged: (value) {
+                                    if (value != null) {
+                                      setState(() {
+                                        _departmentCode = value;
+                                      });
+                                    }
+                                  },
+                                  decoration: InputDecoration(
+                                    contentPadding: const EdgeInsets.symmetric(
+                                      horizontal: 18,
+                                      vertical: 14,
+                                    ),
+                                    border: OutlineInputBorder(
+                                      borderRadius: BorderRadius.circular(16),
+                                    ),
+                                  ),
+                                ),
+                              );
+                            },
+                            loading: () => const SizedBox(
+                              height: 50,
+                              child: Center(child: CircularProgressIndicator()),
+                            ),
+                            error: (error, stack) => SizedBox(
+                              height: 50,
+                              child: TextField(
+                                enabled: false,
+                                decoration: InputDecoration(
+                                  hintText: 'Error loading departments',
+                                  border: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(16),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                    ],
+                    const SizedBox(height: 16),
+
+                    // Batch (for Google signup - editable if not extracted)
+                    const Text(
+                      'Batch',
+                      style: TextStyle(
+                        fontWeight: FontWeight.w500,
+                        fontSize: 15,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    if (_batchExtracted) ...[
+                      // Read-only display if extracted
+                      SizedBox(
+                        height: 50,
+                        child: TextField(
+                          controller: _batchController,
+                          enabled: false,
+                          decoration: InputDecoration(
+                            contentPadding: const EdgeInsets.symmetric(
+                              horizontal: 18,
+                              vertical: 14,
+                            ),
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(16),
+                            ),
+                            disabledBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(16),
+                              borderSide: const BorderSide(
+                                color: Color(0xFFD0D0D0),
+                                width: 1.2,
+                              ),
+                            ),
+                            filled: true,
+                            fillColor: Colors.grey[200],
                           ),
                         ),
                       ),
                     ] else ...[
                       // Editable dropdown if not extracted
-                        ref.watch(backendConfigProvider).when(
-                          data: (config) {
-                            return SizedBox(
+                      ref
+                          .watch(backendConfigProvider)
+                          .when(
+                            data: (config) {
+                              final batches = List<int>.generate(
+                                config.batchRange.end -
+                                    config.batchRange.start +
+                                    1,
+                                (i) => config.batchRange.start + i,
+                              );
+                              return SizedBox(
+                                height: 50,
+                                child: DropdownButtonFormField<String>(
+                                  initialValue: _batchController.text.isNotEmpty
+                                      ? _batchController.text
+                                      : null,
+                                  hint: const Text('Select Batch'),
+                                  items: batches.map((batch) {
+                                    return DropdownMenuItem<String>(
+                                      value: batch.toString(),
+                                      child: Text(batch.toString()),
+                                    );
+                                  }).toList(),
+                                  onChanged: (value) {
+                                    if (value != null) {
+                                      setState(() {
+                                        _batchController.text = value;
+                                      });
+                                    }
+                                  },
+                                  decoration: InputDecoration(
+                                    contentPadding: const EdgeInsets.symmetric(
+                                      horizontal: 18,
+                                      vertical: 14,
+                                    ),
+                                    border: OutlineInputBorder(
+                                      borderRadius: BorderRadius.circular(16),
+                                    ),
+                                  ),
+                                ),
+                              );
+                            },
+                            loading: () => const SizedBox(
                               height: 50,
-                              child: DropdownButtonFormField<String>(
-                                initialValue: _departmentCode,
-                                hint: const Text('Select Department'),
-                                items: config.departments.map((dept) {
-                                  return DropdownMenuItem<String>(
-                                    value: dept.code,
-                                    child: Text(dept.name),
-                                  );
-                                }).toList(),
-                                onChanged: (value) {
-                                  if (value != null) {
-                                    setState(() {
-                                      _departmentCode = value;
-                                    });
-                                  }
-                                },
+                              child: Center(child: CircularProgressIndicator()),
+                            ),
+                            error: (error, stack) => SizedBox(
+                              height: 50,
+                              child: TextField(
+                                enabled: false,
                                 decoration: InputDecoration(
-                                  contentPadding: const EdgeInsets.symmetric(
-                                      horizontal: 18, vertical: 14),
+                                  hintText: 'Error loading batches',
                                   border: OutlineInputBorder(
                                     borderRadius: BorderRadius.circular(16),
                                   ),
                                 ),
                               ),
-                            );
-                          },
-                          loading: () => const SizedBox(
-                            height: 50,
-                            child: Center(child: CircularProgressIndicator()),
-                          ),
-                          error: (error, stack) => SizedBox(
-                            height: 50,
-                            child: TextField(
-                              enabled: false,
-                              decoration: InputDecoration(
-                                hintText: 'Error loading departments',
-                                border: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(16),
-                                ),
-                              ),
                             ),
                           ),
-                        ),
-                      ],
-                      const SizedBox(height: 16),
-
-                      // Batch (for Google signup - editable if not extracted)
-                      const Text(
-                        'Batch',
-                        style: TextStyle(
-                            fontWeight: FontWeight.w500, fontSize: 15),
-                      ),
-                      const SizedBox(height: 6),
-                      if (_batchExtracted) ...[
-                        // Read-only display if extracted
-                        SizedBox(
-                          height: 50,
-                          child: TextField(
-                            controller: _batchController,
-                            enabled: false,
-                            decoration: InputDecoration(
-                              contentPadding: const EdgeInsets.symmetric(
-                                  horizontal: 18, vertical: 14),
-                              border: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(16),
-                              ),
-                              disabledBorder: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(16),
-                                borderSide: const BorderSide(
-                                  color: Color(0xFFD0D0D0),
-                                  width: 1.2,
-                                ),
-                              ),
-                              filled: true,
-                              fillColor: Colors.grey[200],
-                            ),
-                          ),
-                        ),
-                      ] else ...[
-                        // Editable dropdown if not extracted
-                        ref.watch(backendConfigProvider).when(
-                          data: (config) {
-                            final batches = List<int>.generate(
-                              config.batchRange.end - config.batchRange.start + 1,
-                              (i) => config.batchRange.start + i,
-                            );
-                            return SizedBox(
-                              height: 50,
-                              child: DropdownButtonFormField<String>(
-                                initialValue: _batchController.text.isNotEmpty 
-                                  ? _batchController.text 
-                                  : null,
-                                hint: const Text('Select Batch'),
-                                items: batches.map((batch) {
-                                  return DropdownMenuItem<String>(
-                                    value: batch.toString(),
-                                    child: Text(batch.toString()),
-                                  );
-                                }).toList(),
-                                onChanged: (value) {
-                                  if (value != null) {
-                                    setState(() {
-                                      _batchController.text = value;
-                                    });
-                                  }
-                                },
-                                decoration: InputDecoration(
-                                  contentPadding: const EdgeInsets.symmetric(
-                                      horizontal: 18, vertical: 14),
-                                  border: OutlineInputBorder(
-                                    borderRadius: BorderRadius.circular(16),
-                                  ),
-                                ),
-                              ),
-                            );
-                          },
-                          loading: () => const SizedBox(
-                            height: 50,
-                            child: Center(child: CircularProgressIndicator()),
-                          ),
-                          error: (error, stack) => SizedBox(
-                            height: 50,
-                            child: TextField(
-                              enabled: false,
-                              decoration: InputDecoration(
-                                hintText: 'Error loading batches',
-                                border: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(16),
-                                ),
-                              ),
-                            ),
-                          ),
-                        ),
-                      ],
-                      const SizedBox(height: 16),
+                    ],
+                    const SizedBox(height: 16),
 
                     // Birthday
                     const Text(
                       'Birthday',
                       style: TextStyle(
-                          fontWeight: FontWeight.w500, fontSize: 15),
+                        fontWeight: FontWeight.w500,
+                        fontSize: 15,
+                      ),
                     ),
                     const SizedBox(height: 6),
                     SizedBox(
@@ -722,13 +783,17 @@ class _SignupBasicPageState extends ConsumerState<SignupBasicPage> {
                           decoration: InputDecoration(
                             hintText: 'MM/DD/YYYY',
                             contentPadding: const EdgeInsets.symmetric(
-                                horizontal: 18, vertical: 14),
+                              horizontal: 18,
+                              vertical: 14,
+                            ),
                             border: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(16),
                             ),
                             disabledBorder: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(16),
-                              borderSide: const BorderSide(color: Color(0xFFD0D0D0)),
+                              borderSide: const BorderSide(
+                                color: Color(0xFFD0D0D0),
+                              ),
                             ),
                             suffixIcon: Padding(
                               padding: const EdgeInsets.only(right: 12),
@@ -774,15 +839,16 @@ class _SignupBasicPageState extends ConsumerState<SignupBasicPage> {
                       Text(
                         _completionError!,
                         style: const TextStyle(
-                            color: Colors.redAccent,
-                            fontSize: 14,
-                            fontWeight: FontWeight.w500),
+                          color: Colors.redAccent,
+                          fontSize: 14,
+                          fontWeight: FontWeight.w500,
+                        ),
                         textAlign: TextAlign.center,
                       ),
                     ],
                   ],
                 ),
-              )
+              ),
             ],
           ),
         ),

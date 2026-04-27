@@ -2,10 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:studently/utils/constants.dart';
+import 'package:studently/app_style.dart';
 import 'package:studently/logger.dart';
 import 'package:studently/providers/auth_provider.dart';
 import 'package:studently/models/user.dart';
+
 class LoginGooglePage extends ConsumerStatefulWidget {
   const LoginGooglePage({super.key});
 
@@ -31,8 +32,9 @@ class _LoginGooglePageState extends ConsumerState<LoginGooglePage> {
   Widget build(BuildContext context) {
     final Size screenSize = MediaQuery.of(context).size;
     final bool isLandscape = screenSize.width > screenSize.height;
-    final double formWidth =
-        isLandscape ? screenSize.width * 0.6 : screenSize.width * 0.85;
+    final double formWidth = isLandscape
+        ? screenSize.width * 0.6
+        : screenSize.width * 0.85;
 
     // Watch the provider for changes (loading, data, or error)
     final authState = ref.watch(authProvider);
@@ -73,7 +75,7 @@ class _LoginGooglePageState extends ConsumerState<LoginGooglePage> {
                       Text(
                         'Studently',
                         style: GoogleFonts.poppins(
-                          color: const Color(0xFF1976D2),
+                          color: AppStyle.primaryBlue,
                           fontSize: AppStyle.titleFontSize,
                           fontWeight: FontWeight.w700,
                           fontStyle: FontStyle.italic,
@@ -89,7 +91,7 @@ class _LoginGooglePageState extends ConsumerState<LoginGooglePage> {
                   width: formWidth,
                   child: Column(
                     children: [
-                  // Info Block
+                      // Info Block
                       Text(
                         'Hi there! Login with Google to continue.',
                         textAlign: TextAlign.center,
@@ -98,7 +100,7 @@ class _LoginGooglePageState extends ConsumerState<LoginGooglePage> {
                           color: Colors.grey[700],
                           fontWeight: FontWeight.w500,
                         ),
-                      ),        
+                      ),
                       const SizedBox(height: 8),
                       // Google Sign-In Button - Official Google Colors
                       SizedBox(
@@ -127,7 +129,8 @@ class _LoginGooglePageState extends ConsumerState<LoginGooglePage> {
                                   child: CircularProgressIndicator(
                                     valueColor:
                                         const AlwaysStoppedAnimation<Color>(
-                                            Color(0xFF4285F4)),
+                                          Color(0xFF4285F4),
+                                        ),
                                     strokeWidth: 2.5,
                                   ),
                                 )
@@ -159,7 +162,9 @@ class _LoginGooglePageState extends ConsumerState<LoginGooglePage> {
                           padding: const EdgeInsets.only(top: 16),
                           child: Container(
                             padding: const EdgeInsets.symmetric(
-                                horizontal: 12, vertical: 5),
+                              horizontal: 12,
+                              vertical: 5,
+                            ),
                             child: Text(
                               _googleSignInError,
                               style: TextStyle(

@@ -6,7 +6,7 @@ part 'knowledge_hub.g.dart';
 class Course {
   @HiveField(0)
   final String code;
-  
+
   @HiveField(1)
   final String name;
 
@@ -14,18 +14,12 @@ class Course {
 
   // Factory to convert JSON Map into a Course Object
   factory Course.fromJson(Map<String, dynamic> json) {
-    return Course(
-      code: json['code'] ?? '', 
-      name: json['name'] ?? '',
-    );
+    return Course(code: json['code'] ?? '', name: json['name'] ?? '');
   }
 
   // Method to convert Course Object into JSON Map
   Map<String, dynamic> toJson() {
-    return {
-      'code': code,
-      'name': name,
-    };
+    return {'code': code, 'name': name};
   }
 }
 
@@ -154,7 +148,7 @@ class ResourceGroup {
 
   factory ResourceGroup.fromJson(Map<String, dynamic> json) {
     final resMap = json['resources'] as Map<String, dynamic>;
-    
+
     // Map each key in the JSON to a List of ResourceItem
     Map<String, List<ResourceItem>> mappedRes = {};
     resMap.forEach((key, value) {

@@ -1,25 +1,26 @@
+import 'package:studently/app_style.dart';
 import 'dart:async';
 import 'dart:io';
 import 'package:flutter/material.dart';
-import 'package:flutter/foundation.dart' show kIsWeb; 
-import 'package:http/http.dart' as http; 
+import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:http/http.dart' as http;
 import 'package:file_picker/file_picker.dart';
 import 'package:record/record.dart';
 import 'package:path_provider/path_provider.dart';
-import 'package:audioplayers/audioplayers.dart'; 
-import 'package:url_launcher/url_launcher.dart'; 
-import 'package:open_filex/open_filex.dart'; 
+import 'package:audioplayers/audioplayers.dart';
+import 'package:url_launcher/url_launcher.dart';
+import 'package:open_filex/open_filex.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:studently/models/chat.dart';
-import 'package:studently/providers/chat_provider.dart'; 
-import 'package:studently/services/firebase_auth.dart'; 
+import 'package:studently/providers/chat_provider.dart';
+import 'package:studently/services/firebase_auth.dart';
 import 'package:studently/logger.dart';
 
-class ChatPage extends ConsumerStatefulWidget { 
+class ChatPage extends ConsumerStatefulWidget {
   final String conversationId;
-  final String otherUserId; 
-  final String otherUserName; 
+  final String otherUserId;
+  final String otherUserName;
 
   const ChatPage({
     super.key,
@@ -29,30 +30,30 @@ class ChatPage extends ConsumerStatefulWidget {
   });
 
   @override
-  ConsumerState<ChatPage> createState() => _ChatPageState(); 
+  ConsumerState<ChatPage> createState() => _ChatPageState();
 }
 
-class _ChatPageState extends ConsumerState<ChatPage> { 
+class _ChatPageState extends ConsumerState<ChatPage> {
   final TextEditingController _messageController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
-  final Color blue = const Color(0xFF1976D2);
+  final Color blue = AppStyle.primaryBlue;
 
   bool _isTyping = false;
   bool _isRecording = false;
   bool _isUploading = false;
   bool _isInitialLoad = true; // true until first scroll-to-bottom completes
-  
+
   final AudioRecorder _audioRecorder = AudioRecorder();
-  
+
   Timer? _recordTimer;
   int _recordDuration = 0;
 
-  final Set<String> _downloadingUrls = {}; 
+  final Set<String> _downloadingUrls = {};
 
   @override
   void initState() {
     super.initState();
-    
+
     // Scroll-to-bottom whenever the list grows taller (e.g. an image finishes
     // loading and expands the content), but only during the initial load phase.
     _scrollController.addListener(() {
@@ -66,7 +67,9 @@ class _ChatPageState extends ConsumerState<ChatPage> {
 
     // Tell provider to load messages for THIS chat
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      ref.read(chatProvider.notifier).loadMessagesForChat(widget.conversationId);
+      ref
+          .read(chatProvider.notifier)
+          .loadMessagesForChat(widget.conversationId);
       Future.delayed(const Duration(milliseconds: 300), _scrollToBottom);
     });
 
@@ -78,8 +81,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
   }
 
   @override
-  void dispose() { 
-    
+  void dispose() {
     _messageController.dispose();
     _scrollController.dispose();
     _recordTimer?.cancel();
@@ -117,28 +119,35 @@ class _ChatPageState extends ConsumerState<ChatPage> {
   // --- Interaction Logic ---
 
   Future<void> _pickAndUploadFile() async {
-    logger.i('ChatPage: User tapped attachment icon'); 
-    FilePickerResult? result = await FilePicker.platform.pickFiles(type: FileType.media, withData: true);
-    
+    logger.i('ChatPage: User tapped attachment icon');
+    FilePickerResult? result = await FilePicker.platform.pickFiles(
+      type: FileType.media,
+      withData: true,
+    );
+
     if (result != null) {
       setState(() => _isUploading = true);
-      
+
       final platformFile = result.files.single;
       List<int>? fileBytes;
-      
+
       if (kIsWeb) {
         fileBytes = platformFile.bytes;
       } else {
         fileBytes = await File(platformFile.path!).readAsBytes();
       }
-      
+
       if (fileBytes != null) {
         // Delegated to Provider
-        String? url = await ref.read(chatProvider.notifier).uploadAttachment(fileBytes, platformFile.name);
-        
+        String? url = await ref
+            .read(chatProvider.notifier)
+            .uploadAttachment(fileBytes, platformFile.name);
+
         if (url != null) {
           // Send via Provider!
-          await ref.read(chatProvider.notifier).sendMessage("", attachments: [url]);
+          await ref
+              .read(chatProvider.notifier)
+              .sendMessage("", attachments: [url]);
           _scrollToBottom();
         }
       }
@@ -155,11 +164,12 @@ class _ChatPageState extends ConsumerState<ChatPage> {
   Future<void> _startRecording() async {
     if (await _audioRecorder.hasPermission()) {
       final Directory tempDir = await getTemporaryDirectory();
-      final String path = '${tempDir.path}/audio_${DateTime.now().millisecondsSinceEpoch}.m4a';
-      
+      final String path =
+          '${tempDir.path}/audio_${DateTime.now().millisecondsSinceEpoch}.m4a';
+
       logger.i('ChatPage: Started recording to $path');
       await _audioRecorder.start(const RecordConfig(), path: path);
-      
+
       setState(() {
         _isRecording = true;
         _recordDuration = 0;
@@ -168,7 +178,6 @@ class _ChatPageState extends ConsumerState<ChatPage> {
       _recordTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
         setState(() => _recordDuration++);
       });
-
     } else {
       logger.e('ChatPage: Mic permission denied.');
     }
@@ -178,15 +187,15 @@ class _ChatPageState extends ConsumerState<ChatPage> {
     logger.i('ChatPage: Stopped recording.');
     _recordTimer?.cancel();
     final String? path = await _audioRecorder.stop();
-    
+
     setState(() {
       _isRecording = false;
       _recordDuration = 0;
     });
-    
+
     if (path != null) {
       setState(() => _isUploading = true);
-      
+
       List<int> audioBytes;
       if (kIsWeb) {
         final response = await http.get(Uri.parse(path));
@@ -196,11 +205,15 @@ class _ChatPageState extends ConsumerState<ChatPage> {
       }
 
       // Delegated to Provider
-      String? url = await ref.read(chatProvider.notifier).uploadAttachment(audioBytes, 'voice_message.m4a');
-      
+      String? url = await ref
+          .read(chatProvider.notifier)
+          .uploadAttachment(audioBytes, 'voice_message.m4a');
+
       if (url != null) {
         // Send via Provider!
-        await ref.read(chatProvider.notifier).sendMessage("🎤 Voice Message", attachments: [url]);
+        await ref
+            .read(chatProvider.notifier)
+            .sendMessage("🎤 Voice Message", attachments: [url]);
         _scrollToBottom();
       }
       setState(() => _isUploading = false);
@@ -218,39 +231,41 @@ class _ChatPageState extends ConsumerState<ChatPage> {
       _scrollToBottom();
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Failed to send: $e")));
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text("Failed to send: $e")));
       }
     }
   }
 
   String _formatTime(String timestamp) {
     try {
-       final DateTime dt = DateTime.parse(timestamp).toLocal(); 
-       final hour = dt.hour > 12 ? dt.hour - 12 : (dt.hour == 0 ? 12 : dt.hour);
-       final period = dt.hour >= 12 ? "PM" : "AM";
-       final minute = dt.minute.toString().padLeft(2, '0');
-       return "$hour:$minute $period";
+      final DateTime dt = DateTime.parse(timestamp).toLocal();
+      final hour = dt.hour > 12 ? dt.hour - 12 : (dt.hour == 0 ? 12 : dt.hour);
+      final period = dt.hour >= 12 ? "PM" : "AM";
+      final minute = dt.minute.toString().padLeft(2, '0');
+      return "$hour:$minute $period";
     } catch (e) {
-       return "";
+      return "";
     }
   }
 
   // --- Helper: Strip out the backend ID to get the original filename ---
   String _getDisplayFilename(String url) {
     final decodedUrl = Uri.decodeFull(url);
-    final fullName = decodedUrl.split('/').last; 
-    
-    final lastDotIndex = fullName.lastIndexOf('.');
-    if (lastDotIndex == -1) return fullName; 
+    final fullName = decodedUrl.split('/').last;
 
-    final namePart = fullName.substring(0, lastDotIndex); 
-    final extPart = fullName.substring(lastDotIndex); 
+    final lastDotIndex = fullName.lastIndexOf('.');
+    if (lastDotIndex == -1) return fullName;
+
+    final namePart = fullName.substring(0, lastDotIndex);
+    final extPart = fullName.substring(lastDotIndex);
 
     if (namePart.length > 9 && namePart[namePart.length - 9] == '-') {
       final originalName = namePart.substring(0, namePart.length - 9);
       return originalName + extPart;
     }
-    
+
     return fullName;
   }
 
@@ -265,7 +280,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
 
     final cleanName = _getDisplayFilename(url);
     final dir = await getApplicationDocumentsDirectory();
-    final localFile = File('${dir.path}/$cleanName'); 
+    final localFile = File('${dir.path}/$cleanName');
 
     if (await localFile.exists()) {
       logger.i("Opening cached file: ${localFile.path}");
@@ -273,12 +288,12 @@ class _ChatPageState extends ConsumerState<ChatPage> {
       return;
     }
 
-    setState(() => _downloadingUrls.add(url)); 
-    
+    setState(() => _downloadingUrls.add(url));
+
     try {
       logger.i("Downloading file from: $url");
       final response = await http.get(Uri.parse(url));
-      
+
       if (response.statusCode == 200) {
         await localFile.writeAsBytes(response.bodyBytes);
         await OpenFilex.open(localFile.path);
@@ -288,10 +303,12 @@ class _ChatPageState extends ConsumerState<ChatPage> {
     } catch (e) {
       logger.e("Failed to download file: $e");
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Failed to download file.")));
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("Failed to download file.")),
+        );
       }
     } finally {
-      setState(() => _downloadingUrls.remove(url)); 
+      setState(() => _downloadingUrls.remove(url));
     }
   }
 
@@ -304,7 +321,8 @@ class _ChatPageState extends ConsumerState<ChatPage> {
 
     // 2. Automatically scroll down when a new message arrives over WebSocket
     ref.listen<ChatState>(chatProvider, (previous, next) {
-      if (previous != null && previous.activeMessages.length < next.activeMessages.length) {
+      if (previous != null &&
+          previous.activeMessages.length < next.activeMessages.length) {
         _scrollToBottom();
       }
     });
@@ -315,32 +333,47 @@ class _ChatPageState extends ConsumerState<ChatPage> {
         elevation: 0,
         backgroundColor: Colors.white,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.black87),
+          icon: const Icon(
+            Icons.arrow_back_ios_new_rounded,
+            color: Colors.black87,
+          ),
           onPressed: () => Navigator.pop(context),
         ),
         title: Text(
-          widget.otherUserName, 
-          style: const TextStyle(color: Colors.black, fontWeight: FontWeight.w700, fontSize: 18)
+          widget.otherUserName,
+          style: const TextStyle(
+            color: Colors.black,
+            fontWeight: FontWeight.w700,
+            fontSize: 18,
+          ),
         ),
         centerTitle: true,
       ),
       body: Column(
         children: [
           Expanded(
-            child: isLoading 
-              ? const Center(child: CircularProgressIndicator(color: Color(0xFF1976D2))) 
-              : messages.isEmpty 
-                  ? const Center(child: Text("No messages yet. Say Hi!"))
-                  : ListView.builder(
-                      controller: _scrollController,
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                      itemCount: messages.length,
-                      itemBuilder: (context, index) {
-                        final msg = messages[index];
-                        final bool isMe = msg.senderId == authService.value.currentUser?.uid;
-                        return _buildMessageBubble(msg, isMe);
-                      },
+            child: isLoading
+                ? const Center(
+                    child: CircularProgressIndicator(
+                      color: AppStyle.primaryBlue,
                     ),
+                  )
+                : messages.isEmpty
+                ? const Center(child: Text("No messages yet. Say Hi!"))
+                : ListView.builder(
+                    controller: _scrollController,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 10,
+                    ),
+                    itemCount: messages.length,
+                    itemBuilder: (context, index) {
+                      final msg = messages[index];
+                      final bool isMe =
+                          msg.senderId == authService.value.currentUser?.uid;
+                      return _buildMessageBubble(msg, isMe);
+                    },
+                  ),
           ),
           _buildInputArea(),
         ],
@@ -356,7 +389,9 @@ class _ChatPageState extends ConsumerState<ChatPage> {
       child: Container(
         padding: const EdgeInsets.all(12),
         margin: const EdgeInsets.symmetric(vertical: 5),
-        constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.75),
+        constraints: BoxConstraints(
+          maxWidth: MediaQuery.of(context).size.width * 0.75,
+        ),
         decoration: BoxDecoration(
           color: isMe ? blue : Colors.grey.shade200,
           borderRadius: BorderRadius.only(
@@ -367,30 +402,42 @@ class _ChatPageState extends ConsumerState<ChatPage> {
           ),
         ),
         child: Column(
-          crossAxisAlignment: isMe ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+          crossAxisAlignment: isMe
+              ? CrossAxisAlignment.end
+              : CrossAxisAlignment.start,
           children: [
-            if (isGroupChat && !isMe) 
+            if (isGroupChat && !isMe)
               Padding(
                 padding: const EdgeInsets.only(bottom: 4),
                 child: Text(
-                  msg.senderName, 
-                  style: TextStyle(color: blue, fontWeight: FontWeight.bold, fontSize: 12),
+                  msg.senderName,
+                  style: TextStyle(
+                    color: blue,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 12,
+                  ),
                 ),
               ),
-            
+
             if (msg.attachments.isNotEmpty)
               ...msg.attachments.map((url) => _buildAttachmentUI(url, isMe)),
 
             if (msg.text.isNotEmpty && msg.text != "🎤 Voice Message")
               Text(
-                msg.text, 
-                style: TextStyle(color: isMe ? Colors.white : Colors.black87, fontSize: 15)
+                msg.text,
+                style: TextStyle(
+                  color: isMe ? Colors.white : Colors.black87,
+                  fontSize: 15,
+                ),
               ),
-            
+
             const SizedBox(height: 4),
             Text(
               _formatTime(msg.timestamp),
-              style: TextStyle(color: isMe ? Colors.white70 : Colors.grey.shade600, fontSize: 10),
+              style: TextStyle(
+                color: isMe ? Colors.white70 : Colors.grey.shade600,
+                fontSize: 10,
+              ),
             ),
           ],
         ),
@@ -401,14 +448,17 @@ class _ChatPageState extends ConsumerState<ChatPage> {
   Widget _buildAttachmentUI(String url, bool isMe) {
     final cleanPath = Uri.parse(url).path.toLowerCase();
     final isDownloading = _downloadingUrls.contains(url);
-    
+
     // --- WhatsApp-Style Image Preview ---
-    if (cleanPath.endsWith('.jpg') || cleanPath.endsWith('.png') || 
-        cleanPath.endsWith('.jpeg') || cleanPath.endsWith('.gif') || cleanPath.endsWith('.webp')) {
+    if (cleanPath.endsWith('.jpg') ||
+        cleanPath.endsWith('.png') ||
+        cleanPath.endsWith('.jpeg') ||
+        cleanPath.endsWith('.gif') ||
+        cleanPath.endsWith('.webp')) {
       return Padding(
         padding: const EdgeInsets.only(bottom: 8.0),
         child: GestureDetector(
-          onTap: () => _downloadAndOpenFile(url), 
+          onTap: () => _downloadAndOpenFile(url),
           child: Stack(
             alignment: Alignment.center,
             children: [
@@ -420,21 +470,32 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                 child: ClipRRect(
                   borderRadius: BorderRadius.circular(8),
                   child: Image.network(
-                    url, 
+                    url,
                     fit: BoxFit.cover,
                     loadingBuilder: (context, child, loadingProgress) {
                       if (loadingProgress == null) return child;
                       return Container(
                         height: 200,
                         width: MediaQuery.of(context).size.width * 0.6,
-                        color: isMe ? Colors.white.withValues(alpha: 0.2) : Colors.grey.shade300,
-                        child: const Center(child: CircularProgressIndicator(strokeWidth: 2)),
+                        color: isMe
+                            ? Colors.white.withValues(alpha: 0.2)
+                            : Colors.grey.shade300,
+                        child: const Center(
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        ),
                       );
                     },
-                    errorBuilder: (context, error, stackTrace) => const SizedBox(
-                      height: 100, 
-                      child: Center(child: Icon(Icons.broken_image, color: Colors.grey, size: 40))
-                    ),
+                    errorBuilder: (context, error, stackTrace) =>
+                        const SizedBox(
+                          height: 100,
+                          child: Center(
+                            child: Icon(
+                              Icons.broken_image,
+                              color: Colors.grey,
+                              size: 40,
+                            ),
+                          ),
+                        ),
                   ),
                 ),
               ),
@@ -444,40 +505,50 @@ class _ChatPageState extends ConsumerState<ChatPage> {
           ),
         ),
       );
-    } 
+    }
     // --- Audio Player ---
     else if (cleanPath.endsWith('.m4a') || cleanPath.endsWith('.mp3')) {
       return InteractiveAudioBubble(url: url, isMe: isMe);
     }
-    
+
     // --- Clickable Document Box ---
     final displayFilename = _getDisplayFilename(url);
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 8.0),
       child: InkWell(
-        onTap: isDownloading ? null : () => _downloadAndOpenFile(url), 
+        onTap: isDownloading ? null : () => _downloadAndOpenFile(url),
         borderRadius: BorderRadius.circular(8),
         child: Container(
           padding: const EdgeInsets.all(12),
           decoration: BoxDecoration(
             color: isMe ? Colors.white.withValues(alpha: 0.2) : Colors.white,
             borderRadius: BorderRadius.circular(8),
-            border: Border.all(color: isMe ? Colors.transparent : Colors.grey.shade300),
+            border: Border.all(
+              color: isMe ? Colors.transparent : Colors.grey.shade300,
+            ),
           ),
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              isDownloading 
-                ? SizedBox(
-                    width: 24, height: 24, 
-                    child: CircularProgressIndicator(strokeWidth: 2, color: isMe ? Colors.white : blue)
-                  )
-                : Icon(Icons.insert_drive_file, color: isMe ? Colors.white : blue, size: 28),
+              isDownloading
+                  ? SizedBox(
+                      width: 24,
+                      height: 24,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: isMe ? Colors.white : blue,
+                      ),
+                    )
+                  : Icon(
+                      Icons.insert_drive_file,
+                      color: isMe ? Colors.white : blue,
+                      size: 28,
+                    ),
               const SizedBox(width: 12),
               Flexible(
                 child: Text(
-                  displayFilename, 
+                  displayFilename,
                   style: TextStyle(
                     color: isMe ? Colors.white : Colors.black87,
                     fontWeight: FontWeight.w500,
@@ -499,7 +570,11 @@ class _ChatPageState extends ConsumerState<ChatPage> {
       decoration: BoxDecoration(
         color: Colors.white,
         boxShadow: [
-          BoxShadow(color: Colors.grey.withValues(alpha: 0.1), blurRadius: 4, offset: const Offset(0, -2)),
+          BoxShadow(
+            color: Colors.grey.withValues(alpha: 0.1),
+            blurRadius: 4,
+            offset: const Offset(0, -2),
+          ),
         ],
       ),
       child: SafeArea(
@@ -510,14 +585,20 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                 icon: const Icon(Icons.attach_file, color: Colors.grey),
                 onPressed: _isUploading ? null : _pickAndUploadFile,
               ),
-            
+
             Expanded(
               child: Container(
                 padding: const EdgeInsets.symmetric(horizontal: 16),
                 decoration: BoxDecoration(
-                  color: _isRecording ? Colors.red.shade50 : Colors.grey.shade100,
+                  color: _isRecording
+                      ? Colors.red.shade50
+                      : Colors.grey.shade100,
                   borderRadius: BorderRadius.circular(24),
-                  border: Border.all(color: _isRecording ? Colors.red.shade200 : Colors.grey.shade300),
+                  border: Border.all(
+                    color: _isRecording
+                        ? Colors.red.shade200
+                        : Colors.grey.shade300,
+                  ),
                 ),
                 child: _isRecording
                     ? Padding(
@@ -529,7 +610,10 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                             const SizedBox(width: 8),
                             Text(
                               "Recording... ${_formatRecordDuration()}",
-                              style: const TextStyle(color: Colors.red, fontWeight: FontWeight.bold),
+                              style: const TextStyle(
+                                color: Colors.red,
+                                fontWeight: FontWeight.bold,
+                              ),
                             ),
                           ],
                         ),
@@ -545,25 +629,31 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                       ),
               ),
             ),
-            
+
             const SizedBox(width: 8),
-            
-            _isUploading 
-              ? const Padding(
-                  padding: EdgeInsets.all(12.0),
-                  child: SizedBox(width: 24, height: 24, child: CircularProgressIndicator(strokeWidth: 2)),
-                )
-              : GestureDetector(
-                  onLongPressStart: (_) => _isTyping ? null : _startRecording(),
-                  onLongPressEnd: (_) => _isTyping ? null : _stopAndUploadRecording(),
-                  child: IconButton(
-                    icon: Icon(
-                      _isTyping ? Icons.send_rounded : Icons.mic,
-                      color: _isRecording ? Colors.red : blue,
+
+            _isUploading
+                ? const Padding(
+                    padding: EdgeInsets.all(12.0),
+                    child: SizedBox(
+                      width: 24,
+                      height: 24,
+                      child: CircularProgressIndicator(strokeWidth: 2),
                     ),
-                    onPressed: _isTyping ? _sendMessage : null, 
+                  )
+                : GestureDetector(
+                    onLongPressStart: (_) =>
+                        _isTyping ? null : _startRecording(),
+                    onLongPressEnd: (_) =>
+                        _isTyping ? null : _stopAndUploadRecording(),
+                    child: IconButton(
+                      icon: Icon(
+                        _isTyping ? Icons.send_rounded : Icons.mic,
+                        color: _isRecording ? Colors.red : blue,
+                      ),
+                      onPressed: _isTyping ? _sendMessage : null,
+                    ),
                   ),
-                ),
           ],
         ),
       ),
@@ -576,7 +666,11 @@ class InteractiveAudioBubble extends StatefulWidget {
   final String url;
   final bool isMe;
 
-  const InteractiveAudioBubble({super.key, required this.url, required this.isMe});
+  const InteractiveAudioBubble({
+    super.key,
+    required this.url,
+    required this.isMe,
+  });
 
   @override
   State<InteractiveAudioBubble> createState() => _InteractiveAudioBubbleState();
@@ -624,9 +718,9 @@ class _InteractiveAudioBubbleState extends State<InteractiveAudioBubble> {
 
   @override
   Widget build(BuildContext context) {
-    final Color iconColor = widget.isMe ? Colors.white : const Color(0xFF1976D2);
+    final Color iconColor = widget.isMe ? Colors.white : AppStyle.primaryBlue;
     final Color textColor = widget.isMe ? Colors.white : Colors.black87;
-    
+
     return Padding(
       padding: const EdgeInsets.only(bottom: 8.0),
       child: Row(
@@ -649,16 +743,27 @@ class _InteractiveAudioBubbleState extends State<InteractiveAudioBubble> {
           Expanded(
             child: SliderTheme(
               data: SliderTheme.of(context).copyWith(
-                thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 6.0),
-                overlayShape: const RoundSliderOverlayShape(overlayRadius: 14.0),
+                thumbShape: const RoundSliderThumbShape(
+                  enabledThumbRadius: 6.0,
+                ),
+                overlayShape: const RoundSliderOverlayShape(
+                  overlayRadius: 14.0,
+                ),
                 activeTrackColor: iconColor,
                 inactiveTrackColor: iconColor.withValues(alpha: 0.3),
                 thumbColor: iconColor,
               ),
               child: Slider(
                 min: 0,
-                max: _duration.inSeconds.toDouble() > 0 ? _duration.inSeconds.toDouble() : 1.0,
-                value: _position.inSeconds.toDouble().clamp(0.0, _duration.inSeconds.toDouble() > 0 ? _duration.inSeconds.toDouble() : 1.0),
+                max: _duration.inSeconds.toDouble() > 0
+                    ? _duration.inSeconds.toDouble()
+                    : 1.0,
+                value: _position.inSeconds.toDouble().clamp(
+                  0.0,
+                  _duration.inSeconds.toDouble() > 0
+                      ? _duration.inSeconds.toDouble()
+                      : 1.0,
+                ),
                 onChanged: (value) async {
                   final position = Duration(seconds: value.toInt());
                   await _audioPlayer.seek(position);

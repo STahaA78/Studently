@@ -1,3 +1,4 @@
+import 'package:studently/app_style.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:studently/screens/community_feed_page.dart';
@@ -13,7 +14,7 @@ class CustomNavBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    const Color blue = Color(0xFF1976D2);
+    const Color blue = AppStyle.primaryBlue;
 
     void onItemTapped(int index) async {
       if (index == currentIndex) return;
@@ -32,9 +33,7 @@ class CustomNavBar extends StatelessWidget {
         case 2:
           final created = await Navigator.push(
             context,
-            MaterialPageRoute(
-              builder: (_) => const CreatePostPage(),
-            ),
+            MaterialPageRoute(builder: (_) => const CreatePostPage()),
           );
 
           if (created == true) {
@@ -79,13 +78,22 @@ class CustomNavBar extends StatelessWidget {
     }
 
     // Helper function to get SVG asset path based on selection state
-    String _getSvgAsset(int index, bool isSelected) {
+    String getSvgAssetPath(int index, bool isSelected) {
       final paths = [
         ('assets/images/feed-outlined.svg', 'assets/images/feed-filled.svg'),
-        ('assets/images/connect-outlined.svg', 'assets/images/connect-filled.svg'),
+        (
+          'assets/images/connect-outlined.svg',
+          'assets/images/connect-filled.svg',
+        ),
         ('assets/images/post-outlined.svg', 'assets/images/post-filled.svg'),
-        ('assets/images/knowledgehub-outlined.svg', 'assets/images/knowledgehub-filled.svg'),
-        ('assets/images/profile-outlined.svg', 'assets/images/profile-filled.svg'),
+        (
+          'assets/images/knowledgehub-outlined.svg',
+          'assets/images/knowledgehub-filled.svg',
+        ),
+        (
+          'assets/images/profile-outlined.svg',
+          'assets/images/profile-filled.svg',
+        ),
       ];
       return isSelected ? paths[index].$2 : paths[index].$1;
     }
@@ -100,7 +108,7 @@ class CustomNavBar extends StatelessWidget {
       showUnselectedLabels: false,
       showSelectedLabels: false,
       items: List.generate(5, (index) {
-        final assetPath = _getSvgAsset(index, currentIndex == index);
+        final assetPath = getSvgAssetPath(index, currentIndex == index);
         return BottomNavigationBarItem(
           icon: SvgPicture.asset(
             assetPath,

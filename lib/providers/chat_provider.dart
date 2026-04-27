@@ -1,12 +1,12 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:hive_flutter/hive_flutter.dart';
 import 'package:studently/models/chat.dart';
 import 'package:studently/repositories/chat.dart';
 import 'package:studently/services/socket.dart';
 import 'package:studently/services/firebase_auth.dart';
 import 'package:studently/logger.dart';
+import 'package:studently/services/storage.dart';
 import 'dart:async';
 
 // 1. The State Object
@@ -22,7 +22,7 @@ class ChatState {
     this.activeMessages = const [],
     this.activeConversationId,
     this.isLoading = false,
-    this.userNames = const {}, 
+    this.userNames = const {},
   });
 
   ChatState copyWith({
@@ -45,8 +45,7 @@ class ChatState {
 // 2. The Provider class using Notifier (Unified for Riverpod 3.0)
 class ChatNotifier extends Notifier<ChatState> {
   final ChatRepository _chatRepo = ChatRepository();
-  late final Box _convBox;
-  late final Box _msgBox;
+  final _chatStorage = StorageService().chatStorage;
   late final AppLifecycleListener _lifecycleListener;
   StreamSubscription? _socketSubscription;
 
@@ -58,8 +57,8 @@ class ChatNotifier extends Notifier<ChatState> {
   void clearActiveChat() {
     state = ChatState(
       conversations: state.conversations,
-      activeMessages: const [], 
-      activeConversationId: null, 
+      activeMessages: const [],
+      activeConversationId: null,
       isLoading: false,
       userNames: state.userNames,
     );
@@ -67,14 +66,12 @@ class ChatNotifier extends Notifier<ChatState> {
 
   @override
   ChatState build() {
-    // 1. Initialize Hive Boxes
-    _convBox = Hive.box('conversationsBox');
-    _msgBox = Hive.box('messagesBox');
-
     // 2. Setup the AppLifecycleListener for background tracking
     _lifecycleListener = AppLifecycleListener(
       onResume: () {
-        logger.i("[ChatProvider] App Resumed - Reconnecting WebSocket & Catching Up");
+        logger.i(
+          "[ChatProvider] App Resumed - Reconnecting WebSocket & Catching Up",
+        );
         socketService.connect();
         fetchConversations();
         if (state.activeConversationId != null) {
@@ -82,7 +79,9 @@ class ChatNotifier extends Notifier<ChatState> {
         }
       },
       onPause: () {
-        logger.i("[ChatProvider] App Paused - Disconnecting WebSocket to save battery");
+        logger.i(
+          "[ChatProvider] App Paused - Disconnecting WebSocket to save battery",
+        );
         socketService.disconnect();
       },
     );
@@ -92,7 +91,7 @@ class ChatNotifier extends Notifier<ChatState> {
       logger.i("[ChatProvider] Provider Disposed - Closing WebSocket");
       _lifecycleListener.dispose();
       _socketSubscription?.cancel(); // Unplug the listener
-      socketService.disconnect(); 
+      socketService.disconnect();
     });
 
     // 4. Initialize API and Socket connection
@@ -102,18 +101,18 @@ class ChatNotifier extends Notifier<ChatState> {
   }
 
   void _init() {
-    _loadNamesFromHive(); 
+    _loadNamesFromHive();
     _loadConversationsFromHive();
     fetchConversations();
-    
-    socketService.connect(); 
+
+    socketService.connect();
     _initSocketListener();
   }
 
   Future<String?> createOrGetConversation(String friendId) async {
-    final existingChat = state.conversations.where((c) => 
-      !c.isGroup && c.participants.contains(friendId)
-    ).firstOrNull;
+    final existingChat = state.conversations
+        .where((c) => !c.isGroup && c.participants.contains(friendId))
+        .firstOrNull;
 
     if (existingChat != null) {
       logger.i("[ChatProvider] Chat exists locally, routing instantly!");
@@ -124,7 +123,7 @@ class ChatNotifier extends Notifier<ChatState> {
       logger.i("[ChatProvider] Creating new chat on backend...");
       final newConvId = await _chatRepo.createOrGetConversation(friendId);
       if (newConvId != null) {
-        fetchConversations(); 
+        fetchConversations();
       }
       return newConvId;
     } catch (e) {
@@ -136,10 +135,8 @@ class ChatNotifier extends Notifier<ChatState> {
   // --- NAME CACHING LOGIC ---
 
   void _loadNamesFromHive() {
-    final cachedNames = _convBox.get('user_names');
-    if (cachedNames != null) { 
-      final Map<String, dynamic> decoded = jsonDecode(cachedNames);
-      final namesMap = decoded.map((key, value) => MapEntry(key, value.toString()));
+    final namesMap = _chatStorage.getCachedUserNames();
+    if (namesMap.isNotEmpty) {
       state = state.copyWith(userNames: namesMap);
     }
   }
@@ -166,21 +163,19 @@ class ChatNotifier extends Notifier<ChatState> {
         final name = await _chatRepo.getUserName(id);
         updatedNames[id] = name;
       } catch (e) {
-        updatedNames[id] = "Unknown User"; 
+        updatedNames[id] = "Unknown User";
       }
     }
 
     state = state.copyWith(userNames: updatedNames);
-    _convBox.put('user_names', jsonEncode(updatedNames));
+    _chatStorage.saveUserNames(updatedNames);
   }
 
   // --- API & CACHING FOR CONVERSATIONS ---
 
   void _loadConversationsFromHive() {
-    final cachedData = _convBox.get('all_conversations');
-    if (cachedData != null) {
-      final List<dynamic> decoded = jsonDecode(cachedData);
-      final convos = decoded.map((e) => ChatConversation.fromJson(e)).toList();
+    final convos = _chatStorage.getCachedConversations();
+    if (convos.isNotEmpty) {
       state = state.copyWith(conversations: convos);
       _fetchMissingNames(convos);
     }
@@ -206,13 +201,14 @@ class ChatNotifier extends Notifier<ChatState> {
         if (localConv == null) return serverConv;
 
         final serverCount = serverConv.unreadCounts[myUid] ?? 0;
-        final localCount  = localConv.unreadCounts[myUid]  ?? 0;
+        final localCount = localConv.unreadCounts[myUid] ?? 0;
 
         // Only trust the local zero when the user explicitly opened this chat
         // in the current app session. Hive-restored zeros (from a previous session)
         // must NOT override a fresh server count — that's what was causing unread
         // badges to disappear after re-launching the app.
-        if (localCount < serverCount && _sessionZeroedConvIds.contains(serverConv.id)) {
+        if (localCount < serverCount &&
+            _sessionZeroedConvIds.contains(serverConv.id)) {
           return serverConv.copyWith(
             unreadCounts: Map<String, int>.from(serverConv.unreadCounts)
               ..[myUid] = localCount,
@@ -222,9 +218,7 @@ class ChatNotifier extends Notifier<ChatState> {
       }).toList();
 
       state = state.copyWith(conversations: mergedConvos);
-
-      final encoded = jsonEncode(mergedConvos.map((e) => e.toJson()).toList());
-      _convBox.put('all_conversations', encoded);
+      _chatStorage.saveConversations(mergedConvos);
 
       _fetchMissingNames(mergedConvos);
     } catch (e) {
@@ -246,18 +240,14 @@ class ChatNotifier extends Notifier<ChatState> {
 
     final updatedConvos = state.conversations.map<ChatConversation>((conv) {
       if (conv.id == conversationId) {
-        final newCounts = Map<String, int>.from(conv.unreadCounts)
-          ..[myUid] = 0;
+        final newCounts = Map<String, int>.from(conv.unreadCounts)..[myUid] = 0;
         return conv.copyWith(unreadCounts: newCounts);
       }
       return conv;
     }).toList();
 
     state = state.copyWith(conversations: updatedConvos);
-    _convBox.put(
-      'all_conversations',
-      jsonEncode(updatedConvos.map((e) => e.toJson()).toList()),
-    );
+    _chatStorage.saveConversations(updatedConvos);
   }
 
   Future<void> loadMessagesForChat(String conversationId) async {
@@ -276,24 +266,18 @@ class ChatNotifier extends Notifier<ChatState> {
     });
 
     // Show cached messages instantly while the network request runs.
-    final cachedData = _msgBox.get(conversationId);
-    if (cachedData != null) {
-      final List<dynamic> decoded = jsonDecode(cachedData);
-      final messages = decoded.map((e) => ChatMessage.fromJson(e)).toList();
-      state = state.copyWith(activeMessages: messages, isLoading: false);
-    } else {
-      state = state.copyWith(activeMessages: [], isLoading: false);
-    }
+    final messages = _chatStorage.getCachedMessages(conversationId);
+    state = state.copyWith(activeMessages: messages, isLoading: false);
 
     try {
-      final messages = await _chatRepo.getMessages(conversationId);
+      final freshMessages = await _chatRepo.getMessages(conversationId);
       if (state.activeConversationId == conversationId) {
-        state = state.copyWith(activeMessages: messages, isLoading: false);
+        state = state.copyWith(activeMessages: freshMessages, isLoading: false);
         // Re-zero after the message fetch in case fetchConversations ran
         // concurrently and put a non-zero count back into state.
         _zeroUnreadCount(conversationId);
       }
-      _msgBox.put(conversationId, jsonEncode(messages.map((e) => e.toJson()).toList()));
+      _chatStorage.saveMessages(conversationId, freshMessages);
     } catch (e) {
       logger.e("[ChatProvider] Error fetching messages: $e");
       state = state.copyWith(isLoading: false);
@@ -319,7 +303,7 @@ class ChatNotifier extends Notifier<ChatState> {
     if (currentUser == null) return;
 
     final tempMsg = ChatMessage(
-      id: "temp_${DateTime.now().millisecondsSinceEpoch}", 
+      id: "temp_${DateTime.now().millisecondsSinceEpoch}",
       conversationId: convoId,
       senderId: currentUser.uid,
       senderName: currentUser.displayName ?? "Me",
@@ -328,7 +312,8 @@ class ChatNotifier extends Notifier<ChatState> {
       timestamp: DateTime.now().toUtc().toIso8601String(),
     );
 
-    final updatedMessages = List<ChatMessage>.from(state.activeMessages)..add(tempMsg);
+    final updatedMessages = List<ChatMessage>.from(state.activeMessages)
+      ..add(tempMsg);
     state = state.copyWith(activeMessages: updatedMessages);
 
     try {
@@ -351,7 +336,7 @@ class ChatNotifier extends Notifier<ChatState> {
         if (payload['type'] == 'NEW_MESSAGE') {
           final incomingMessage = ChatMessage.fromJson(payload['data']);
           _handleIncomingMessage(incomingMessage);
-        } 
+        }
       } catch (e) {
         logger.e("[ChatProvider] Error parsing socket message: $e");
       }
@@ -360,10 +345,12 @@ class ChatNotifier extends Notifier<ChatState> {
 
   void _handleIncomingMessage(ChatMessage message) {
     if (state.activeConversationId == message.conversationId) {
-      final filteredMessages = state.activeMessages.where((m) => !m.id.startsWith("temp_")).toList();
+      final filteredMessages = state.activeMessages
+          .where((m) => !m.id.startsWith("temp_"))
+          .toList();
       filteredMessages.add(message);
       state = state.copyWith(activeMessages: filteredMessages);
-      _msgBox.put(message.conversationId, jsonEncode(filteredMessages.map((e) => e.toJson()).toList()));
+      _chatStorage.saveMessages(message.conversationId, filteredMessages);
       _chatRepo.markChatAsRead(message.conversationId).catchError((_) {});
     }
 
@@ -389,15 +376,17 @@ class ChatNotifier extends Notifier<ChatState> {
       }
       return conv;
     }).toList();
-    
-    final targetConvIndex = updatedConvos.indexWhere((c) => c.id == message.conversationId);
+
+    final targetConvIndex = updatedConvos.indexWhere(
+      (c) => c.id == message.conversationId,
+    );
     if (targetConvIndex != -1) {
       final targetConv = updatedConvos.removeAt(targetConvIndex);
       updatedConvos.insert(0, targetConv);
     }
 
     state = state.copyWith(conversations: updatedConvos);
-    _convBox.put('all_conversations', jsonEncode(updatedConvos.map((e) => e.toJson()).toList()));
+    _chatStorage.saveConversations(updatedConvos);
   }
 }
 

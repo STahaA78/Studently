@@ -1,3 +1,4 @@
+import 'package:studently/app_style.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -12,7 +13,6 @@ class CreatePostPage extends ConsumerStatefulWidget {
 }
 
 class _CreatePostPageState extends ConsumerState<CreatePostPage> {
-
   final TextEditingController controller = TextEditingController();
 
   XFile? selectedImage;
@@ -22,31 +22,24 @@ class _CreatePostPageState extends ConsumerState<CreatePostPage> {
 
   /// PICK IMAGE
   Future<void> pickImage() async {
-
-    final picked = await picker.pickImage(
-      source: ImageSource.gallery,
-    );
+    final picked = await picker.pickImage(source: ImageSource.gallery);
 
     if (picked != null) {
       setState(() {
         selectedImage = picked;
       });
     }
-
   }
 
   /// SUBMIT POST
   Future<void> submitPost() async {
-
     final text = controller.text.trim();
 
-    if (text.isEmpty && selectedImage == null){
-        ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-                content: Text("Post must contain text or image"),
-            ),
-        );
-        return ;
+    if (text.isEmpty && selectedImage == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Post must contain text or image")),
+      );
+      return;
     }
 
     setState(() {
@@ -56,7 +49,7 @@ class _CreatePostPageState extends ConsumerState<CreatePostPage> {
     try {
       final repository = ref.read(postRepositoryProvider);
       await repository.createPost(text, selectedImage);
-      
+
       // Trigger global refresh to sync Feed and Profile
       ref.read(feedProvider.notifier).refresh();
       final userId = authService.value.currentUser?.uid;
@@ -66,15 +59,10 @@ class _CreatePostPageState extends ConsumerState<CreatePostPage> {
 
       if (!mounted) return;
       Navigator.pop(context, true);
-
     } catch (e) {
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text("Failed to create post"),
-        ),
-      );
-
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text("Failed to create post")));
     }
 
     setState(() {
@@ -84,9 +72,7 @@ class _CreatePostPageState extends ConsumerState<CreatePostPage> {
 
   @override
   Widget build(BuildContext context) {
-
     return Scaffold(
-
       backgroundColor: Colors.white,
 
       appBar: AppBar(
@@ -96,12 +82,8 @@ class _CreatePostPageState extends ConsumerState<CreatePostPage> {
           icon: const Icon(Icons.close, color: Colors.black),
           onPressed: () => Navigator.pop(context),
         ),
-        title: const Text(
-          "Create Post",
-          style: TextStyle(color: Colors.black),
-        ),
+        title: const Text("Create Post", style: TextStyle(color: Colors.black)),
         actions: [
-
           TextButton(
             onPressed: isPosting ? null : submitPost,
             child: isPosting
@@ -109,19 +91,18 @@ class _CreatePostPageState extends ConsumerState<CreatePostPage> {
                     height: 18,
                     width: 18,
                     child: CircularProgressIndicator(strokeWidth: 2),
-                    )
+                  )
                 : const Text(
                     "Post",
                     style: TextStyle(
-                      color: Color(0xFF1976D2),
+                      color: AppStyle.primaryBlue,
                       fontWeight: FontWeight.bold,
                       fontSize: 16,
                     ),
                   ),
           ),
 
-          const SizedBox(width: 10)
-
+          const SizedBox(width: 10),
         ],
       ),
 
@@ -130,7 +111,6 @@ class _CreatePostPageState extends ConsumerState<CreatePostPage> {
 
         child: Column(
           children: [
-
             /// POST TEXT
             Expanded(
               child: TextField(
@@ -148,18 +128,18 @@ class _CreatePostPageState extends ConsumerState<CreatePostPage> {
 
             /// IMAGE PREVIEW
             if (selectedImage != null)
-                Padding(
-                    padding: const EdgeInsets.only(bottom: 12),
-                    child: ClipRRect(
-                    borderRadius: BorderRadius.circular(12),
-                    child: Image.network(
-                        selectedImage!.path,
-                        height: 200,
-                        width: double.infinity,
-                        fit: BoxFit.cover,
-                    ),
-                    ),
+              Padding(
+                padding: const EdgeInsets.only(bottom: 12),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(12),
+                  child: Image.network(
+                    selectedImage!.path,
+                    height: 200,
+                    width: double.infinity,
+                    fit: BoxFit.cover,
+                  ),
                 ),
+              ),
 
             /// IMAGE PICK BUTTON
             Align(
@@ -167,13 +147,12 @@ class _CreatePostPageState extends ConsumerState<CreatePostPage> {
               child: IconButton(
                 icon: const Icon(
                   Icons.image,
-                  color: Color(0xFF1976D2),
+                  color: AppStyle.primaryBlue,
                   size: 28,
                 ),
                 onPressed: pickImage,
               ),
             ),
-
           ],
         ),
       ),

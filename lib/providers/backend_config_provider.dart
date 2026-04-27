@@ -9,17 +9,19 @@ class BackendConfigNotifier extends AsyncNotifier<BackendConfig> {
   @override
   Future<BackendConfig> build() async {
     logger.i("[$runtimeType] build() started - Loading BackendConfig");
-    
+
     // 1. Try to get cached config from Hive (synchronous)
     final cachedConfig = _repository.getCachedConfig();
-    
+
     if (cachedConfig != null) {
-      logger.d("[$runtimeType] Cached config found, returning and refreshing in background");
+      logger.d(
+        "[$runtimeType] Cached config found, returning and refreshing in background",
+      );
       // Return cached data immediately
       Future(() => _refreshConfigInBackground());
       return cachedConfig;
     }
-    
+
     // 2. No cache found, fetch fresh from API
     logger.d("[$runtimeType] No cached config, fetching fresh from API");
     return await _repository.fetchConfig();
@@ -54,5 +56,5 @@ class BackendConfigNotifier extends AsyncNotifier<BackendConfig> {
 
 final backendConfigProvider =
     AsyncNotifierProvider<BackendConfigNotifier, BackendConfig>(() {
-  return BackendConfigNotifier();
-});
+      return BackendConfigNotifier();
+    });

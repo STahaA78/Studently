@@ -1,3 +1,4 @@
+import 'package:studently/app_style.dart';
 import 'dart:io';
 import 'dart:typed_data';
 import 'package:file_picker/file_picker.dart';
@@ -25,8 +26,8 @@ enum UploadStatus { compressing, success, failed }
 class UploadImage {
   File file;
   UploadStatus status;
-  List<int>? bytes;  // Store bytes for web upload
-  String? filename;  // Store filename for web upload
+  List<int>? bytes; // Store bytes for web upload
+  String? filename; // Store filename for web upload
 
   UploadImage({
     required this.file,
@@ -36,13 +37,14 @@ class UploadImage {
   });
 }
 
-
 class _AddResourcePageState extends ConsumerState<AddResourcePage> {
-  final Color blue = const Color(0xFF1976D2);
+  final Color blue = AppStyle.primaryBlue;
 
   // Uploaded File
-  File? _selectedPdf;  List<int>? _selectedPdfBytes;
-  String? _selectedPdfFilename;  List<UploadImage> _selectedImages = [];
+  File? _selectedPdf;
+  List<int>? _selectedPdfBytes;
+  String? _selectedPdfFilename;
+  List<UploadImage> _selectedImages = [];
   // Form Fields
   String? _selectedType;
   String? _selectedSemester;
@@ -50,7 +52,7 @@ class _AddResourcePageState extends ConsumerState<AddResourcePage> {
   bool _isSolved = false;
   // Mid Number Selection
   int? _selectedMidNumber;
-  
+
   // Upload state
   bool _isUploading = false;
 
@@ -80,7 +82,9 @@ class _AddResourcePageState extends ConsumerState<AddResourcePage> {
       );
 
       if (compressedFile == null) {
-        logger.e("Image Compression Failed for ${file.path}, returning original");
+        logger.e(
+          "Image Compression Failed for ${file.path}, returning original",
+        );
         return file;
       }
 
@@ -88,7 +92,9 @@ class _AddResourcePageState extends ConsumerState<AddResourcePage> {
       return File(compressedFile.path);
     } catch (e) {
       // On web or if compression fails, return original file
-      logger.w("Image Compression Error (likely web platform): $e, using original file");
+      logger.w(
+        "Image Compression Error (likely web platform): $e, using original file",
+      );
       return file;
     }
   }
@@ -125,9 +131,7 @@ class _AddResourcePageState extends ConsumerState<AddResourcePage> {
       logger.i("Pick Files Ended - Mixed File Types");
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text("Select either only PDF or only images"),
-        ),
+        const SnackBar(content: Text("Select either only PDF or only images")),
       );
       return;
     }
@@ -148,12 +152,14 @@ class _AddResourcePageState extends ConsumerState<AddResourcePage> {
       setState(() {
         _selectedPdf = null;
         _selectedImages = platformFiles
-            .map((platformFile) => UploadImage(
-              file: File.fromRawPath(platformFile.bytes ?? Uint8List(0)),
-              status: UploadStatus.compressing,
-              bytes: platformFile.bytes,
-              filename: platformFile.name,
-            ))
+            .map(
+              (platformFile) => UploadImage(
+                file: File.fromRawPath(platformFile.bytes ?? Uint8List(0)),
+                status: UploadStatus.compressing,
+                bytes: platformFile.bytes,
+                filename: platformFile.name,
+              ),
+            )
             .toList();
       });
       logger.i("Pick Files - Compressing Images");
@@ -162,7 +168,9 @@ class _AddResourcePageState extends ConsumerState<AddResourcePage> {
           // Only compress on native platforms where file I/O is available
           if (platformFiles[i].bytes != null) {
             // Use bytes directly for web, but try compression for native
-            final compressedFile = await _compressImage(_selectedImages[i].file);
+            final compressedFile = await _compressImage(
+              _selectedImages[i].file,
+            );
 
             if (!mounted) return;
 
@@ -204,12 +212,10 @@ class _AddResourcePageState extends ConsumerState<AddResourcePage> {
         final imageBytes = await imageFile.file.readAsBytes();
         final pwImage = pw.MemoryImage(imageBytes);
         pdf.addPage(
-          pw.Page(
-            build: (context) => pw.Center(child: pw.Image(pwImage)),
-          ),
+          pw.Page(build: (context) => pw.Center(child: pw.Image(pwImage))),
         );
       }
-      
+
       try {
         final dir = await getTemporaryDirectory();
         String temporaryName = DateTime.now().millisecondsSinceEpoch.toString();
@@ -233,9 +239,9 @@ class _AddResourcePageState extends ConsumerState<AddResourcePage> {
   Future<void> _fileUpload() async {
     logger.i("File Upload Started");
     if (_selectedPdf == null && _selectedImages.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Please select a file")),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text("Please select a file")));
       logger.i("File Upload Ended - No File Selected");
       return;
     }
@@ -255,7 +261,8 @@ class _AddResourcePageState extends ConsumerState<AddResourcePage> {
       }
 
       // Check file size - skip on web if using bytes
-      if (!(_selectedImages.isNotEmpty && _selectedImages.first.bytes != null)) {
+      if (!(_selectedImages.isNotEmpty &&
+          _selectedImages.first.bytes != null)) {
         try {
           final fileSizeInMB = await fileToUpload.length() / (1024 * 1024);
 
@@ -298,7 +305,7 @@ class _AddResourcePageState extends ConsumerState<AddResourcePage> {
 
       // Use the provider to upload the resource
       final uploadFunction = ref.read(resourceUploadFunctionProvider);
-      
+
       // Prefer bytes upload if available (web), fallback to file path (native)
       if (_selectedPdfBytes != null && _selectedPdfFilename != null) {
         await uploadFunction(
@@ -306,7 +313,8 @@ class _AddResourcePageState extends ConsumerState<AddResourcePage> {
           fileBytes: _selectedPdfBytes,
           filename: _selectedPdfFilename,
         );
-      } else if (_selectedImages.isNotEmpty && _selectedImages.first.bytes != null) {
+      } else if (_selectedImages.isNotEmpty &&
+          _selectedImages.first.bytes != null) {
         // For images, use the first image's bytes
         final imageBytes = _selectedImages.first.bytes!;
         final imageFilename = _selectedImages.first.filename ?? 'image.jpg';
@@ -329,7 +337,9 @@ class _AddResourcePageState extends ConsumerState<AddResourcePage> {
 
       // Refresh fresh resources to fetch from backend using the custom refresh provider
       try {
-        final refresh = ref.read(refreshResourcesForCourseProvider(widget.course.code));
+        final refresh = ref.read(
+          refreshResourcesForCourseProvider(widget.course.code),
+        );
         await refresh();
         logger.i("Resources refreshed after upload");
       } catch (e) {
@@ -348,9 +358,9 @@ class _AddResourcePageState extends ConsumerState<AddResourcePage> {
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text("Upload failed: $e")),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text("Upload failed: $e")));
       }
       logger.e("File Upload Error: $e");
     } finally {
@@ -373,12 +383,14 @@ class _AddResourcePageState extends ConsumerState<AddResourcePage> {
   }
 
   bool get _canSubmit {
-    return (_selectedPdf != null || _selectedImages.isNotEmpty) && _canShowUpload;
+    return (_selectedPdf != null || _selectedImages.isNotEmpty) &&
+        _canShowUpload;
   }
 
   @override
   Widget build(BuildContext context) {
-    final String courseDisplay = "${widget.course.code} - ${widget.course.name}";
+    final String courseDisplay =
+        "${widget.course.code} - ${widget.course.name}";
     final isUploading = _isUploading;
 
     return Scaffold(
@@ -388,7 +400,10 @@ class _AddResourcePageState extends ConsumerState<AddResourcePage> {
         elevation: 0,
         surfaceTintColor: Colors.transparent,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.black87),
+          icon: const Icon(
+            Icons.arrow_back_ios_new_rounded,
+            color: Colors.black87,
+          ),
           onPressed: () => Navigator.pop(context),
         ),
         title: const Text(
@@ -434,7 +449,6 @@ class _AddResourcePageState extends ConsumerState<AddResourcePage> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-
             /// Course
             const Text("Course", style: TextStyle(fontWeight: FontWeight.w600)),
             const SizedBox(height: 8),
@@ -445,7 +459,10 @@ class _AddResourcePageState extends ConsumerState<AddResourcePage> {
             const SizedBox(height: 20),
 
             /// Resource Type
-            const Text("Resource Type", style: TextStyle(fontWeight: FontWeight.w600)),
+            const Text(
+              "Resource Type",
+              style: TextStyle(fontWeight: FontWeight.w600),
+            ),
             const SizedBox(height: 8),
             DropdownButtonFormField<String>(
               initialValue: _selectedType,
@@ -456,16 +473,22 @@ class _AddResourcePageState extends ConsumerState<AddResourcePage> {
               onChanged: (value) {
                 setState(() {
                   _selectedType = value;
-                  _selectedMidNumber = null; // Reset mid number when type changes
+                  _selectedMidNumber =
+                      null; // Reset mid number when type changes
                 });
               },
-              decoration: const InputDecoration(hintText: "Select Resource Type"),
+              decoration: const InputDecoration(
+                hintText: "Select Resource Type",
+              ),
             ),
             const SizedBox(height: 20),
 
             /// Mid Number — shown for Mid exams
             if (_selectedType == "Mid") ...[
-              const Text("Mid Exam Number", style: TextStyle(fontWeight: FontWeight.w600)),
+              const Text(
+                "Mid Exam Number",
+                style: TextStyle(fontWeight: FontWeight.w600),
+              ),
               const SizedBox(height: 8),
               DropdownButtonFormField<int>(
                 initialValue: _selectedMidNumber,
@@ -478,7 +501,9 @@ class _AddResourcePageState extends ConsumerState<AddResourcePage> {
                     _selectedMidNumber = value;
                   });
                 },
-                decoration: const InputDecoration(hintText: "Select Mid Number"),
+                decoration: const InputDecoration(
+                  hintText: "Select Mid Number",
+                ),
               ),
               const SizedBox(height: 20),
             ],
@@ -488,7 +513,10 @@ class _AddResourcePageState extends ConsumerState<AddResourcePage> {
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  const Text("Solved", style: TextStyle(fontWeight: FontWeight.w600)),
+                  const Text(
+                    "Solved",
+                    style: TextStyle(fontWeight: FontWeight.w600),
+                  ),
                   Checkbox(
                     value: _isSolved,
                     onChanged: (value) {
@@ -511,8 +539,8 @@ class _AddResourcePageState extends ConsumerState<AddResourcePage> {
                   _selectedPdf != null
                       ? "PDF Selected"
                       : _selectedImages.isNotEmpty
-                          ? "${_selectedImages.length} image(s) selected"
-                          : "Upload PDF or Images",
+                      ? "${_selectedImages.length} image(s) selected"
+                      : "Upload PDF or Images",
                 ),
                 style: OutlinedButton.styleFrom(
                   minimumSize: const Size(double.infinity, 50),

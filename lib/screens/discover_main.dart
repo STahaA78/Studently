@@ -19,7 +19,8 @@ class ConnectDiscoverPage extends StatefulWidget {
   State<ConnectDiscoverPage> createState() => _ConnectDiscoverPageState();
 }
 
-class _ConnectDiscoverPageState extends State<ConnectDiscoverPage> with WidgetsBindingObserver {
+class _ConnectDiscoverPageState extends State<ConnectDiscoverPage>
+    with WidgetsBindingObserver {
   final TextEditingController _searchController = TextEditingController();
   final Color primaryBlue = const Color(0xFF0F74C5);
   final UserRepository _userRepository = UserRepository();
@@ -32,7 +33,9 @@ class _ConnectDiscoverPageState extends State<ConnectDiscoverPage> with WidgetsB
   String? selectedDepartmentName;
   String? selectedBatchYear;
   int _topCardIndex = 0;
-  final ValueNotifier<double> _swipeProgressNotifier = ValueNotifier<double>(0.0);
+  final ValueNotifier<double> _swipeProgressNotifier = ValueNotifier<double>(
+    0.0,
+  );
   Timer? _searchDebounceTimer;
   bool _isDisposed = false;
   bool _isRefreshing = false;
@@ -43,7 +46,7 @@ class _ConnectDiscoverPageState extends State<ConnectDiscoverPage> with WidgetsB
     WidgetsBinding.instance.addObserver(this);
     _discoverFuture = _loadDiscoverUsers();
     loadPendingRequestsCount();
-    
+
     // Background refresh after a short delay to ensure fresh profiles
     Future.delayed(const Duration(milliseconds: 500), () {
       if (mounted && !_isDisposed) {
@@ -86,24 +89,31 @@ class _ConnectDiscoverPageState extends State<ConnectDiscoverPage> with WidgetsB
   Future<List<User>> _loadDiscoverUsers() async {
     final users = await _userRepository.discoverUsers();
     if (!mounted) return [];
-    
+
     // Fetch connection statuses for all users and filter out those with "error" status
     final statuses = await _fetchConnectionStatusesForUsers(users);
     // Filter to only show users with "none" status (no existing connection, no outgoing request)
-    var validUsers = users.where((user) => 
-      statuses.containsKey(user.id) && statuses[user.id] == "none"
-    ).toList();
-    
+    var validUsers = users
+        .where(
+          (user) =>
+              statuses.containsKey(user.id) && statuses[user.id] == "none",
+        )
+        .toList();
+
     // Apply department filter if selected
     if (selectedDepartmentName != null) {
-      validUsers = validUsers.where((user) => user.department?.name == selectedDepartmentName).toList();
+      validUsers = validUsers
+          .where((user) => user.department?.name == selectedDepartmentName)
+          .toList();
     }
-    
+
     // Apply batch year filter if selected
     if (selectedBatchYear != null) {
-      validUsers = validUsers.where((user) => user.batch.toString() == selectedBatchYear).toList();
+      validUsers = validUsers
+          .where((user) => user.batch.toString() == selectedBatchYear)
+          .toList();
     }
-    
+
     _safeSetState(() {
       students = validUsers;
       connectionStatus = statuses;
@@ -115,25 +125,32 @@ class _ConnectDiscoverPageState extends State<ConnectDiscoverPage> with WidgetsB
   // Background refresh to ensure fresh profiles (silently refreshes in background)
   Future<void> _backgroundRefreshDiscoverUsers() async {
     if (_isRefreshing) return;
-    
+
     try {
       _isRefreshing = true;
       final users = await _userRepository.discoverUsers();
       if (!mounted || _isDisposed) return;
-      
+
       final statuses = await _fetchConnectionStatusesForUsers(users);
-      var validUsers = users.where((user) => 
-        statuses.containsKey(user.id) && statuses[user.id] == "none"
-      ).toList();
-      
+      var validUsers = users
+          .where(
+            (user) =>
+                statuses.containsKey(user.id) && statuses[user.id] == "none",
+          )
+          .toList();
+
       if (selectedDepartmentName != null) {
-        validUsers = validUsers.where((user) => user.department?.name == selectedDepartmentName).toList();
+        validUsers = validUsers
+            .where((user) => user.department?.name == selectedDepartmentName)
+            .toList();
       }
-      
+
       if (selectedBatchYear != null) {
-        validUsers = validUsers.where((user) => user.batch.toString() == selectedBatchYear).toList();
+        validUsers = validUsers
+            .where((user) => user.batch.toString() == selectedBatchYear)
+            .toList();
       }
-      
+
       _safeSetState(() {
         students = validUsers;
         connectionStatus = statuses;
@@ -142,7 +159,9 @@ class _ConnectDiscoverPageState extends State<ConnectDiscoverPage> with WidgetsB
         }
       });
     } catch (e) {
-      logger.e("[ConnectDiscoverPage] _backgroundRefreshDiscoverUsers failed: $e");
+      logger.e(
+        "[ConnectDiscoverPage] _backgroundRefreshDiscoverUsers failed: $e",
+      );
     } finally {
       _isRefreshing = false;
     }
@@ -151,7 +170,7 @@ class _ConnectDiscoverPageState extends State<ConnectDiscoverPage> with WidgetsB
   // Manual refresh (triggered by user)
   Future<void> _manualRefreshDiscoverUsers() async {
     if (_isRefreshing) return;
-    
+
     try {
       _isRefreshing = true;
       _safeSetState(() {
@@ -166,14 +185,14 @@ class _ConnectDiscoverPageState extends State<ConnectDiscoverPage> with WidgetsB
   void _onSearchChanged() {
     final query = _searchController.text.trim();
     _searchDebounceTimer?.cancel();
-    
+
     if (query.isEmpty) {
       _safeSetState(() => isSearchFocused = false);
       return;
     }
-    
+
     _safeSetState(() => isSearchFocused = true);
-    
+
     // Debounce the search with 500ms delay
     _searchDebounceTimer = Timer(const Duration(milliseconds: 500), () {
       if (query.isNotEmpty) _performSearch(query);
@@ -195,7 +214,7 @@ class _ConnectDiscoverPageState extends State<ConnectDiscoverPage> with WidgetsB
     try {
       final results = await _userRepository.searchUsers(query);
       if (!mounted) return;
-      
+
       _safeSetState(() {
         students = results;
         _topCardIndex = 0;
@@ -229,15 +248,19 @@ class _ConnectDiscoverPageState extends State<ConnectDiscoverPage> with WidgetsB
   }
 
   // Batch fetch connection statuses for multiple users
-  Future<Map<String, String>> _fetchConnectionStatusesForUsers(List<User> users) async {
+  Future<Map<String, String>> _fetchConnectionStatusesForUsers(
+    List<User> users,
+  ) async {
     if (users.isEmpty) return {};
-    
+
     try {
       final targetIds = users.map((user) => user.id).toList();
       final statuses = await _userRepository.fetchConnectionStatuses(targetIds);
       return statuses;
     } catch (e) {
-      logger.e("[ConnectDiscoverPage] _fetchConnectionStatusesForUsers failed: $e");
+      logger.e(
+        "[ConnectDiscoverPage] _fetchConnectionStatusesForUsers failed: $e",
+      );
       return {};
     }
   }
@@ -263,7 +286,8 @@ class _ConnectDiscoverPageState extends State<ConnectDiscoverPage> with WidgetsB
   }
 
   // ---------------- PENDING COUNT ----------------
-  Future<void> loadPendingRequestsCount() async {    if (!mounted || _isDisposed) return;
+  Future<void> loadPendingRequestsCount() async {
+    if (!mounted || _isDisposed) return;
     try {
       final count = await _userRepository.fetchPendingRequestsCount();
       if (!mounted || _isDisposed) return;
@@ -292,10 +316,10 @@ class _ConnectDiscoverPageState extends State<ConnectDiscoverPage> with WidgetsB
       backgroundColor: Colors.white,
       builder: (context) => StatefulBuilder(
         builder: (context, setSheetState) => Consumer(
-          builder: (context, ref, child) =>
-              ref.watch(backendConfigProvider).when(
-                loading: () =>
-                    const Center(child: CircularProgressIndicator()),
+          builder: (context, ref, child) => ref
+              .watch(backendConfigProvider)
+              .when(
+                loading: () => const Center(child: CircularProgressIndicator()),
                 error: (e, _) =>
                     Center(child: Text("Error loading config: $e")),
                 data: (config) {
@@ -308,134 +332,145 @@ class _ConnectDiscoverPageState extends State<ConnectDiscoverPage> with WidgetsB
                     child: Padding(
                       padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
                       child: ScrollConfiguration(
-                        behavior: ScrollConfiguration.of(context).copyWith(scrollbars: false),
+                        behavior: ScrollConfiguration.of(
+                          context,
+                        ).copyWith(scrollbars: false),
                         child: SingleChildScrollView(
                           child: Column(
                             mainAxisSize: MainAxisSize.min,
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Row(
-                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                mainAxisAlignment:
+                                    MainAxisAlignment.spaceBetween,
                                 children: [
-                                  Text("Filter",
-                                      style: Theme.of(context)
-                                          .textTheme
-                                          .titleLarge
-                                          ?.copyWith(
-                                              fontWeight: FontWeight.bold)),
+                                  Text(
+                                    "Filter",
+                                    style: Theme.of(context)
+                                        .textTheme
+                                        .titleLarge
+                                        ?.copyWith(fontWeight: FontWeight.bold),
+                                  ),
                                   IconButton(
                                     icon: const Icon(Icons.close),
                                     onPressed: () => Navigator.pop(context),
                                     padding: EdgeInsets.zero,
-                                constraints: const BoxConstraints(),
+                                    constraints: const BoxConstraints(),
+                                  ),
+                                ],
                               ),
+                              const SizedBox(height: 24),
+                              Text(
+                                "Department",
+                                style: Theme.of(context).textTheme.bodyMedium
+                                    ?.copyWith(fontWeight: FontWeight.w600),
+                              ),
+                              const SizedBox(height: 12),
+                              Wrap(
+                                spacing: 8,
+                                runSpacing: 8,
+                                children: config.departments.map((dept) {
+                                  return FilterChip(
+                                    label: Text(dept.name),
+                                    selected: tempDept == dept.name,
+                                    showCheckmark: false,
+                                    backgroundColor: Colors.white,
+                                    selectedColor: const Color(0xFF0F74C5),
+                                    checkmarkColor: Colors.white,
+                                    labelStyle: TextStyle(
+                                      color: tempDept == dept.name
+                                          ? Colors.white
+                                          : Colors.black,
+                                    ),
+                                    onSelected: (selected) => setSheetState(() {
+                                      tempDept = selected ? dept.name : null;
+                                    }),
+                                  );
+                                }).toList(),
+                              ),
+                              const SizedBox(height: 24),
+                              Text(
+                                "Batch Year",
+                                style: Theme.of(context).textTheme.bodyMedium
+                                    ?.copyWith(fontWeight: FontWeight.w600),
+                              ),
+                              const SizedBox(height: 12),
+                              Wrap(
+                                spacing: 8,
+                                runSpacing: 8,
+                                children: batchYears.map((batch) {
+                                  return FilterChip(
+                                    label: Text(batch),
+                                    selected: tempBatch == batch,
+                                    showCheckmark: false,
+                                    backgroundColor: Colors.white,
+                                    selectedColor: const Color(0xFF0F74C5),
+                                    checkmarkColor: Colors.white,
+                                    labelStyle: TextStyle(
+                                      color: tempBatch == batch
+                                          ? Colors.white
+                                          : Colors.black,
+                                    ),
+                                    onSelected: (selected) => setSheetState(() {
+                                      tempBatch = selected ? batch : null;
+                                    }),
+                                  );
+                                }).toList(),
+                              ),
+                              const SizedBox(height: 24),
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: OutlinedButton(
+                                      onPressed: () {
+                                        Navigator.pop(context);
+                                        WidgetsBinding.instance
+                                            .addPostFrameCallback((_) {
+                                              if (mounted) {
+                                                setState(() {
+                                                  selectedDepartmentName = null;
+                                                  selectedBatchYear = null;
+                                                  _topCardIndex = 0;
+                                                  _swipeProgressNotifier.value =
+                                                      0.0;
+                                                });
+                                                _discoverFuture =
+                                                    _loadDiscoverUsers();
+                                              }
+                                            });
+                                      },
+                                      child: const Text("Reset"),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 12),
+                                  Expanded(
+                                    child: ElevatedButton(
+                                      onPressed: () {
+                                        Navigator.pop(context);
+                                        WidgetsBinding.instance
+                                            .addPostFrameCallback((_) {
+                                              if (mounted) {
+                                                setState(() {
+                                                  selectedDepartmentName =
+                                                      tempDept;
+                                                  selectedBatchYear = tempBatch;
+                                                  _topCardIndex = 0;
+                                                  _swipeProgressNotifier.value =
+                                                      0.0;
+                                                });
+                                                _discoverFuture =
+                                                    _loadDiscoverUsers();
+                                              }
+                                            });
+                                      },
+                                      child: const Text("Apply"),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 16),
                             ],
                           ),
-                          const SizedBox(height: 24),
-                          Text("Department",
-                              style: Theme.of(context)
-                                  .textTheme
-                                  .bodyMedium
-                                  ?.copyWith(fontWeight: FontWeight.w600)),
-                          const SizedBox(height: 12),
-                          Wrap(
-                            spacing: 8,
-                            runSpacing: 8,
-                            children: config.departments.map((dept) {
-                              return FilterChip(
-                                label: Text(dept.name),
-                                selected: tempDept == dept.name,
-                                showCheckmark: false,
-                                backgroundColor: Colors.white,
-                                selectedColor: const Color(0xFF0F74C5),
-                                checkmarkColor: Colors.white,
-                                labelStyle: TextStyle(
-                                  color: tempDept == dept.name ? Colors.white : Colors.black,
-                                ),
-                                onSelected: (selected) =>
-                                    setSheetState(() {
-                                  tempDept = selected ? dept.name : null;
-                                }),
-                              );
-                            }).toList(),
-                          ),
-                          const SizedBox(height: 24),
-                          Text("Batch Year",
-                              style: Theme.of(context)
-                                  .textTheme
-                                  .bodyMedium
-                                  ?.copyWith(fontWeight: FontWeight.w600)),
-                          const SizedBox(height: 12),
-                          Wrap(
-                            spacing: 8,
-                            runSpacing: 8,
-                            children: batchYears.map((batch) {
-                              return FilterChip(
-                                label: Text(batch),
-                                selected: tempBatch == batch,
-                                showCheckmark: false,
-                                backgroundColor: Colors.white,
-                                selectedColor: const Color(0xFF0F74C5),
-                                checkmarkColor: Colors.white,
-                                labelStyle: TextStyle(
-                                  color: tempBatch == batch ? Colors.white : Colors.black,
-                                ),
-                                onSelected: (selected) =>
-                                    setSheetState(() {
-                                  tempBatch = selected ? batch : null;
-                                }),
-                              );
-                            }).toList(),
-                          ),
-                          const SizedBox(height: 24),
-                          Row(
-                            children: [
-                              Expanded(
-                                child: OutlinedButton(
-                                  onPressed: () {
-                                    Navigator.pop(context);
-                                    WidgetsBinding.instance
-                                        .addPostFrameCallback((_) {
-                                      if (mounted) {
-                                        setState(() {
-                                          selectedDepartmentName = null;
-                                          selectedBatchYear = null;
-                                          _topCardIndex = 0;
-                                          _swipeProgressNotifier.value = 0.0;
-                                        });
-                                        _discoverFuture = _loadDiscoverUsers();
-                                      }
-                                    });
-                                  },
-                                  child: const Text("Reset"),
-                                ),
-                              ),
-                              const SizedBox(width: 12),
-                              Expanded(
-                                child: ElevatedButton(
-                                  onPressed: () {
-                                    Navigator.pop(context);
-                                    WidgetsBinding.instance
-                                        .addPostFrameCallback((_) {
-                                      if (mounted) {
-                                        setState(() {
-                                          selectedDepartmentName = tempDept;
-                                          selectedBatchYear = tempBatch;
-                                          _topCardIndex = 0;
-                                          _swipeProgressNotifier.value = 0.0;
-                                        });
-                                        _discoverFuture = _loadDiscoverUsers();
-                                      }
-                                    });
-                                  },
-                                  child: const Text("Apply"),
-                                ),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 16),
-                        ],
-                        ),
                         ),
                       ),
                     ),
@@ -456,11 +491,14 @@ class _ConnectDiscoverPageState extends State<ConnectDiscoverPage> with WidgetsB
         backgroundColor: Colors.white,
         elevation: 0,
         centerTitle: true,
-        title: const Text("Connect",
-            style: TextStyle(
-                color: Colors.black,
-                fontWeight: FontWeight.w600,
-                fontSize: 20)),
+        title: const Text(
+          "Connect",
+          style: TextStyle(
+            color: Colors.black,
+            fontWeight: FontWeight.w600,
+            fontSize: 20,
+          ),
+        ),
         actions: [
           // Refresh button (web only)
           if (kIsWeb)
@@ -480,9 +518,13 @@ class _ConnectDiscoverPageState extends State<ConnectDiscoverPage> with WidgetsB
                     child: CircleAvatar(
                       radius: 9,
                       backgroundColor: Colors.red,
-                      child: Text(pendingRequestsCount.toString(),
-                          style: const TextStyle(
-                              fontSize: 10, color: Colors.white)),
+                      child: Text(
+                        pendingRequestsCount.toString(),
+                        style: const TextStyle(
+                          fontSize: 10,
+                          color: Colors.white,
+                        ),
+                      ),
                     ),
                   ),
               ],
@@ -520,11 +562,10 @@ class _ConnectDiscoverPageState extends State<ConnectDiscoverPage> with WidgetsB
                   child: TextField(
                     controller: _searchController,
                     onChanged: (_) => _onSearchChanged(),
-                    onTap: () =>
-                        _safeSetState(() => isSearchFocused = true),
+                    onTap: () => _safeSetState(() => isSearchFocused = true),
                     decoration: InputDecoration(
                       hintText: "Search students",
-                      prefixIcon: const Icon(Icons.search),  
+                      prefixIcon: const Icon(Icons.search),
                     ),
                   ),
                 ),
@@ -548,8 +589,7 @@ class _ConnectDiscoverPageState extends State<ConnectDiscoverPage> with WidgetsB
             child: Stack(
               children: [
                 Visibility(
-                  visible: !isSearchFocused ||
-                      (_searchController.text.isEmpty),
+                  visible: !isSearchFocused || (_searchController.text.isEmpty),
                   maintainState: true,
                   child: _buildCardStack(),
                 ),
@@ -617,12 +657,10 @@ class _ConnectDiscoverPageState extends State<ConnectDiscoverPage> with WidgetsB
             CircleAvatar(
               radius: 25,
               backgroundColor: Colors.grey[300],
-              backgroundImage: user.picture != null &&
-                      user.picture!.isNotEmpty
+              backgroundImage: user.picture != null && user.picture!.isNotEmpty
                   ? NetworkImage(user.picture!)
                   : null,
-              child: user.picture == null ||
-                      user.picture!.isEmpty
+              child: user.picture == null || user.picture!.isEmpty
                   ? const Icon(Icons.person, size: 32, color: Colors.grey)
                   : null,
             ),
@@ -646,10 +684,7 @@ class _ConnectDiscoverPageState extends State<ConnectDiscoverPage> with WidgetsB
                     const SizedBox(height: 4),
                     Text(
                       "${user.department?.name ?? 'N/A'} • Batch ${user.batch}",
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: Colors.grey[600],
-                      ),
+                      style: TextStyle(fontSize: 12, color: Colors.grey[600]),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                     ),
@@ -676,52 +711,54 @@ class _ConnectDiscoverPageState extends State<ConnectDiscoverPage> with WidgetsB
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Text("Recent Searches",
-                      style: Theme.of(context)
-                          .textTheme
-                          .titleMedium
-                          ?.copyWith(fontWeight: FontWeight.w600)),
+                  Text(
+                    "Recent Searches",
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
                   GestureDetector(
                     onTap: () => _safeSetState(() => recentSearches.clear()),
                     child: Text(
                       "Clear all",
-                      style: TextStyle(
-                        color: primaryBlue,
-                        fontSize: 12,
-                      ),
+                      style: TextStyle(color: primaryBlue, fontSize: 12),
                     ),
                   ),
                 ],
               ),
             ),
-          ...recentSearches.map((search) => GestureDetector(
-                onTap: () {
-                  _searchController.text = search;
-                  _performSearch(search);
-                },
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 12),
-                  child: Row(
-                    children: [
-                      const Icon(Icons.history,
-                          color: Colors.grey, size: 20),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Text(search,
-                            style: Theme.of(context).textTheme.bodyLarge),
+          ...recentSearches.map(
+            (search) => GestureDetector(
+              onTap: () {
+                _searchController.text = search;
+                _performSearch(search);
+              },
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                child: Row(
+                  children: [
+                    const Icon(Icons.history, color: Colors.grey, size: 20),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        search,
+                        style: Theme.of(context).textTheme.bodyLarge,
                       ),
-                      GestureDetector(
-                        onTap: () => _safeSetState(() => recentSearches.remove(search)),
-                        child: Icon(
-                          Icons.close,
-                          color: Colors.grey[400],
-                          size: 18,
-                        ),
+                    ),
+                    GestureDetector(
+                      onTap: () =>
+                          _safeSetState(() => recentSearches.remove(search)),
+                      child: Icon(
+                        Icons.close,
+                        color: Colors.grey[400],
+                        size: 18,
                       ),
-                    ],
-                  ),
+                    ),
+                  ],
                 ),
-              )),
+              ),
+            ),
+          ),
         ],
       ),
     );
@@ -748,11 +785,16 @@ class _ConnectDiscoverPageState extends State<ConnectDiscoverPage> with WidgetsB
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Icon(Icons.check_circle_outline,
-                    size: 80, color: Colors.grey[300]),
+                Icon(
+                  Icons.check_circle_outline,
+                  size: 80,
+                  color: Colors.grey[300],
+                ),
                 const SizedBox(height: 16),
-                Text("You've seen everyone!",
-                    style: Theme.of(context).textTheme.titleMedium),
+                Text(
+                  "You've seen everyone!",
+                  style: Theme.of(context).textTheme.titleMedium,
+                ),
               ],
             ),
           );
@@ -790,11 +832,13 @@ class _ConnectDiscoverPageState extends State<ConnectDiscoverPage> with WidgetsB
                           builder: (context, dragProgress, _) {
                             final depth = index - _topCardIndex; // 1 or 2
                             // Scale moves smoothly from (1 - depth*0.04) up to (1 - (depth-1)*0.04)
-                            final scale = (1.0 - (depth * 0.04)) + (0.04 * dragProgress);
+                            final scale =
+                                (1.0 - (depth * 0.04)) + (0.04 * dragProgress);
                             // Slide moves smoothly from depth offset up to (depth-1) offset
                             // Use FractionalTranslation to move relative to card height.
                             // -0.018 in FractionalTranslation is a slight move upwards.
-                            final slideRatio = -0.018 * depth + (0.018 * dragProgress);
+                            final slideRatio =
+                                -0.018 * depth + (0.018 * dragProgress);
 
                             return FractionalTranslation(
                               translation: Offset(0, slideRatio),
@@ -843,7 +887,8 @@ class _ConnectDiscoverPageState extends State<ConnectDiscoverPage> with WidgetsB
               await Navigator.push(
                 context,
                 MaterialPageRoute(
-                    builder: (_) => ProfilePage(userId: student.id)),
+                  builder: (_) => ProfilePage(userId: student.id),
+                ),
               );
             }
           : null,
@@ -857,7 +902,7 @@ class _ConnectDiscoverPageState extends State<ConnectDiscoverPage> with WidgetsB
               color: Colors.black.withValues(alpha: 0.1),
               blurRadius: 12,
               offset: const Offset(0, 4),
-            )
+            ),
           ],
         ),
         child: Stack(
@@ -867,7 +912,7 @@ class _ConnectDiscoverPageState extends State<ConnectDiscoverPage> with WidgetsB
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Padding(
-                  padding: const EdgeInsets.only(top: 10,  left: 20),
+                  padding: const EdgeInsets.only(top: 10, left: 20),
                   child: SizedBox(
                     width: double.infinity,
                     child: Column(
@@ -888,7 +933,9 @@ class _ConnectDiscoverPageState extends State<ConnectDiscoverPage> with WidgetsB
                         Text(
                           "${student.department} • Batch ${student.batch}",
                           style: const TextStyle(
-                              fontSize: 14, color: Colors.white),
+                            fontSize: 14,
+                            color: Colors.white,
+                          ),
                           textAlign: TextAlign.left,
                         ),
                       ],
@@ -898,7 +945,10 @@ class _ConnectDiscoverPageState extends State<ConnectDiscoverPage> with WidgetsB
                 if (student.interests.isNotEmpty)
                   Padding(
                     padding: const EdgeInsets.only(
-                        left: 10, right: 10, bottom: 16),
+                      left: 10,
+                      right: 10,
+                      bottom: 16,
+                    ),
                     child: Container(
                       clipBehavior: Clip.hardEdge,
                       decoration: BoxDecoration(
@@ -911,15 +961,19 @@ class _ConnectDiscoverPageState extends State<ConnectDiscoverPage> with WidgetsB
                         children: [
                           const Padding(
                             padding: EdgeInsets.symmetric(
-                                horizontal: 16, vertical: 12),
-                            child: Text('Interests',
-                                style: TextStyle(
-                                    fontSize: 14,
-                                    fontWeight: FontWeight.w600,
-                                    color: Colors.black87)),
+                              horizontal: 16,
+                              vertical: 12,
+                            ),
+                            child: Text(
+                              'Interests',
+                              style: TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w600,
+                                color: Colors.black87,
+                              ),
+                            ),
                           ),
-                          Divider(
-                              height: 1, color: Colors.grey.shade300),
+                          Divider(height: 1, color: Colors.grey.shade300),
                           Padding(
                             padding: const EdgeInsets.all(12),
                             child: Wrap(
@@ -927,37 +981,42 @@ class _ConnectDiscoverPageState extends State<ConnectDiscoverPage> with WidgetsB
                               runSpacing: 6,
                               children: student.interests
                                   .take(5)
-                                  .map((Interest interest) => Container(
-                                        padding:
-                                            const EdgeInsets.symmetric(
-                                                horizontal: 10,
-                                                vertical: 4),
-                                        decoration: BoxDecoration(
-                                          color: Colors.grey.shade100,
-                                          borderRadius:
-                                              BorderRadius.circular(16),
-                                          border: Border.all(
-                                              color: const Color(
-                                                  0xFFE0E6ED)),
+                                  .map(
+                                    (Interest interest) => Container(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 10,
+                                        vertical: 4,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        color: Colors.grey.shade100,
+                                        borderRadius: BorderRadius.circular(16),
+                                        border: Border.all(
+                                          color: const Color(0xFFE0E6ED),
                                         ),
-                                        child: Row(
-                                          mainAxisSize: MainAxisSize.min,
-                                          children: [
-                                            if (interest
-                                                .emoji.isNotEmpty) ...[
-                                              Text(interest.emoji,
-                                                  style: const TextStyle(
-                                                      fontSize: 12)),
-                                              const SizedBox(width: 4),
-                                            ],
-                                            Text(interest.name,
-                                                style: const TextStyle(
-                                                    color: Color(
-                                                        0xFF334155),
-                                                    fontSize: 11)),
+                                      ),
+                                      child: Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          if (interest.emoji.isNotEmpty) ...[
+                                            Text(
+                                              interest.emoji,
+                                              style: const TextStyle(
+                                                fontSize: 12,
+                                              ),
+                                            ),
+                                            const SizedBox(width: 4),
                                           ],
-                                        ),
-                                      ))
+                                          Text(
+                                            interest.name,
+                                            style: const TextStyle(
+                                              color: Color(0xFF334155),
+                                              fontSize: 11,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  )
                                   .toList(),
                             ),
                           ),
@@ -974,8 +1033,7 @@ class _ConnectDiscoverPageState extends State<ConnectDiscoverPage> with WidgetsB
   }
 
   Widget _buildCardBackground(User student) {
-    if (student.picture != null &&
-        student.picture!.isNotEmpty) {
+    if (student.picture != null && student.picture!.isNotEmpty) {
       return Stack(
         fit: StackFit.expand,
         children: [
@@ -1024,12 +1082,12 @@ class _ConnectDiscoverPageState extends State<ConnectDiscoverPage> with WidgetsB
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(Icons.cloud_off_rounded,
-                size: 80, color: Colors.grey[400]),
+            Icon(Icons.cloud_off_rounded, size: 80, color: Colors.grey[400]),
             const SizedBox(height: 24),
-            const Text("Connection Issue",
-                style: TextStyle(
-                    fontSize: 20, fontWeight: FontWeight.bold)),
+            const Text(
+              "Connection Issue",
+              style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+            ),
             const SizedBox(height: 8),
             Text(
               "We couldn't reach our Backend. Please check your internet and try again.",
@@ -1040,18 +1098,20 @@ class _ConnectDiscoverPageState extends State<ConnectDiscoverPage> with WidgetsB
             SizedBox(
               width: double.infinity,
               child: ElevatedButton(
-                onPressed: () => _safeSetState(
-                    () => _discoverFuture = _loadDiscoverUsers()),
+                onPressed: () =>
+                    _safeSetState(() => _discoverFuture = _loadDiscoverUsers()),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: primaryBlue,
                   foregroundColor: Colors.white,
                   padding: const EdgeInsets.symmetric(vertical: 16),
                   shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(25)),
+                    borderRadius: BorderRadius.circular(25),
+                  ),
                 ),
-                child: const Text("Try Again",
-                    style:
-                        TextStyle(fontSize: 18, color: Colors.white)),
+                child: const Text(
+                  "Try Again",
+                  style: TextStyle(fontSize: 18, color: Colors.white),
+                ),
               ),
             ),
           ],
@@ -1107,7 +1167,10 @@ class _DraggableCardState extends State<_DraggableCard>
       if (!mounted) return;
       double screenWidth = MediaQuery.of(context).size.width;
       // Progress hits 1.0 when dragged halfway off the screen
-      double progress = (newOffset.dx.abs() / (screenWidth * 0.6)).clamp(0.0, 1.0);
+      double progress = (newOffset.dx.abs() / (screenWidth * 0.6)).clamp(
+        0.0,
+        1.0,
+      );
       widget.swipeNotifier!.value = progress;
     }
   }
@@ -1157,8 +1220,7 @@ class _DraggableCardState extends State<_DraggableCard>
       _animation = Tween<Offset>(
         begin: _offset,
         end: Offset(dir * screenWidth * 1.5, _offset.dy),
-      ).animate(
-          CurvedAnimation(parent: _controller, curve: Curves.easeIn));
+      ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeIn));
       _controller.forward(from: 0).then((_) {
         if (dir > 0) {
           widget.onSwipedRight();
@@ -1175,11 +1237,9 @@ class _DraggableCardState extends State<_DraggableCard>
       });
     } else {
       // Snap back
-      _animation = Tween<Offset>(
-        begin: _offset,
-        end: Offset.zero,
-      ).animate(CurvedAnimation(
-          parent: _controller, curve: Curves.easeOutQuint));
+      _animation = Tween<Offset>(begin: _offset, end: Offset.zero).animate(
+        CurvedAnimation(parent: _controller, curve: Curves.easeOutQuint),
+      );
       _controller.duration = const Duration(milliseconds: 300);
       _controller.forward(from: 0).then((_) {
         _controller.duration = const Duration(milliseconds: 250);
@@ -1203,7 +1263,10 @@ class _DraggableCardState extends State<_DraggableCard>
 
   @override
   Widget build(BuildContext context) {
-    final progress = (_offset.dx.abs() / (_swipeThreshold * 1.2)).clamp(0.0, 1.0);
+    final progress = (_offset.dx.abs() / (_swipeThreshold * 1.2)).clamp(
+      0.0,
+      1.0,
+    );
     final rightOpacity = _offset.dx > 0 ? progress : 0.0;
     final leftOpacity = _offset.dx < 0 ? progress : 0.0;
 

@@ -1,3 +1,4 @@
+import 'package:studently/app_style.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
@@ -20,7 +21,7 @@ class KnowledgeHubPage extends ConsumerStatefulWidget {
 
 class _KnowledgeHubPageState extends ConsumerState<KnowledgeHubPage> {
   final TextEditingController _searchController = TextEditingController();
-  final Color blue = const Color(0xFF1976D2);
+  final Color blue = AppStyle.primaryBlue;
 
   List<Course> allCourses = [];
   List<Course> filteredCourses = [];
@@ -32,8 +33,32 @@ class _KnowledgeHubPageState extends ConsumerState<KnowledgeHubPage> {
   final GlobalKey _alphabetBarKey = GlobalKey();
 
   static const List<String> _allLetters = [
-    'A','B','C','D','E','F','G','H','I','J','K','L','M',
-    'N','O','P','Q','R','S','T','U','V','W','X','Y','Z'
+    'A',
+    'B',
+    'C',
+    'D',
+    'E',
+    'F',
+    'G',
+    'H',
+    'I',
+    'J',
+    'K',
+    'L',
+    'M',
+    'N',
+    'O',
+    'P',
+    'Q',
+    'R',
+    'S',
+    'T',
+    'U',
+    'V',
+    'W',
+    'X',
+    'Y',
+    'Z',
   ];
 
   Map<String, int> _letterIndexMap = {};
@@ -66,9 +91,11 @@ class _KnowledgeHubPageState extends ConsumerState<KnowledgeHubPage> {
     final query = _searchController.text.toLowerCase();
     setState(() {
       filteredCourses = allCourses
-          .where((course) =>
-              course.name.toLowerCase().contains(query) ||
-              course.code.toLowerCase().contains(query))
+          .where(
+            (course) =>
+                course.name.toLowerCase().contains(query) ||
+                course.code.toLowerCase().contains(query),
+          )
           .toList();
       _buildLetterIndexMap();
     });
@@ -78,7 +105,8 @@ class _KnowledgeHubPageState extends ConsumerState<KnowledgeHubPage> {
   /// Falls back to known constants if not yet rendered.
   void _measureHeights() {
     if (_measuredCardHeight == null) {
-      final box = _firstCardKey.currentContext?.findRenderObject() as RenderBox?;
+      final box =
+          _firstCardKey.currentContext?.findRenderObject() as RenderBox?;
       if (box != null && box.hasSize) {
         // include the vertical margin (7 top + 7 bottom = 14)
         _measuredCardHeight = box.size.height + 14;
@@ -123,8 +151,10 @@ class _KnowledgeHubPageState extends ConsumerState<KnowledgeHubPage> {
     final totalHeight = box.size.height;
     final letterHeight = totalHeight / _allLetters.length;
 
-    final idx =
-        (localY / letterHeight).floor().clamp(0, _allLetters.length - 1);
+    final idx = (localY / letterHeight).floor().clamp(
+      0,
+      _allLetters.length - 1,
+    );
     final letter = _allLetters[idx];
 
     if (letter != _activeLetter) {
@@ -146,7 +176,9 @@ class _KnowledgeHubPageState extends ConsumerState<KnowledgeHubPage> {
   @override
   Widget build(BuildContext context) {
     final screenHeight = MediaQuery.of(context).size.height;
-    final coursesAsyncValue = ref.watch(allCoursesProvider); // Uses cache first, then API
+    final coursesAsyncValue = ref.watch(
+      allCoursesProvider,
+    ); // Uses cache first, then API
 
     return Scaffold(
       backgroundColor: Colors.white,
@@ -160,7 +192,8 @@ class _KnowledgeHubPageState extends ConsumerState<KnowledgeHubPage> {
           child: coursesAsyncValue.when(
             loading: () => const Center(child: CircularProgressIndicator()),
             error: (error, stackTrace) => _buildErrorState(context),
-            data: (courses) => _buildCoursesView(context, courses, screenHeight),
+            data: (courses) =>
+                _buildCoursesView(context, courses, screenHeight),
           ),
         ),
       ),
@@ -175,8 +208,7 @@ class _KnowledgeHubPageState extends ConsumerState<KnowledgeHubPage> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(Icons.cloud_off_rounded,
-                size: 80, color: Colors.grey[400]),
+            Icon(Icons.cloud_off_rounded, size: 80, color: Colors.grey[400]),
             const SizedBox(height: 24),
             const Text(
               "Connection Issue",
@@ -200,10 +232,13 @@ class _KnowledgeHubPageState extends ConsumerState<KnowledgeHubPage> {
                   foregroundColor: Colors.white,
                   padding: const EdgeInsets.symmetric(vertical: 16),
                   shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(25)),
+                    borderRadius: BorderRadius.circular(25),
+                  ),
                 ),
-                child: const Text("Try Again",
-                    style: TextStyle(fontSize: 18, color: Colors.white)),
+                child: const Text(
+                  "Try Again",
+                  style: TextStyle(fontSize: 18, color: Colors.white),
+                ),
               ),
             ),
           ],
@@ -213,7 +248,10 @@ class _KnowledgeHubPageState extends ConsumerState<KnowledgeHubPage> {
   }
 
   Widget _buildCoursesView(
-      BuildContext context, List<Course> courses, double screenHeight) {
+    BuildContext context,
+    List<Course> courses,
+    double screenHeight,
+  ) {
     // Update courses data
     allCourses = courses;
     if (!isInitialized || _searchController.text.isEmpty) {
@@ -231,8 +269,7 @@ class _KnowledgeHubPageState extends ConsumerState<KnowledgeHubPage> {
     return Stack(
       children: [
         ScrollConfiguration(
-          behavior: ScrollConfiguration.of(context)
-              .copyWith(scrollbars: false),
+          behavior: ScrollConfiguration.of(context).copyWith(scrollbars: false),
           child: CustomScrollView(
             controller: _scrollController,
             slivers: [
@@ -276,12 +313,13 @@ class _KnowledgeHubPageState extends ConsumerState<KnowledgeHubPage> {
                 child: Container(
                   key: _headerKey,
                   margin: const EdgeInsets.symmetric(
-                      horizontal: 16, vertical: 8),
+                    horizontal: 16,
+                    vertical: 8,
+                  ),
                   child: TextField(
                     controller: _searchController,
                     decoration: const InputDecoration(
-                      prefixIcon:
-                          Icon(Icons.search, color: Colors.grey),
+                      prefixIcon: Icon(Icons.search, color: Colors.grey),
                       hintText: "Search courses...",
                     ),
                   ),
@@ -289,132 +327,147 @@ class _KnowledgeHubPageState extends ConsumerState<KnowledgeHubPage> {
               ),
 
               SliverList(
-                delegate: SliverChildBuilderDelegate(
-                  (context, index) {
-                    final course = filteredCourses[index];
-                    final isFirst = index == 0;
-                    final isLast = index == filteredCourses.length - 1;
+                delegate: SliverChildBuilderDelegate((context, index) {
+                  final course = filteredCourses[index];
+                  final isFirst = index == 0;
+                  final isLast = index == filteredCourses.length - 1;
 
-                    return Column(
-                      children: [
-                        Container(
-                          key: isFirst ? _firstCardKey : null,
-                          margin: const EdgeInsets.symmetric(
-                              horizontal: 20, vertical: 7),
-                          padding: const EdgeInsets.all(16),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                course.name,
-                                style: const TextStyle(
-                                  fontWeight: FontWeight.w500,
-                                  fontSize: 17,
-                                ),
+                  return Column(
+                    children: [
+                      Container(
+                        key: isFirst ? _firstCardKey : null,
+                        margin: const EdgeInsets.symmetric(
+                          horizontal: 20,
+                          vertical: 7,
+                        ),
+                        padding: const EdgeInsets.all(16),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              course.name,
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w500,
+                                fontSize: 17,
                               ),
-                              const SizedBox(height: 4),
-                              Text(
-                                course.code,
-                                style: const TextStyle(
-                                    color: Colors.grey, fontSize: 13),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              course.code,
+                              style: const TextStyle(
+                                color: Colors.grey,
+                                fontSize: 13,
                               ),
-                              const SizedBox(height: 10),
-                              Row(
-                                mainAxisAlignment: MainAxisAlignment.start,
-                                children: [
-                                  Expanded(
-                                    child: SizedBox(
-                                      height: 40,
-                                      child: ElevatedButton.icon(
-                                        onPressed: () {
-                                          Navigator.push(
-                                            context,
-                                            MaterialPageRoute(
-                                              builder: (_) =>
-                                                  RepositoryUserPage(
-                                                      course: course),
+                            ),
+                            const SizedBox(height: 10),
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.start,
+                              children: [
+                                Expanded(
+                                  child: SizedBox(
+                                    height: 40,
+                                    child: ElevatedButton.icon(
+                                      onPressed: () {
+                                        Navigator.push(
+                                          context,
+                                          MaterialPageRoute(
+                                            builder: (_) => RepositoryUserPage(
+                                              course: course,
                                             ),
-                                          );
-                                        },
-                                        icon: const Icon(Icons.folder_open, size: 18),
-                                        label: const Text("Repository"),
-                                        style: ElevatedButton.styleFrom(
-                                          padding: const EdgeInsets.symmetric(
-                                              horizontal: 12, vertical: 8),
-                                          backgroundColor: blue,
-                                          shape: RoundedRectangleBorder(
-                                            borderRadius: BorderRadius.circular(12),
                                           ),
+                                        );
+                                      },
+                                      icon: const Icon(
+                                        Icons.folder_open,
+                                        size: 18,
+                                      ),
+                                      label: const Text("Repository"),
+                                      style: ElevatedButton.styleFrom(
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 12,
+                                          vertical: 8,
                                         ),
-                                      ),
-                                      ),
-                                  ),
-                                  const SizedBox(width: 5),
-                                  Expanded(
-                                    child: SizedBox(
-                                      height: 40,
-                                      child: OutlinedButton.icon(
-                                        // CHANGED: Wired up Group Chat backend logic
-                                        onPressed: () async {
-                                          final convId = await ChatRepository()
-                                              .joinCourseGroupChat(course.code);
-                                      
-                                          if (convId != null &&
-                                              context.mounted) {
-                                            Navigator.push(
-                                              context,
-                                              MaterialPageRoute(
-                                                builder: (_) => ChatPage(
-                                                  conversationId: convId,
-                                                  otherUserId: "GROUP",
-                                                  otherUserName:
-                                                      "${course.name} Group",
-                                                ),
-                                              ),
-                                            );
-                                          } else if (context.mounted) {
-                                            ScaffoldMessenger.of(context)
-                                                .showSnackBar(
-                                              const SnackBar(
-                                                content: Text(
-                                                    "Failed to join group chat."),
-                                              ),
-                                            );
-                                          }
-                                        },
-                                        icon: const Icon( Icons.forum_outlined, size: 18),
-                                        label: const Text("Group Chat"),
-                                        style: OutlinedButton.styleFrom(
-                                          padding: const EdgeInsets.symmetric(
-                                              horizontal: 12, vertical: 8),
-                                          foregroundColor: blue,
-                                          side: BorderSide(color: blue),
-                                          shape: RoundedRectangleBorder(
-                                            borderRadius:
-                                                BorderRadius.circular(12),
+                                        backgroundColor: blue,
+                                        shape: RoundedRectangleBorder(
+                                          borderRadius: BorderRadius.circular(
+                                            12,
                                           ),
                                         ),
                                       ),
                                     ),
                                   ),
-                                ],
-                              ),
-                            ],
-                          ),
+                                ),
+                                const SizedBox(width: 5),
+                                Expanded(
+                                  child: SizedBox(
+                                    height: 40,
+                                    child: OutlinedButton.icon(
+                                      // CHANGED: Wired up Group Chat backend logic
+                                      onPressed: () async {
+                                        final convId = await ChatRepository()
+                                            .joinCourseGroupChat(course.code);
+
+                                        if (convId != null && context.mounted) {
+                                          Navigator.push(
+                                            context,
+                                            MaterialPageRoute(
+                                              builder: (_) => ChatPage(
+                                                conversationId: convId,
+                                                otherUserId: "GROUP",
+                                                otherUserName:
+                                                    "${course.name} Group",
+                                              ),
+                                            ),
+                                          );
+                                        } else if (context.mounted) {
+                                          ScaffoldMessenger.of(
+                                            context,
+                                          ).showSnackBar(
+                                            const SnackBar(
+                                              content: Text(
+                                                "Failed to join group chat.",
+                                              ),
+                                            ),
+                                          );
+                                        }
+                                      },
+                                      icon: const Icon(
+                                        Icons.forum_outlined,
+                                        size: 18,
+                                      ),
+                                      label: const Text("Group Chat"),
+                                      style: OutlinedButton.styleFrom(
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 12,
+                                          vertical: 8,
+                                        ),
+                                        foregroundColor: blue,
+                                        side: BorderSide(color: blue),
+                                        shape: RoundedRectangleBorder(
+                                          borderRadius: BorderRadius.circular(
+                                            12,
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
                         ),
-                        if (!isLast)
-                          Divider(
-                            height: 0.75,
-                            thickness: 0.75,
-                            color: Colors.grey[300],
-                            indent: 30,
-                            endIndent: 30,
-                          ),
-                      ],
-                    );
-                  },
-                  childCount: filteredCourses.length,
-                ),
+                      ),
+                      if (!isLast)
+                        Divider(
+                          height: 0.75,
+                          thickness: 0.75,
+                          color: Colors.grey[300],
+                          indent: 30,
+                          endIndent: 30,
+                        ),
+                    ],
+                  );
+                }, childCount: filteredCourses.length),
               ),
               const SliverToBoxAdapter(child: SizedBox(height: 80)),
             ],

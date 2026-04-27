@@ -1,4 +1,5 @@
-import 'package:studently/services/firebase_auth.dart'; 
+import 'package:studently/services/firebase_auth.dart';
+
 class ChatMessage {
   String id;
   String conversationId;
@@ -32,23 +33,24 @@ class ChatMessage {
     );
   }
   Map<String, dynamic> toJson() => {
-        '_id': id,
-        'conversation_id': conversationId,
-        'sender_id': senderId,
-        'sender_name': senderName,
-        'text': text,
-        'attachments': attachments,
-        'timestamp': timestamp,
-      };
+    '_id': id,
+    'conversation_id': conversationId,
+    'sender_id': senderId,
+    'sender_name': senderName,
+    'text': text,
+    'attachments': attachments,
+    'timestamp': timestamp,
+  };
   bool get isMe => senderId == authService.value.currentUser?.uid;
 }
+
 class ChatConversation {
   String id;
   List<String> participants = [];
   Map<String, dynamic>? lastMessage;
   Map<String, int> unreadCounts = {};
   String createdAt;
-  
+
   // NEW FIELDS FOR GROUP CHATS
   bool isGroup;
   String? courseId;
@@ -67,7 +69,7 @@ class ChatConversation {
     if (participants != null) this.participants = participants;
     if (unreadCounts != null) this.unreadCounts = unreadCounts;
   }
-  
+
   factory ChatConversation.fromJson(Map<String, dynamic> json) {
     Map<String, int> parsedCounts = {};
     if (json['unread_counts'] != null) {
@@ -82,22 +84,22 @@ class ChatConversation {
       lastMessage: json['last_message'],
       unreadCounts: parsedCounts,
       createdAt: json['created_at'] ?? '',
-      isGroup: json['is_group'] ?? false,  // Added
-      courseId: json['course_id'],         // Added
-      title: json['title'],                // Added
+      isGroup: json['is_group'] ?? false, // Added
+      courseId: json['course_id'], // Added
+      title: json['title'], // Added
     );
   }
 
   Map<String, dynamic> toJson() => {
-        '_id': id,
-        'participants': participants,
-        'last_message': lastMessage,
-        'unread_counts': unreadCounts,
-        'created_at': createdAt,
-        'is_group': isGroup,
-        'course_id': courseId,
-        'title': title,
-      };
+    '_id': id,
+    'participants': participants,
+    'last_message': lastMessage,
+    'unread_counts': unreadCounts,
+    'created_at': createdAt,
+    'is_group': isGroup,
+    'course_id': courseId,
+    'title': title,
+  };
 
   ChatConversation copyWith({
     String? id,

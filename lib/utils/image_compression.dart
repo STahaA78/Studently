@@ -3,20 +3,20 @@ import 'package:flutter_image_compress/flutter_image_compress.dart';
 import 'package:studently/logger.dart';
 
 /// Compresses image bytes similar to Instagram's compression
-/// 
+///
 /// Optimizations:
 /// - Reduces quality to 85% (best balance between quality and file size)
 /// - Resizes to max 1080px width (Instagram standard)
 /// - Returns compressed bytes
-/// 
+///
 /// Typical compression: ~5-10MB → ~200-500KB depending on original
 class ImageCompressionUtil {
   /// Compresses image bytes
-  /// 
+  ///
   /// [imageBytes] - Original image bytes
   /// [maxWidth] - Maximum width in pixels (default: 1080 for Instagram-like size)
   /// [quality] - JPEG quality 0-100 (default: 85)
-  /// 
+  ///
   /// Returns compressed image bytes
   static Future<Uint8List> compressImage(
     Uint8List imageBytes, {
@@ -24,8 +24,10 @@ class ImageCompressionUtil {
     int quality = 85,
   }) async {
     try {
-      logger.i("[ImageCompressionUtil] Starting compression - Original size: ${(imageBytes.length / 1024 / 1024).toStringAsFixed(2)}MB");
-      
+      logger.i(
+        "[ImageCompressionUtil] Starting compression - Original size: ${(imageBytes.length / 1024 / 1024).toStringAsFixed(2)}MB",
+      );
+
       final compressed = await FlutterImageCompress.compressWithList(
         imageBytes,
         minHeight: 1080,
@@ -35,8 +37,11 @@ class ImageCompressionUtil {
         format: CompressFormat.jpeg,
       );
 
-      final compressedSizeMB = (compressed.length / 1024 / 1024).toStringAsFixed(2);
-      logger.i("[ImageCompressionUtil] Compression complete - Compressed size: ${compressedSizeMB}MB");
+      final compressedSizeMB = (compressed.length / 1024 / 1024)
+          .toStringAsFixed(2);
+      logger.i(
+        "[ImageCompressionUtil] Compression complete - Compressed size: ${compressedSizeMB}MB",
+      );
 
       return compressed;
     } catch (e) {
@@ -47,11 +52,11 @@ class ImageCompressionUtil {
   }
 
   /// Compresses image from file path
-  /// 
+  ///
   /// [filePath] - Path to image file
   /// [maxWidth] - Maximum width in pixels (default: 1080)
   /// [quality] - JPEG quality 0-100 (default: 85)
-  /// 
+  ///
   /// Returns compressed image bytes
   static Future<Uint8List?> compressImageFile(
     String filePath, {
@@ -59,8 +64,10 @@ class ImageCompressionUtil {
     int quality = 85,
   }) async {
     try {
-      logger.i("[ImageCompressionUtil] Starting file compression - Path: $filePath");
-      
+      logger.i(
+        "[ImageCompressionUtil] Starting file compression - Path: $filePath",
+      );
+
       final compressed = await FlutterImageCompress.compressAndGetFile(
         filePath,
         "${filePath}_compressed.jpg",
@@ -72,11 +79,15 @@ class ImageCompressionUtil {
 
       if (compressed != null) {
         final bytes = await compressed.readAsBytes();
-        final compressedSizeMB = (bytes.length / 1024 / 1024).toStringAsFixed(2);
-        logger.i("[ImageCompressionUtil] File compression complete - Size: ${compressedSizeMB}MB");
+        final compressedSizeMB = (bytes.length / 1024 / 1024).toStringAsFixed(
+          2,
+        );
+        logger.i(
+          "[ImageCompressionUtil] File compression complete - Size: ${compressedSizeMB}MB",
+        );
         return bytes;
       }
-      
+
       return null;
     } catch (e) {
       logger.e("[ImageCompressionUtil] File compression failed: $e");

@@ -1,7 +1,7 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
-import 'package:studently/services/firebase_auth.dart'; 
+import 'package:studently/services/firebase_auth.dart';
 import '../services/api.dart';
 
 class UserProfilePage extends StatefulWidget {
@@ -35,20 +35,17 @@ class _UserProfilePageState extends State<UserProfilePage> {
 
   // ---------------- LOAD USER PROFILE ----------------
 
-
   Future<void> loadUserProfile() async {
     try {
-
       final token = await authService.value.getIdToken();
 
-      final uri =
-          Uri.parse(api.getCompleteUrl("/profile/${widget.userId}"));
+      final uri = Uri.parse(api.getCompleteUrl("/profile/${widget.userId}"));
 
       final response = await http.get(
         uri,
         headers: {
           "Authorization": "Bearer $token",
-          "Content-Type": "application/json"
+          "Content-Type": "application/json",
         },
       );
 
@@ -61,12 +58,12 @@ class _UserProfilePageState extends State<UserProfilePage> {
         debugPrint("User fetch failed: ${response.body}");
         setState(() => isLoading = false);
       }
-
     } catch (e) {
       debugPrint("User profile error: $e");
       setState(() => isLoading = false);
     }
   }
+
   // ---------------- LOAD CONNECTION STATUS ----------------
   Future<void> loadConnectionStatus() async {
     try {
@@ -123,10 +120,7 @@ class _UserProfilePageState extends State<UserProfilePage> {
     final response = await http.post(
       uri,
       headers: {"Content-Type": "application/json"},
-      body: json.encode({
-        "requester_id": widget.userId,
-        "action": "accept",
-      }),
+      body: json.encode({"requester_id": widget.userId, "action": "accept"}),
     );
 
     if (response.statusCode == 200) {
@@ -143,10 +137,7 @@ class _UserProfilePageState extends State<UserProfilePage> {
     final response = await http.post(
       uri,
       headers: {"Content-Type": "application/json"},
-      body: json.encode({
-        "requester_id": widget.userId,
-        "action": "reject",
-      }),
+      body: json.encode({"requester_id": widget.userId, "action": "reject"}),
     );
 
     if (response.statusCode == 200) {
@@ -163,9 +154,7 @@ class _UserProfilePageState extends State<UserProfilePage> {
     final response = await http.post(
       uri,
       headers: {"Content-Type": "application/json"},
-      body: json.encode({
-        "friend_id": widget.userId,
-      }),
+      body: json.encode({"friend_id": widget.userId}),
     );
 
     if (response.statusCode == 200) {
@@ -179,16 +168,14 @@ class _UserProfilePageState extends State<UserProfilePage> {
       context: context,
       builder: (_) => AlertDialog(
         title: const Text("Disconnect"),
-        content:
-            const Text("Are you sure you want to remove this connection?"),
+        content: const Text("Are you sure you want to remove this connection?"),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
             child: const Text("Cancel"),
           ),
           ElevatedButton(
-            style:
-                ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
             onPressed: () => Navigator.pop(context, true),
             child: const Text("Disconnect"),
           ),
@@ -224,16 +211,15 @@ class _UserProfilePageState extends State<UserProfilePage> {
         centerTitle: true,
         title: const Text(
           "Profile",
-          style:
-              TextStyle(color: Colors.black, fontWeight: FontWeight.w600),
+          style: TextStyle(color: Colors.black, fontWeight: FontWeight.w600),
         ),
       ),
 
       body: isLoading
           ? const Center(child: CircularProgressIndicator())
           : user == null
-              ? const Center(child: Text("User not found"))
-              : _buildProfile(),
+          ? const Center(child: Text("User not found"))
+          : _buildProfile(),
     );
   }
 
@@ -242,8 +228,7 @@ class _UserProfilePageState extends State<UserProfilePage> {
     final String name = user!["Name"] ?? "";
     final String department = user!["department"] ?? "";
     final String batch = user!["batch"]?.toString() ?? "";
-    final List<String> interests =
-        (user!["interests"] ?? []).cast<String>();
+    final List<String> interests = (user!["interests"] ?? []).cast<String>();
 
     String buttonText = "Connect";
     VoidCallback? onPressed = sendConnectionRequest;
@@ -268,28 +253,33 @@ class _UserProfilePageState extends State<UserProfilePage> {
           CircleAvatar(
             radius: 50,
             backgroundColor: Colors.grey.shade300,
-            child: Text(getInitials(name),
-                style: const TextStyle(
-                    fontSize: 26, fontWeight: FontWeight.bold)),
+            child: Text(
+              getInitials(name),
+              style: const TextStyle(fontSize: 26, fontWeight: FontWeight.bold),
+            ),
           ),
           const SizedBox(height: 14),
-          Text(name,
-              style:
-                  const TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
-          Text("$department • Batch $batch",
-              style: const TextStyle(color: Colors.grey)),
+          Text(
+            name,
+            style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+          ),
+          Text(
+            "$department • Batch $batch",
+            style: const TextStyle(color: Colors.grey),
+          ),
           const SizedBox(height: 18),
 
           Wrap(
             spacing: 8,
             runSpacing: 8,
             children: interests
-                .map((i) => Chip(
-                      label: Text(i),
-                      backgroundColor: primaryBlue,
-                      labelStyle:
-                          const TextStyle(color: Colors.white),
-                    ))
+                .map(
+                  (i) => Chip(
+                    label: Text(i),
+                    backgroundColor: primaryBlue,
+                    labelStyle: const TextStyle(color: Colors.white),
+                  ),
+                )
                 .toList(),
           ),
 
@@ -310,9 +300,7 @@ class _UserProfilePageState extends State<UserProfilePage> {
               Expanded(
                 child: ElevatedButton(
                   onPressed: isStatusLoading ? null : onPressed,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: primaryBlue,
-                  ),
+                  style: ElevatedButton.styleFrom(backgroundColor: primaryBlue),
                   child: Text(buttonText),
                 ),
               ),
@@ -326,7 +314,9 @@ class _UserProfilePageState extends State<UserProfilePage> {
               child: const Text(
                 "Disconnect",
                 style: TextStyle(
-                    color: Colors.red, fontWeight: FontWeight.w600),
+                  color: Colors.red,
+                  fontWeight: FontWeight.w600,
+                ),
               ),
             ),
           ],

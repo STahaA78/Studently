@@ -1,59 +1,55 @@
-import 'dart:convert';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:hive/hive.dart'; // Replaced flutter_secure_storage
-import 'package:studently/services/firebase_auth.dart'; 
-import 'package:studently/repositories/user.dart'; 
-import 'package:studently/models/user.dart'; 
-import 'package:studently/models/backend_config.dart'; 
+
+import 'package:studently/services/firebase_auth.dart';
+import 'package:studently/repositories/user.dart';
+import 'package:studently/models/user.dart';
+import 'package:studently/models/backend_config.dart';
 import 'package:studently/logger.dart';
 import 'package:studently/providers/backend_config_provider.dart';
-import 'package:studently/storage/storage_manager.dart';
+import 'package:studently/services/storage.dart';
 import 'dart:typed_data';
+
 final userRepositoryProvider = Provider<UserRepository>((ref) {
   return UserRepository();
 });
 
 class AuthNotifier extends AsyncNotifier<User?> {
-  // 1. Initialize Hive box reference 
-  // (Ensure Hive.openBox('authBox') is called in main.dart before the app runs)
-  final _authBox = Hive.box('authBox');
-  static const _userKey = 'cached_user_profile';
-  static const _inSignupKey = 'in_signup_flow';
-  
+  final _authStorage = StorageService().authStorage;
+
   List<Map<String, String>> friendsList = [];
-  
+
   @override
   Future<User?> build() async {
-    logger.i("[$runtimeType] build() started - Checking local disk and Firebase");
-    
+    logger.i(
+      "[$runtimeType] build() started - Checking local disk and Firebase",
+    );
+
     // 2. Check if user is in incomplete signup flow
-    final inSignupFlow = _authBox.get(_inSignupKey, defaultValue: false) as bool;
+    final inSignupFlow = _authStorage.getInSignupFlow();
     final firebaseUser = authService.value.currentUser;
-    
+
     if (inSignupFlow && firebaseUser != null) {
       // User is signed into Firebase but abandoned signup - clean up
-      logger.w("[$runtimeType] User abandoned signup flow, signing out from Firebase");
+      logger.w(
+        "[$runtimeType] User abandoned signup flow, signing out from Firebase",
+      );
       try {
         await authService.value.signOut();
       } catch (e) {
-        logger.e("[$runtimeType] Error signing out abandoned signup user", error: e);
+        logger.e(
+          "[$runtimeType] Error signing out abandoned signup user",
+          error: e,
+        );
       }
-      _authBox.delete(_inSignupKey);
+      _authStorage.clearInSignupFlow();
       return null;
     }
-    
-    // 3. Synchronous read from Hive (No await needed!)
-    final String? localJson = _authBox.get(_userKey);
-    User? cachedUser;
 
-    final cachedFriends = _authBox.get('friends_list');
-    if (cachedFriends != null) {
-      final List<dynamic> decoded = jsonDecode(cachedFriends);
-      friendsList = decoded.map((e) => Map<String, String>.from(e)).toList();
-    }
-    
-    if (localJson != null) {
-      cachedUser = User.fromJson(jsonDecode(localJson));
+    // 3. Synchronous read from Hive (No await needed!)
+    User? cachedUser = _authStorage.getCachedUser();
+    friendsList = _authStorage.getCachedFriends();
+
+    if (cachedUser != null) {
       logger.d("[$runtimeType] Cached user found: ${cachedUser.name}");
     }
 
@@ -67,23 +63,23 @@ class AuthNotifier extends AsyncNotifier<User?> {
 
         return cachedUser;
       }
-      
+
       // No cache found, but logged into Firebase: Fetch fresh from FastAPI
       final freshUser = await _fetchAndSaveFreshProfile(firebaseUser.uid);
 
       await _ensureUserStorageInitialized();
-      
+
       return freshUser;
     }
-    
+
     return null; // Not logged in
   }
 
   Future<void> _ensureUserStorageInitialized() async {
     try {
-      final storageManager = StorageManager();
-      if (!storageManager.isUserStorageInitialized) {
-        await storageManager.initializeUserStorage();
+      final storageService = StorageService();
+      if (!storageService.isUserStorageInitialized) {
+        await storageService.initializeUserStorage();
         logger.i("[$runtimeType] User storage initialized");
       }
     } catch (e) {
@@ -95,10 +91,12 @@ class AuthNotifier extends AsyncNotifier<User?> {
 
   Future<User> _fetchAndSaveFreshProfile(String uid) async {
     final userRepo = ref.read(userRepositoryProvider);
-    final freshUser = await userRepo.fetchUserProfile(userId: uid); // Fetch specific user's profile
-    
+    final freshUser = await userRepo.fetchUserProfile(
+      userId: uid,
+    ); // Fetch specific user's profile
+
     // 4. Synchronous write to Hive
-    _authBox.put(_userKey, jsonEncode(freshUser.toJson()));
+    _authStorage.saveUser(freshUser);
     return freshUser;
   }
 
@@ -106,10 +104,10 @@ class AuthNotifier extends AsyncNotifier<User?> {
     try {
       final freshUser = await _fetchAndSaveFreshProfile(uid);
       state = AsyncValue.data(freshUser); // Update the state silently
-      
+
       // Fetch and cache friends in the background
-      await fetchFriendsList(); 
-      
+      await fetchFriendsList();
+
       logger.d("[$runtimeType] Background profile refresh complete");
     } catch (e) {
       logger.w("[$runtimeType] Background refresh failed: $e");
@@ -120,10 +118,10 @@ class AuthNotifier extends AsyncNotifier<User?> {
   Future<void> fetchFriendsList() async {
     try {
       final userRepo = ref.read(userRepositoryProvider);
-      final rawFriends = await userRepo.getFriendsList(); 
-      
+      final rawFriends = await userRepo.getFriendsList();
+
       friendsList = rawFriends;
-      _authBox.put('friends_list', jsonEncode(friendsList));
+      _authStorage.saveFriendsList(friendsList);
     } catch (e) {
       logger.e("[$runtimeType] Error fetching friends list: $e");
     }
@@ -140,14 +138,19 @@ class AuthNotifier extends AsyncNotifier<User?> {
     try {
       // Step 1: Firebase authentication with Google
       final firebaseUser = await authService.value.signInWithGoogle();
-      
+
       if (firebaseUser == null) {
         // User cancelled Google sign-in
-        state = AsyncValue.error(Exception("Google sign-in cancelled"), StackTrace.current);
+        state = AsyncValue.error(
+          Exception("Google sign-in cancelled"),
+          StackTrace.current,
+        );
         return;
       }
 
-      logger.d("[$runtimeType] Firebase Google signin successful: ${firebaseUser.email}");
+      logger.d(
+        "[$runtimeType] Firebase Google signin successful: ${firebaseUser.email}",
+      );
 
       if (firebaseUser.email == null) {
         throw Exception("Google account does not have an email associated.");
@@ -158,28 +161,32 @@ class AuthNotifier extends AsyncNotifier<User?> {
         final config = ref.read(backendConfigProvider);
         final email = firebaseUser.email!;
         final emailDomain = email.split('@').last.toLowerCase();
-        
+
         logger.d("[$runtimeType] Validating email domain: $emailDomain");
-        
+
         final isAllowed = config.whenData((cfg) {
-          final allowed = cfg.allowedEmailDomains.any((domain) => 
-            emailDomain.endsWith(domain.toLowerCase())
+          final allowed = cfg.allowedEmailDomains.any(
+            (domain) => emailDomain.endsWith(domain.toLowerCase()),
           );
-          
+
           if (!allowed) {
-            logger.w("[$runtimeType] Email domain not in allowed list: $emailDomain");
+            logger.w(
+              "[$runtimeType] Email domain not in allowed list: $emailDomain",
+            );
           } else {
             logger.i("[$runtimeType] Email domain validated: $emailDomain");
           }
-          
+
           return allowed;
         });
-        
+
         // Check if domain validation passed
         await isAllowed.when(
           data: (allowed) {
             if (!allowed) {
-              throw Exception("Your email domain is not authorized for signup. Please use your organization email.");
+              throw Exception(
+                "Your email domain is not authorized for signup. Please use your organization email.",
+              );
             }
           },
           error: (error, stack) {
@@ -187,7 +194,9 @@ class AuthNotifier extends AsyncNotifier<User?> {
             // Continue - backend will validate domain
           },
           loading: () {
-            logger.w("[$runtimeType] Config still loading, backend will validate domain");
+            logger.w(
+              "[$runtimeType] Config still loading, backend will validate domain",
+            );
             // Continue - backend will validate domain
           },
         );
@@ -200,25 +209,27 @@ class AuthNotifier extends AsyncNotifier<User?> {
 
       // Step 3: Call /profile endpoint to check if user exists
       final userRepo = ref.read(userRepositoryProvider);
-      
+
       try {
         // Try to fetch user profile - this determines if user exists
-        final user = await userRepo.fetchUserProfile(); // Uses default "0" for logged-in user
-        
+        final user = await userRepo
+            .fetchUserProfile(); // Uses default "0" for logged-in user
+
         // Step 4a: User exists in backend - save profile and login
         logger.i("[$runtimeType] Existing user detected: ${user.email}");
-        _authBox.put(_userKey, jsonEncode(user.toJson()));
-        
+        _authStorage.saveUser(user);
+
         await _ensureUserStorageInitialized();
-        
+
         state = AsyncValue.data(user);
-        
       } catch (e) {
         // Step 4b: User doesn't exist in backend (404 or error)
         // Check if error indicates user not found
         final errorString = e.toString().toLowerCase();
         if (errorString.contains('404') || errorString.contains('not found')) {
-          logger.i("[$runtimeType] New user detected (404), routing to signup...");
+          logger.i(
+            "[$runtimeType] New user detected (404), routing to signup...",
+          );
           // Set signup flag to track incomplete signup flow
           setSignupInProgress(true);
           // Firebase user is available via authService.value.currentUser
@@ -228,12 +239,18 @@ class AuthNotifier extends AsyncNotifier<User?> {
           // Other errors should be reported
           logger.e("[$runtimeType] Error checking user profile", error: e);
           await authService.value.signOut();
-          state = AsyncValue.error(Exception("Failed to verify account. Please try again."), StackTrace.current);
+          state = AsyncValue.error(
+            Exception("Failed to verify account. Please try again."),
+            StackTrace.current,
+          );
         }
       }
-      
     } catch (e, stack) {
-      logger.e("[$runtimeType] SignInWithGoogle failed", error: e, stackTrace: stack);
+      logger.e(
+        "[$runtimeType] SignInWithGoogle failed",
+        error: e,
+        stackTrace: stack,
+      );
       // Make sure user is signed out on any error
       try {
         await authService.value.signOut();
@@ -244,7 +261,7 @@ class AuthNotifier extends AsyncNotifier<User?> {
 
   Future<void> signUp({
     required String name,
-    required String birthday, 
+    required String birthday,
     required Department department,
     required String batch,
     required List<Interest> interests,
@@ -268,14 +285,14 @@ class AuthNotifier extends AsyncNotifier<User?> {
         interests: interests,
         extractedFields: extractedFields,
       );
-      
+
       if (success) {
         final user = await _fetchAndSaveFreshProfile(firebaseUser.uid);
         // Clear signup flag after successful signup
         setSignupInProgress(false);
-        
+
         await _ensureUserStorageInitialized();
-        
+
         state = AsyncValue.data(user);
       } else {
         throw Exception("Backend registration failed");
@@ -288,23 +305,23 @@ class AuthNotifier extends AsyncNotifier<User?> {
 
   Future<void> logout() async {
     logger.i("[$runtimeType] Logging out...");
-    
+
     // Clear user-specific storage before signing out
     try {
-      final storageManager = StorageManager();
-      await storageManager.clearUserStorage();
+      final storageService = StorageService();
+      await storageService.clearUserStorage();
       logger.i("[$runtimeType] User storage cleared");
     } catch (e) {
       logger.w("[$runtimeType] Error clearing user storage: $e");
       // Continue even if clearing fails
     }
-    
+
     await authService.value.signOut();
-    
+
     // 5. Delete from Hive
-    await _authBox.delete(_userKey); 
-    await _authBox.delete('friends_list'); // Also wipe friends list on logout
-    await _authBox.delete(_inSignupKey); // Clear signup flag on logout
+    _authStorage.clearUser();
+    _authStorage.clearFriendsList(); // Also wipe friends list on logout
+    _authStorage.clearInSignupFlow(); // Clear signup flag on logout
     friendsList.clear();
 
     state = const AsyncValue.data(null);
@@ -314,18 +331,18 @@ class AuthNotifier extends AsyncNotifier<User?> {
   void setSignupInProgress(bool inProgress) {
     logger.i("[$runtimeType] Setting signup in progress: $inProgress");
     if (inProgress) {
-      _authBox.put(_inSignupKey, true);
+      _authStorage.setInSignupFlow(true);
     } else {
-      _authBox.delete(_inSignupKey);
+      _authStorage.clearInSignupFlow();
     }
   }
 
   Future<void> updateProfile(Map<String, dynamic> updatedData) async {
     final userRepo = ref.read(userRepositoryProvider);
-    
+
     // 1. Wait for FastAPI to confirm the save was successful
     await userRepo.updateUserProfile(updatedData);
-    
+
     final currentUser = state.value;
     if (currentUser != null) {
       // Convert department data to Department object if provided
@@ -351,8 +368,8 @@ class AuthNotifier extends AsyncNotifier<User?> {
         name: updatedData['name'] ?? currentUser.name,
         department: updatedDepartment ?? currentUser.department,
         batch: updatedData['batch'] ?? currentUser.batch,
-        interests: updatedData['interests'] != null 
-            ? List<Interest>.from(updatedData['interests']) 
+        interests: updatedData['interests'] != null
+            ? List<Interest>.from(updatedData['interests'])
             : currentUser.interests,
         friendsCount: currentUser.friendsCount,
         university: currentUser.university,
@@ -360,10 +377,9 @@ class AuthNotifier extends AsyncNotifier<User?> {
 
       // 3. Update RAM and Disk instantly
       state = AsyncValue.data(updatedUser);
-      _authBox.put(_userKey, jsonEncode(updatedUser.toJson()));
+      _authStorage.saveUser(updatedUser);
     }
   }
-
 
   Future<void> updateProfilePhoto({
     required String filePath,
@@ -372,36 +388,40 @@ class AuthNotifier extends AsyncNotifier<User?> {
   }) async {
     try {
       final userRepo = ref.read(userRepositoryProvider);
-      
+
       // 1. Upload the photo to the backend
       await userRepo.uploadProfilePhoto(
         filePath: filePath,
         fileBytes: fileBytes,
         filename: filename,
       );
-      
+
       // 2. Fetch the updated profile with new photo URL from backend
       final firebaseUser = authService.value.currentUser;
       if (firebaseUser != null) {
         final updatedUser = await _fetchAndSaveFreshProfile(firebaseUser.uid);
-        
+
         // 3. Update state to trigger UI refresh with new profile photo
         state = AsyncValue.data(updatedUser);
-        
+
         logger.i("[$runtimeType] Profile photo updated successfully");
       }
     } catch (e, stack) {
-      logger.e("[$runtimeType] Profile photo upload failed", error: e, stackTrace: stack);
+      logger.e(
+        "[$runtimeType] Profile photo upload failed",
+        error: e,
+        stackTrace: stack,
+      );
       rethrow; // Propagate error to UI for user feedback
     }
   }
 
   Future<void> removeProfilePhoto() async {
     final userRepo = ref.read(userRepositoryProvider);
-    
+
     // 1. Wait for FastAPI to delete the file
     await userRepo.removeProfilePhoto();
-    
+
     final currentUser = state.value;
     if (currentUser != null) {
       // 2. Locally clear the photo URL string
@@ -420,10 +440,10 @@ class AuthNotifier extends AsyncNotifier<User?> {
 
       // 3. Update RAM and Disk
       state = AsyncValue.data(updatedUser);
-      _authBox.put(_userKey, jsonEncode(updatedUser.toJson()));
+      _authStorage.saveUser(updatedUser);
     }
   }
-  
+
   Future<void> respondToFriendRequest(String requesterId, String action) async {
     final currentUser = state.value;
     if (currentUser == null) return;
@@ -448,33 +468,35 @@ class AuthNotifier extends AsyncNotifier<User?> {
 
       // Apply to UI and Cache immediately
       state = AsyncValue.data(updatedUser);
-      _authBox.put(_userKey, jsonEncode(updatedUser.toJson()));
+      _authStorage.saveUser(updatedUser);
     }
 
     // 3. Send network request in the background
     try {
       final userRepo = ref.read(userRepositoryProvider);
-      
+
       // Send dynamic action ('accept' or 'reject')
-      await userRepo.respondRequest(requesterId, action); 
-      
+      await userRepo.respondRequest(requesterId, action);
+
       logger.i("[$runtimeType] Friend request $action on backend.");
 
       // NEW: If accepted, background refresh the friends list to ensure the chat modal gets updated!
       if (action == 'accept') {
         fetchFriendsList(); // Note: No await needed, let it update the cache silently!
       }
-
     } catch (e) {
       // 4. ROLLBACK: If API fails, revert state if we changed it
-      logger.e("[$runtimeType] Failed to $action request. Rolling back.", error: e);
-      
+      logger.e(
+        "[$runtimeType] Failed to $action request. Rolling back.",
+        error: e,
+      );
+
       if (action == 'accept') {
         state = AsyncValue.data(previousUser);
-        _authBox.put(_userKey, jsonEncode(previousUser.toJson()));
+        _authStorage.saveUser(previousUser);
       }
-      
-      throw Exception("Failed to $action friend request. Please try again."); 
+
+      throw Exception("Failed to $action friend request. Please try again.");
     }
   }
 }

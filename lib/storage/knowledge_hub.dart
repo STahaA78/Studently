@@ -15,8 +15,7 @@ class KnowledgeHubStorage {
   late Box<String> _downloadedFilesBox;
   bool _isInitialized = false;
 
-  static final KnowledgeHubStorage _instance =
-      KnowledgeHubStorage._internal();
+  static final KnowledgeHubStorage _instance = KnowledgeHubStorage._internal();
 
   KnowledgeHubStorage._internal();
 
@@ -33,28 +32,34 @@ class KnowledgeHubStorage {
     try {
       _coursesBox = await Hive.openBox<Course>(_coursesBoxName);
       _resourcesBox = await Hive.openBox<ResourceItem>(_resourcesBoxName);
-      _downloadedFilesBox =
-          await Hive.openBox<String>(_downloadedFilesBoxName);
+      _downloadedFilesBox = await Hive.openBox<String>(_downloadedFilesBoxName);
       _isInitialized = true;
       logger.i('[KnowledgeHubStorage] Initialized successfully');
     } catch (e) {
       // Handle schema migration errors by clearing corrupted boxes
       if (e.toString().contains('is not a subtype of type')) {
-        logger.w('[KnowledgeHubStorage] Schema mismatch detected, clearing boxes for migration');
+        logger.w(
+          '[KnowledgeHubStorage] Schema mismatch detected, clearing boxes for migration',
+        );
         try {
           await Hive.deleteBoxFromDisk(_coursesBoxName);
           await Hive.deleteBoxFromDisk(_resourcesBoxName);
           await Hive.deleteBoxFromDisk(_downloadedFilesBoxName);
-          
+
           // Retry opening boxes
           _coursesBox = await Hive.openBox<Course>(_coursesBoxName);
           _resourcesBox = await Hive.openBox<ResourceItem>(_resourcesBoxName);
-          _downloadedFilesBox =
-              await Hive.openBox<String>(_downloadedFilesBoxName);
+          _downloadedFilesBox = await Hive.openBox<String>(
+            _downloadedFilesBoxName,
+          );
           _isInitialized = true;
-          logger.i('[KnowledgeHubStorage] Boxes cleared and reinitialized after schema migration');
+          logger.i(
+            '[KnowledgeHubStorage] Boxes cleared and reinitialized after schema migration',
+          );
         } catch (clearError) {
-          logger.e('[KnowledgeHubStorage] Error during schema migration: $clearError');
+          logger.e(
+            '[KnowledgeHubStorage] Error during schema migration: $clearError',
+          );
           rethrow;
         }
       } else {
@@ -103,7 +108,9 @@ class KnowledgeHubStorage {
 
     try {
       final courses = _coursesBox.values.toList();
-      logger.i('[KnowledgeHubStorage] Retrieved ${courses.length} cached courses');
+      logger.i(
+        '[KnowledgeHubStorage] Retrieved ${courses.length} cached courses',
+      );
       return courses;
     } catch (e) {
       logger.e('[KnowledgeHubStorage] Error getting cached courses: $e');
@@ -124,7 +131,9 @@ class KnowledgeHubStorage {
 
   /// Save resources for a course (replaces old resources)
   Future<void> saveResourcesForCourse(
-      String courseCode, List<ResourceItem> resources) async {
+    String courseCode,
+    List<ResourceItem> resources,
+  ) async {
     _ensureInitialized(throwOnFailure: true);
     try {
       // First, clear old resources for this course
@@ -135,17 +144,19 @@ class KnowledgeHubStorage {
       for (var key in keysToDelete) {
         await _resourcesBox.delete(key);
       }
-      
+
       // Now save the new resources
       for (var resource in resources) {
         final key = '$courseCode:${resource.id}';
         await _resourcesBox.put(key, resource);
       }
       logger.i(
-          '[KnowledgeHubStorage] Saved ${resources.length} resources for course $courseCode (cleared ${keysToDelete.length} old resources)');
+        '[KnowledgeHubStorage] Saved ${resources.length} resources for course $courseCode (cleared ${keysToDelete.length} old resources)',
+      );
     } catch (e) {
       logger.e(
-          '[KnowledgeHubStorage] Error saving resources for course $courseCode: $e');
+        '[KnowledgeHubStorage] Error saving resources for course $courseCode: $e',
+      );
       rethrow;
     }
   }
@@ -158,32 +169,34 @@ class KnowledgeHubStorage {
 
     try {
       final coursePrefix = '$courseCode:';
-      final resources = _resourcesBox.values
-          .toList()
-          .where((resource) {
-            // Find the key for this resource and check if it belongs to this course
-            for (var key in _resourcesBox.keys) {
-              if (key.toString().startsWith(coursePrefix) &&
-                  _resourcesBox.get(key) == resource) {
-                return true;
-              }
-            }
-            return false;
-          })
-          .toList();
+      final resources = _resourcesBox.values.toList().where((resource) {
+        // Find the key for this resource and check if it belongs to this course
+        for (var key in _resourcesBox.keys) {
+          if (key.toString().startsWith(coursePrefix) &&
+              _resourcesBox.get(key) == resource) {
+            return true;
+          }
+        }
+        return false;
+      }).toList();
       logger.i(
-          '[KnowledgeHubStorage] Retrieved ${resources.length} cached resources for course $courseCode');
+        '[KnowledgeHubStorage] Retrieved ${resources.length} cached resources for course $courseCode',
+      );
       return resources;
     } catch (e) {
       logger.e(
-          '[KnowledgeHubStorage] Error getting cached resources for course $courseCode: $e');
+        '[KnowledgeHubStorage] Error getting cached resources for course $courseCode: $e',
+      );
       return [];
     }
   }
 
   /// Update resource with local file path
   Future<void> updateResourceWithLocalPath(
-      String courseCode, String resourceId, String localFilePath) async {
+    String courseCode,
+    String resourceId,
+    String localFilePath,
+  ) async {
     _ensureInitialized(throwOnFailure: true);
     try {
       final key = '$courseCode:$resourceId';
@@ -192,7 +205,8 @@ class KnowledgeHubStorage {
         final updatedResource = resource.copyWith(localFilePath: localFilePath);
         await _resourcesBox.put(key, updatedResource);
         logger.i(
-            '[KnowledgeHubStorage] Updated resource $resourceId with local path');
+          '[KnowledgeHubStorage] Updated resource $resourceId with local path',
+        );
       }
     } catch (e) {
       logger.e('[KnowledgeHubStorage] Error updating resource: $e');
@@ -238,13 +252,15 @@ class KnowledgeHubStorage {
 
   /// Save downloaded file metadata to track which files are downloaded
   Future<void> markFileAsDownloaded(
-      String courseCode, String resourceId, String fileName) async {
+    String courseCode,
+    String resourceId,
+    String fileName,
+  ) async {
     _ensureInitialized(throwOnFailure: true);
     try {
       final key = '$courseCode:$resourceId:$fileName';
       await _downloadedFilesBox.put(key, fileName);
-      logger.i(
-          '[KnowledgeHubStorage] Marked file as downloaded: $key');
+      logger.i('[KnowledgeHubStorage] Marked file as downloaded: $key');
     } catch (e) {
       logger.e('[KnowledgeHubStorage] Error marking file as downloaded: $e');
       rethrow;
@@ -261,7 +277,9 @@ class KnowledgeHubStorage {
       final key = '$courseCode:$resourceId:$fileName';
       return _downloadedFilesBox.containsKey(key);
     } catch (e) {
-      logger.e('[KnowledgeHubStorage] Error checking if file is downloaded: $e');
+      logger.e(
+        '[KnowledgeHubStorage] Error checking if file is downloaded: $e',
+      );
       return false;
     }
   }
@@ -283,11 +301,7 @@ class KnowledgeHubStorage {
   /// Get knowledge hub storage statistics
   Map<String, int> getStorageStats() {
     if (!_ensureInitialized()) {
-      return {
-        'courses': 0,
-        'resources': 0,
-        'downloadedFiles': 0,
-      };
+      return {'courses': 0, 'resources': 0, 'downloadedFiles': 0};
     }
 
     return {

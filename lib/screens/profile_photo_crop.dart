@@ -1,3 +1,4 @@
+import 'package:studently/app_style.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:studently/logger.dart';
@@ -15,15 +16,15 @@ class ProfilePhotoCropScreen extends StatefulWidget {
 
 class _ProfilePhotoCropScreenState extends State<ProfilePhotoCropScreen> {
   Uint8List? _imageBytes;
-  ui.Image?  _decodedImage;
-  Offset     _cropCenter = Offset.zero;
+  ui.Image? _decodedImage;
+  Offset _cropCenter = Offset.zero;
 
   // Zoom state
-  double _zoomScale     = 1.0;
+  double _zoomScale = 1.0;
   double _baseZoomScale = 1.0;
 
-  static const double _minZoom        = 1.0;
-  static const double _maxZoom        = 5.0;
+  static const double _minZoom = 1.0;
+  static const double _maxZoom = 5.0;
   static const double _maxViewportWide = 680.0;
   static const double _circleToViewportRatio = 0.82;
   static const double _maskOpacity = 0.32;
@@ -45,19 +46,17 @@ class _ProfilePhotoCropScreenState extends State<ProfilePhotoCropScreen> {
       final codec = await ui.instantiateImageCodec(bytes);
       final frame = await codec.getNextFrame();
       setState(() {
-        _imageBytes   = bytes;
+        _imageBytes = bytes;
         _decodedImage = frame.image;
-        _cropCenter   = Offset(
-          frame.image.width / 2,
-          frame.image.height / 2,
-        );
-        _zoomScale    = 1.0;
+        _cropCenter = Offset(frame.image.width / 2, frame.image.height / 2);
+        _zoomScale = 1.0;
       });
     } catch (e) {
       logger.e('Error initializing image: $e');
       if (mounted) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text('Error loading image: $e')));
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Error loading image: $e')));
       }
     }
   }
@@ -71,7 +70,10 @@ class _ProfilePhotoCropScreenState extends State<ProfilePhotoCropScreen> {
   }
 
   double _resolveViewportSize(BoxConstraints constraints) {
-    final double shortest = math.min(constraints.maxWidth, constraints.maxHeight);
+    final double shortest = math.min(
+      constraints.maxWidth,
+      constraints.maxHeight,
+    );
 
     // Cap the viewport on very wide screens (web/desktop/tablet) so the
     // crop experience remains focused and ergonomic.
@@ -106,17 +108,10 @@ class _ProfilePhotoCropScreenState extends State<ProfilePhotoCropScreen> {
   }) {
     final double s = _fitScale * zoom;
     final double half = (viewportSize / 2) / s;
-    return Rect.fromCenter(
-      center: center,
-      width: half * 2,
-      height: half * 2,
-    );
+    return Rect.fromCenter(center: center, width: half * 2, height: half * 2);
   }
 
-  Offset _clampCenterForZoom({
-    required Offset center,
-    required double zoom,
-  }) {
+  Offset _clampCenterForZoom({required Offset center, required double zoom}) {
     final img = _decodedImage!;
     final double s = _fitScale * zoom;
     final double half = _circleRadius / s;
@@ -131,17 +126,10 @@ class _ProfilePhotoCropScreenState extends State<ProfilePhotoCropScreen> {
     );
   }
 
-  Rect _sourceRectFor({
-    required Offset center,
-    required double zoom,
-  }) {
+  Rect _sourceRectFor({required Offset center, required double zoom}) {
     final double s = _fitScale * zoom;
     final double half = _circleRadius / s;
-    return Rect.fromCenter(
-      center: center,
-      width: half * 2,
-      height: half * 2,
-    );
+    return Rect.fromCenter(center: center, width: half * 2, height: half * 2);
   }
 
   // ── crop ─────────────────────────────────────────────────────────────────
@@ -154,14 +142,11 @@ class _ProfilePhotoCropScreenState extends State<ProfilePhotoCropScreen> {
       center: _cropCenter,
       zoom: _zoomScale,
     );
-    final src = _sourceRectFor(
-      center: clampedCenter,
-      zoom: _zoomScale,
-    );
+    final src = _sourceRectFor(center: clampedCenter, zoom: _zoomScale);
 
     const int out = 250;
     final recorder = ui.PictureRecorder();
-    final canvas   = Canvas(recorder);
+    final canvas = Canvas(recorder);
 
     canvas.drawImageRect(
       img,
@@ -170,8 +155,8 @@ class _ProfilePhotoCropScreenState extends State<ProfilePhotoCropScreen> {
       Paint()..filterQuality = FilterQuality.high,
     );
 
-    final picture  = recorder.endRecording();
-    final uiImg    = await picture.toImage(out, out);
+    final picture = recorder.endRecording();
+    final uiImg = await picture.toImage(out, out);
     final byteData = await uiImg.toByteData(format: ui.ImageByteFormat.png);
 
     if (!mounted) return;
@@ -237,10 +222,10 @@ class _ProfilePhotoCropScreenState extends State<ProfilePhotoCropScreen> {
 
                       return Center(
                         child: GestureDetector(
-                          onScaleStart:  _handleScaleStart,
+                          onScaleStart: _handleScaleStart,
                           onScaleUpdate: _handleScaleUpdate,
                           child: SizedBox(
-                            width:  viewportSize,
+                            width: viewportSize,
                             height: viewportSize,
                             child: Stack(
                               alignment: Alignment.center,
@@ -276,10 +261,10 @@ class _ProfilePhotoCropScreenState extends State<ProfilePhotoCropScreen> {
 
                                 IgnorePointer(
                                   child: Container(
-                                    width:  _circleDiameter,
+                                    width: _circleDiameter,
                                     height: _circleDiameter,
                                     decoration: BoxDecoration(
-                                      shape: BoxShape.circle
+                                      shape: BoxShape.circle,
                                     ),
                                   ),
                                 ),
@@ -294,7 +279,9 @@ class _ProfilePhotoCropScreenState extends State<ProfilePhotoCropScreen> {
 
                 Padding(
                   padding: const EdgeInsets.symmetric(
-                      horizontal: 20, vertical: 10),
+                    horizontal: 20,
+                    vertical: 10,
+                  ),
                   child: Text(
                     'Pinch to zoom · Drag to reposition',
                     textAlign: TextAlign.center,
@@ -312,7 +299,7 @@ class _ProfilePhotoCropScreenState extends State<ProfilePhotoCropScreen> {
                       label: const Text('Done'),
                       style: ElevatedButton.styleFrom(
                         padding: const EdgeInsets.symmetric(vertical: 12),
-                        backgroundColor: const Color(0xFF1976D2),
+                        backgroundColor: AppStyle.primaryBlue,
                         foregroundColor: Colors.white,
                       ),
                     ),
@@ -335,10 +322,7 @@ class CircularOverlayPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    canvas.saveLayer(
-      Rect.fromLTWH(0, 0, size.width, size.height),
-      Paint(),
-    );
+    canvas.saveLayer(Rect.fromLTWH(0, 0, size.width, size.height), Paint());
 
     canvas.drawRect(
       Rect.fromLTWH(0, 0, size.width, size.height),
@@ -365,10 +349,7 @@ class CropPreviewPainter extends CustomPainter {
   final ui.Image image;
   final Rect sourceRect;
 
-  const CropPreviewPainter({
-    required this.image,
-    required this.sourceRect,
-  });
+  const CropPreviewPainter({required this.image, required this.sourceRect});
 
   @override
   void paint(Canvas canvas, Size size) {
