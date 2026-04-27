@@ -26,13 +26,13 @@ class _EditProfilePageState extends ConsumerState<EditProfilePage> {
   String? selectedDepartment;
   String? selectedBatch;
   List<Interest> interests = [];
-  final List<String> departments = [
+  final List<String> _defaultDepartments = [
     'Computer Science',
     'IT',
     'ECE',
     'Mechanical',
   ];
-  final List<String> batches = ['2022', '2023', '2024', '2025'];
+  final List<String> _defaultBatches = ['2022', '2023', '2024', '2025'];
   bool isSaving = false;
   String? _departmentError;
   String? _batchError;
@@ -46,9 +46,37 @@ class _EditProfilePageState extends ConsumerState<EditProfilePage> {
   void initState() {
     super.initState();
     nameController = TextEditingController(text: widget.user.name);
-    selectedDepartment = widget.user.department;
-    selectedBatch = widget.user.batch;
+    selectedDepartment = widget.user.department?.name;
+    selectedBatch = widget.user.batch?.trim();
     interests = List<Interest>.from(widget.user.interests);
+  }
+
+  List<String> _buildDropdownOptions(List<String> defaults, String? current) {
+    final options = <String>[];
+    final seen = <String>{};
+
+    void addValue(String? raw) {
+      if (raw == null) return;
+      final value = raw.trim();
+      if (value.isEmpty) return;
+      if (seen.add(value)) {
+        options.add(value);
+      }
+    }
+
+    for (final item in defaults) {
+      addValue(item);
+    }
+    addValue(current);
+
+    return options;
+  }
+
+  String? _normalizeSelectedValue(String? value, List<String> options) {
+    if (value == null) return null;
+    final normalized = value.trim();
+    if (normalized.isEmpty) return null;
+    return options.contains(normalized) ? normalized : null;
   }
 
   @override
@@ -89,9 +117,25 @@ class _EditProfilePageState extends ConsumerState<EditProfilePage> {
     }
 
     setState(() => isSaving = true);
+    
+    // Get the Department object from backend config by matching the selected name
+    final configAsync = ref.watch(backendConfigProvider);
+    Department? selectedDepartmentObj;
+    
+    configAsync.whenData((config) {
+      for (final dept in config.departments) {
+        if (dept.name == selectedDepartment) {
+          selectedDepartmentObj = dept;
+          break;
+        }
+      }
+    });
+
     final updatedData = {
       'name': nameController.text.trim(),
-      'department': selectedDepartment,
+      'department': selectedDepartmentObj != null 
+        ? {'name': selectedDepartmentObj!.name, 'code': selectedDepartmentObj!.code}
+        : null,
       'batch': selectedBatch,
       'interests': interests,
     };
@@ -133,6 +177,37 @@ class _EditProfilePageState extends ConsumerState<EditProfilePage> {
   @override
   Widget build(BuildContext context) {
     final currentUser = ref.watch(authProvider).value ?? widget.user;
+    final configAsync = ref.watch(backendConfigProvider);
+
+    final configDepartments = configAsync.maybeWhen(
+      data: (config) => config.departments.map((d) => d.name).toList(),
+      orElse: () => _defaultDepartments,
+    );
+
+    final configBatches = configAsync.maybeWhen(
+      data: (config) {
+        return List<String>.generate(
+          config.batchRange.end - config.batchRange.start + 1,
+          (i) => (config.batchRange.start + i).toString(),
+        );
+      },
+      orElse: () => _defaultBatches,
+    );
+
+    final departmentOptions = _buildDropdownOptions(
+      configDepartments,
+      selectedDepartment ?? widget.user.department?.name,
+    );
+    final batchOptions = _buildDropdownOptions(
+      configBatches,
+      selectedBatch ?? widget.user.batch,
+    );
+
+    final effectiveDepartmentValue =
+        _normalizeSelectedValue(selectedDepartment, departmentOptions);
+    final effectiveBatchValue =
+        _normalizeSelectedValue(selectedBatch, batchOptions);
+
     final bool hasPhoto = currentUser.picture?.isNotEmpty ?? false;
     return Scaffold(
       backgroundColor: Colors.white,
@@ -295,7 +370,7 @@ class _EditProfilePageState extends ConsumerState<EditProfilePage> {
                         borderRadius: BorderRadius.circular(25),
                       ),
                       child: DropdownButtonFormField<String>(
-                        initialValue: selectedDepartment,
+                        initialValue: effectiveDepartmentValue,
                         decoration: InputDecoration(
                           contentPadding: const EdgeInsets.symmetric(
                             horizontal: 18,
@@ -310,7 +385,7 @@ class _EditProfilePageState extends ConsumerState<EditProfilePage> {
                           Icons.keyboard_arrow_down_rounded,
                           color: Colors.grey,
                         ),
-                        items: departments
+                        items: departmentOptions
                             .map(
                               (dept) => DropdownMenuItem(
                                 value: dept,
@@ -356,7 +431,7 @@ class _EditProfilePageState extends ConsumerState<EditProfilePage> {
                         borderRadius: BorderRadius.circular(25),
                       ),
                       child: DropdownButtonFormField<String>(
-                        initialValue: selectedBatch,
+                        initialValue: effectiveBatchValue,
                         decoration: InputDecoration(
                           contentPadding: const EdgeInsets.symmetric(
                             horizontal: 18,
@@ -371,7 +446,7 @@ class _EditProfilePageState extends ConsumerState<EditProfilePage> {
                           Icons.keyboard_arrow_down_rounded,
                           color: Colors.grey,
                         ),
-                        items: batches
+                        items: batchOptions
                             .map(
                               (batch) => DropdownMenuItem(
                                 value: batch,

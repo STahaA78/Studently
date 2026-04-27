@@ -341,7 +341,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                         ),
                         const SizedBox(height: 16),
                         Text(
-                          "${displayUser.department}, Batch ${displayUser.batch}",
+                          "${displayUser.department?.name ?? 'N/A'}, Batch ${displayUser.batch}",
                           style: const TextStyle(color: Colors.grey, fontSize: 12),
                           maxLines: 2,
                           overflow: TextOverflow.ellipsis,

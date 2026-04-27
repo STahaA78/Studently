@@ -23,12 +23,14 @@ class InterestsSelectionPage extends ConsumerStatefulWidget {
   final List<Interest> initialInterests;
   final User? user;
   final bool completeSignup;
+  final bool extractedFields;
 
   const InterestsSelectionPage({
     super.key,
     this.initialInterests = const [],
     this.user,
     this.completeSignup = false,
+    this.extractedFields = true,
   });
 
   @override
@@ -58,6 +60,7 @@ class _InterestsSelectionPageState extends ConsumerState<InterestsSelectionPage>
         department: widget.user!.department!,
         batch: widget.user!.batch!,
         interests: selectedInterests,
+        extractedFields: widget.extractedFields,
       );
       
       logger.i("[$runtimeType] Signup completed successfully");

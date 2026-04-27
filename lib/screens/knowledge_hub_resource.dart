@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:studently/models/knowledge_hub.dart';
 import 'package:studently/providers/knowledge_hub_provider.dart';
-import 'package:studently/storage/knowledge_hub.dart';
+import 'package:studently/storage/storage_manager.dart';
 import 'package:syncfusion_flutter_pdfviewer/pdfviewer.dart';
 import 'package:studently/logger.dart';
 import 'dart:typed_data';
@@ -223,7 +223,7 @@ class _PdfGalleryScreenState extends ConsumerState<PdfGalleryScreen> {
     Uint8List fileBytes,
   ) async {
     try {
-      final storage = KnowledgeHubStorage();
+      final storage = StorageManager().knowledgeHubStorage;
       final cacheDir = await storage.getDownloadsCacheDir();
       
       // Create file path
