@@ -1,67 +1,46 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/scheduler.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:studently/widgets/custom_nav_bar.dart';
-import 'package:studently/screens/profile_main.dart';
-import 'discover_requests.dart';
-import 'package:studently/models/user.dart';
-import 'package:studently/models/backend_config.dart';
-import 'package:studently/repositories/user.dart';
-import 'package:studently/logger.dart';
-import 'package:studently/providers/backend_config_provider.dart';
-import 'dart:async';
 import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_svg/flutter_svg.dart';
+import 'package:studently/models/backend_config.dart';
+import 'package:studently/models/user.dart';
+import 'package:studently/providers/backend_config_provider.dart';
+import 'package:studently/providers/discover_provider.dart';
+import 'package:studently/screens/profile_main.dart';
+import 'package:studently/widgets/custom_nav_bar.dart';
+import 'package:studently/screens/discover_requests.dart';
+import 'package:studently/app_style.dart';
 
-class ConnectDiscoverPage extends StatefulWidget {
+class ConnectDiscoverPage extends ConsumerStatefulWidget {
   const ConnectDiscoverPage({super.key});
 
   @override
-  State<ConnectDiscoverPage> createState() => _ConnectDiscoverPageState();
+  ConsumerState<ConnectDiscoverPage> createState() =>
+      _ConnectDiscoverPageState();
 }
 
-class _ConnectDiscoverPageState extends State<ConnectDiscoverPage>
+class _ConnectDiscoverPageState extends ConsumerState<ConnectDiscoverPage>
     with WidgetsBindingObserver {
   final TextEditingController _searchController = TextEditingController();
   final Color primaryBlue = const Color(0xFF0F74C5);
-  final UserRepository _userRepository = UserRepository();
-  Future<List<User>>? _discoverFuture;
-  List<User> students = [];
-  Map<String, String> connectionStatus = {};
-  int pendingRequestsCount = 0;
-  bool isSearchFocused = false;
-  List<String> recentSearches = [];
-  String? selectedDepartmentName;
-  String? selectedBatchYear;
-  int _topCardIndex = 0;
   final ValueNotifier<double> _swipeProgressNotifier = ValueNotifier<double>(
     0.0,
   );
-  Timer? _searchDebounceTimer;
-  bool _isDisposed = false;
-  bool _isRefreshing = false;
 
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addObserver(this);
-    _discoverFuture = _loadDiscoverUsers();
-    loadPendingRequestsCount();
-
-    // Background refresh after a short delay to ensure fresh profiles
-    Future.delayed(const Duration(milliseconds: 500), () {
-      if (mounted && !_isDisposed) {
-        _backgroundRefreshDiscoverUsers();
-      }
+    Future.microtask(() {
+      ref.read(discoverConnectProvider.notifier).init();
     });
+    WidgetsBinding.instance.addObserver(this);
   }
 
   @override
   void dispose() {
-    _isDisposed = true;
     _swipeProgressNotifier.dispose();
     WidgetsBinding.instance.removeObserver(this);
     _searchController.dispose();
-    _searchDebounceTimer?.cancel();
     super.dispose();
   }
 
@@ -69,247 +48,24 @@ class _ConnectDiscoverPageState extends State<ConnectDiscoverPage>
   void didChangeAppLifecycleState(AppLifecycleState state) {
     // Reload pending count when app resumes (returning from another screen)
     if (state == AppLifecycleState.resumed && mounted) {
-      loadPendingRequestsCount();
+      ref.read(discoverConnectProvider.notifier).refreshPendingRequests();
     }
   }
-
-  // ---------------- SAFE SETSTATE ----------------
-  void _safeSetState(VoidCallback fn) {
-    if (!mounted || _isDisposed) return;
-    if (SchedulerBinding.instance.schedulerPhase ==
-        SchedulerPhase.persistentCallbacks) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted && !_isDisposed) setState(fn);
-      });
-    } else {
-      if (mounted && !_isDisposed) setState(fn);
-    }
-  }
-
-  Future<List<User>> _loadDiscoverUsers() async {
-    final users = await _userRepository.discoverUsers();
-    if (!mounted) return [];
-
-    // Fetch connection statuses for all users and filter out those with "error" status
-    final statuses = await _fetchConnectionStatusesForUsers(users);
-    // Filter to only show users with "none" status (no existing connection, no outgoing request)
-    var validUsers = users
-        .where(
-          (user) =>
-              statuses.containsKey(user.id) && statuses[user.id] == "none",
-        )
-        .toList();
-
-    // Apply department filter if selected
-    if (selectedDepartmentName != null) {
-      validUsers = validUsers
-          .where((user) => user.department?.name == selectedDepartmentName)
-          .toList();
-    }
-
-    // Apply batch year filter if selected
-    if (selectedBatchYear != null) {
-      validUsers = validUsers
-          .where((user) => user.batch.toString() == selectedBatchYear)
-          .toList();
-    }
-
-    _safeSetState(() {
-      students = validUsers;
-      connectionStatus = statuses;
-      _topCardIndex = 0;
-    });
-    return validUsers;
-  }
-
-  // Background refresh to ensure fresh profiles (silently refreshes in background)
-  Future<void> _backgroundRefreshDiscoverUsers() async {
-    if (_isRefreshing) return;
-
-    try {
-      _isRefreshing = true;
-      final users = await _userRepository.discoverUsers();
-      if (!mounted || _isDisposed) return;
-
-      final statuses = await _fetchConnectionStatusesForUsers(users);
-      var validUsers = users
-          .where(
-            (user) =>
-                statuses.containsKey(user.id) && statuses[user.id] == "none",
-          )
-          .toList();
-
-      if (selectedDepartmentName != null) {
-        validUsers = validUsers
-            .where((user) => user.department?.name == selectedDepartmentName)
-            .toList();
-      }
-
-      if (selectedBatchYear != null) {
-        validUsers = validUsers
-            .where((user) => user.batch.toString() == selectedBatchYear)
-            .toList();
-      }
-
-      _safeSetState(() {
-        students = validUsers;
-        connectionStatus = statuses;
-        if (_topCardIndex >= students.length && students.isNotEmpty) {
-          _topCardIndex = 0;
-        }
-      });
-    } catch (e) {
-      logger.e(
-        "[ConnectDiscoverPage] _backgroundRefreshDiscoverUsers failed: $e",
-      );
-    } finally {
-      _isRefreshing = false;
-    }
-  }
-
-  // Manual refresh (triggered by user)
-  Future<void> _manualRefreshDiscoverUsers() async {
-    if (_isRefreshing) return;
-
-    try {
-      _isRefreshing = true;
-      _safeSetState(() {
-        _discoverFuture = _loadDiscoverUsers();
-      });
-    } finally {
-      _isRefreshing = false;
-    }
-  }
-
-  // ---------------- SEARCH ----------------
-  void _onSearchChanged() {
-    final query = _searchController.text.trim();
-    _searchDebounceTimer?.cancel();
-
-    if (query.isEmpty) {
-      _safeSetState(() => isSearchFocused = false);
-      return;
-    }
-
-    _safeSetState(() => isSearchFocused = true);
-
-    // Debounce the search with 500ms delay
-    _searchDebounceTimer = Timer(const Duration(milliseconds: 500), () {
-      if (query.isNotEmpty) _performSearch(query);
-    });
-  }
-
-  void _performSearch(String query) async {
-    _safeSetState(() {
-      isSearchFocused = true;
-      students.clear();
-      _topCardIndex = 0;
-      _swipeProgressNotifier.value = 0.0;
-      if (!recentSearches.contains(query)) {
-        recentSearches.insert(0, query);
-        if (recentSearches.length > 5) recentSearches.removeLast();
-      }
-    });
-
-    try {
-      final results = await _userRepository.searchUsers(query);
-      if (!mounted) return;
-
-      _safeSetState(() {
-        students = results;
-        _topCardIndex = 0;
-      });
-    } catch (e) {
-      logger.e("[ConnectDiscoverPage] _performSearch failed: $e");
-    }
-  }
-
   void _clearSearch() {
     _searchController.clear();
-    _searchDebounceTimer?.cancel();
-    _safeSetState(() {
-      isSearchFocused = false;
-      students.clear();
-      _topCardIndex = 0;
-      _swipeProgressNotifier.value = 0.0;
-    });
-    _discoverFuture = _loadDiscoverUsers();
+    ref.read(discoverConnectProvider.notifier).clearSearch();
   }
 
-  // Handle swipe right - send friend request
-  void _onSwipeRight(User student) async {
-    try {
-      await sendConnectionRequest(student.id);
-      _advanceCard();
-    } catch (e) {
-      logger.e("[ConnectDiscoverPage] _onSwipeRight failed: $e");
-      _advanceCard();
-    }
-  }
-
-  // Batch fetch connection statuses for multiple users
-  Future<Map<String, String>> _fetchConnectionStatusesForUsers(
-    List<User> users,
-  ) async {
-    if (users.isEmpty) return {};
-
-    try {
-      final targetIds = users.map((user) => user.id).toList();
-      final statuses = await _userRepository.fetchConnectionStatuses(targetIds);
-      return statuses;
-    } catch (e) {
-      logger.e(
-        "[ConnectDiscoverPage] _fetchConnectionStatusesForUsers failed: $e",
-      );
-      return {};
-    }
-  }
-
-  Future<void> sendConnectionRequest(String targetId) async {
-    try {
-      await _userRepository.sendConnectionRequest(targetId);
-      if (!mounted) return;
-      _safeSetState(() => connectionStatus[targetId] = "outgoing_request");
-    } catch (e) {
-      logger.e("[ConnectDiscoverPage] sendConnectionRequest failed: $e");
-    }
-  }
-
-  Future<void> cancelConnectionRequest(String targetId) async {
-    try {
-      await _userRepository.cancelConnectionRequest(targetId);
-      if (!mounted) return;
-      _safeSetState(() => connectionStatus[targetId] = "none");
-    } catch (e) {
-      logger.e("[ConnectDiscoverPage] cancelConnectionRequest failed: $e");
-    }
-  }
-
-  // ---------------- PENDING COUNT ----------------
-  Future<void> loadPendingRequestsCount() async {
-    if (!mounted || _isDisposed) return;
-    try {
-      final count = await _userRepository.fetchPendingRequestsCount();
-      if (!mounted || _isDisposed) return;
-      _safeSetState(() => pendingRequestsCount = count);
-    } catch (e) {
-      if (mounted && !_isDisposed) {
-        logger.e("[ConnectDiscoverPage] loadPendingRequestsCount failed: $e");
-      }
-    }
-  }
-
-  // ---------------- ADVANCE CARD ----------------
-  void _advanceCard() {
-    _safeSetState(() {
-      if (_topCardIndex < students.length) _topCardIndex++;
-    });
+  void _runSearch(String query) {
+    _searchController.text = query;
+    ref.read(discoverConnectProvider.notifier).runSearch(query);
   }
 
   // ---------------- FILTER PANEL ----------------
   void _showFilterPanel(BuildContext context) {
-    String? tempDept = selectedDepartmentName;
-    String? tempBatch = selectedBatchYear;
+    final discoverState = ref.read(discoverConnectProvider);
+    String? tempDept = discoverState.selectedDepartmentName;
+    String? tempBatch = discoverState.selectedBatchYear;
 
     showModalBottomSheet(
       context: context,
@@ -424,20 +180,12 @@ class _ConnectDiscoverPageState extends State<ConnectDiscoverPage>
                                     child: OutlinedButton(
                                       onPressed: () {
                                         Navigator.pop(context);
-                                        WidgetsBinding.instance
-                                            .addPostFrameCallback((_) {
-                                              if (mounted) {
-                                                setState(() {
-                                                  selectedDepartmentName = null;
-                                                  selectedBatchYear = null;
-                                                  _topCardIndex = 0;
-                                                  _swipeProgressNotifier.value =
-                                                      0.0;
-                                                });
-                                                _discoverFuture =
-                                                    _loadDiscoverUsers();
-                                              }
-                                            });
+                                        _swipeProgressNotifier.value = 0.0;
+                                        ref
+                                            .read(
+                                              discoverConnectProvider.notifier,
+                                            )
+                                            .resetFilters();
                                       },
                                       child: const Text("Reset"),
                                     ),
@@ -447,21 +195,15 @@ class _ConnectDiscoverPageState extends State<ConnectDiscoverPage>
                                     child: ElevatedButton(
                                       onPressed: () {
                                         Navigator.pop(context);
-                                        WidgetsBinding.instance
-                                            .addPostFrameCallback((_) {
-                                              if (mounted) {
-                                                setState(() {
-                                                  selectedDepartmentName =
-                                                      tempDept;
-                                                  selectedBatchYear = tempBatch;
-                                                  _topCardIndex = 0;
-                                                  _swipeProgressNotifier.value =
-                                                      0.0;
-                                                });
-                                                _discoverFuture =
-                                                    _loadDiscoverUsers();
-                                              }
-                                            });
+                                        _swipeProgressNotifier.value = 0.0;
+                                        ref
+                                            .read(
+                                              discoverConnectProvider.notifier,
+                                            )
+                                            .applyFilters(
+                                              departmentName: tempDept,
+                                              batchYear: tempBatch,
+                                            );
                                       },
                                       child: const Text("Apply"),
                                     ),
@@ -485,6 +227,7 @@ class _ConnectDiscoverPageState extends State<ConnectDiscoverPage>
   // ---------------- BUILD ----------------
   @override
   Widget build(BuildContext context) {
+    final discoverState = ref.watch(discoverConnectProvider);
     return Scaffold(
       backgroundColor: Colors.white,
       appBar: AppBar(
@@ -505,13 +248,26 @@ class _ConnectDiscoverPageState extends State<ConnectDiscoverPage>
             IconButton(
               icon: const Icon(Icons.refresh, color: Colors.black),
               tooltip: 'Refresh profiles',
-              onPressed: _isRefreshing ? null : _manualRefreshDiscoverUsers,
+              onPressed:
+                  discoverState.isRefreshing
+                      ? null
+                      : () => ref
+                          .read(discoverConnectProvider.notifier)
+                          .refreshDiscoverUsers(forceRefresh: true),
             ),
           IconButton(
             icon: Stack(
               children: [
-                const Icon(Icons.person_add, color: Colors.black),
-                if (pendingRequestsCount > 0)
+                SvgPicture.asset(
+                  'assets/images/friend-requests.svg',
+                  height: 22,
+                  width: 22,
+                  colorFilter: const ColorFilter.mode(
+                    Colors.black,
+                    BlendMode.srcIn,
+                  ),
+                ),
+                if (discoverState.pendingRequestsCount > 0)
                   Positioned(
                     right: 0,
                     top: 0,
@@ -519,7 +275,7 @@ class _ConnectDiscoverPageState extends State<ConnectDiscoverPage>
                       radius: 9,
                       backgroundColor: Colors.red,
                       child: Text(
-                        pendingRequestsCount.toString(),
+                        discoverState.pendingRequestsCount.toString(),
                         style: const TextStyle(
                           fontSize: 10,
                           color: Colors.white,
@@ -534,9 +290,13 @@ class _ConnectDiscoverPageState extends State<ConnectDiscoverPage>
                 context,
                 MaterialPageRoute(builder: (_) => const RequestsPage()),
               );
-              await loadPendingRequestsCount();
+              await ref
+                  .read(discoverConnectProvider.notifier)
+                  .refreshPendingRequests(forceRefresh: true);
               if (result == true) {
-                _discoverFuture = _loadDiscoverUsers();
+                ref
+                    .read(discoverConnectProvider.notifier)
+                    .refreshDiscoverUsers(forceRefresh: true);
               }
             },
           ),
@@ -549,8 +309,8 @@ class _ConnectDiscoverPageState extends State<ConnectDiscoverPage>
             child: Row(
               children: [
                 SizedBox(
-                  width: isSearchFocused ? 48 : 0,
-                  child: isSearchFocused
+                  width: discoverState.isSearchFocused ? 48 : 0,
+                  child: discoverState.isSearchFocused
                       ? IconButton(
                           icon: const Icon(Icons.arrow_back),
                           onPressed: _clearSearch,
@@ -561,19 +321,21 @@ class _ConnectDiscoverPageState extends State<ConnectDiscoverPage>
                 Expanded(
                   child: TextField(
                     controller: _searchController,
-                    onChanged: (_) => _onSearchChanged(),
-                    onTap: () => _safeSetState(() => isSearchFocused = true),
-                    decoration: InputDecoration(
-                      hintText: "Search students",
-                      prefixIcon: const Icon(Icons.search),
-                    ),
+                    onChanged: (value) => ref
+                        .read(discoverConnectProvider.notifier)
+                        .onSearchChanged(value),
+                    onTap:
+                        () => ref
+                            .read(discoverConnectProvider.notifier)
+                            .setSearchFocused(true),
+                    decoration: AppStyle.searchDecoration("Search Students ")
                   ),
                 ),
                 Padding(
                   padding: const EdgeInsets.only(left: 8.0),
                   child: SizedBox(
-                    width: !isSearchFocused ? 25 : 0,
-                    child: !isSearchFocused
+                    width: !discoverState.isSearchFocused ? 25 : 0,
+                    child: !discoverState.isSearchFocused
                         ? IconButton(
                             icon: const Icon(Icons.tune),
                             onPressed: () => _showFilterPanel(context),
@@ -589,14 +351,18 @@ class _ConnectDiscoverPageState extends State<ConnectDiscoverPage>
             child: Stack(
               children: [
                 Visibility(
-                  visible: !isSearchFocused || (_searchController.text.isEmpty),
+                  visible:
+                      !discoverState.isSearchFocused ||
+                      (_searchController.text.isEmpty),
                   maintainState: true,
-                  child: _buildCardStack(),
+                  child: _buildCardStack(discoverState),
                 ),
-                if (isSearchFocused && _searchController.text.isEmpty)
-                  _buildRecentSearches(),
-                if (isSearchFocused && _searchController.text.isNotEmpty)
-                  _buildSearchResults(),
+                if (discoverState.isSearchFocused &&
+                    _searchController.text.isEmpty)
+                  _buildRecentSearches(discoverState),
+                if (discoverState.isSearchFocused &&
+                    _searchController.text.isNotEmpty)
+                  _buildSearchResults(discoverState),
               ],
             ),
           ),
@@ -607,8 +373,8 @@ class _ConnectDiscoverPageState extends State<ConnectDiscoverPage>
   }
 
   // ---------------- SEARCH RESULTS LIST ----------------
-  Widget _buildSearchResults() {
-    if (students.isEmpty) {
+  Widget _buildSearchResults(DiscoverConnectState state) {
+    if (state.students.isEmpty) {
       return Center(
         child: Padding(
           padding: const EdgeInsets.all(32),
@@ -629,9 +395,9 @@ class _ConnectDiscoverPageState extends State<ConnectDiscoverPage>
 
     return ListView.builder(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
-      itemCount: students.length,
+      itemCount: state.students.length,
       itemBuilder: (context, index) {
-        final user = students[index];
+        final user = state.students[index];
         return _buildSearchResultItem(user);
       },
     );
@@ -645,7 +411,9 @@ class _ConnectDiscoverPageState extends State<ConnectDiscoverPage>
           MaterialPageRoute(builder: (_) => ProfilePage(userId: user.id)),
         );
         if (result == true && mounted) {
-          _performSearch(_searchController.text);
+          ref
+              .read(discoverConnectProvider.notifier)
+              .runSearch(_searchController.text);
         }
       },
       child: Container(
@@ -699,13 +467,13 @@ class _ConnectDiscoverPageState extends State<ConnectDiscoverPage>
   }
 
   // ---------------- RECENT SEARCHES ----------------
-  Widget _buildRecentSearches() {
+  Widget _buildRecentSearches(DiscoverConnectState state) {
     return Container(
       color: Colors.white,
       child: ListView(
         padding: const EdgeInsets.symmetric(horizontal: 16),
         children: [
-          if (recentSearches.isNotEmpty)
+          if (state.recentSearches.isNotEmpty)
             Padding(
               padding: const EdgeInsets.symmetric(vertical: 16),
               child: Row(
@@ -718,7 +486,11 @@ class _ConnectDiscoverPageState extends State<ConnectDiscoverPage>
                     ),
                   ),
                   GestureDetector(
-                    onTap: () => _safeSetState(() => recentSearches.clear()),
+                    onTap:
+                        () =>
+                            ref
+                                .read(discoverConnectProvider.notifier)
+                                .clearRecentSearches(),
                     child: Text(
                       "Clear all",
                       style: TextStyle(color: primaryBlue, fontSize: 12),
@@ -727,11 +499,10 @@ class _ConnectDiscoverPageState extends State<ConnectDiscoverPage>
                 ],
               ),
             ),
-          ...recentSearches.map(
+          ...state.recentSearches.map(
             (search) => GestureDetector(
               onTap: () {
-                _searchController.text = search;
-                _performSearch(search);
+                _runSearch(search);
               },
               child: Padding(
                 padding: const EdgeInsets.symmetric(vertical: 12),
@@ -746,8 +517,9 @@ class _ConnectDiscoverPageState extends State<ConnectDiscoverPage>
                       ),
                     ),
                     GestureDetector(
-                      onTap: () =>
-                          _safeSetState(() => recentSearches.remove(search)),
+                      onTap: () => ref
+                          .read(discoverConnectProvider.notifier)
+                          .removeRecentSearch(search),
                       child: Icon(
                         Icons.close,
                         color: Colors.grey[400],
@@ -765,104 +537,95 @@ class _ConnectDiscoverPageState extends State<ConnectDiscoverPage>
   }
 
   // ---------------- CARD STACK ----------------
-  Widget _buildCardStack() {
-    return FutureBuilder<List<User>>(
-      future: _discoverFuture,
-      builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting &&
-            students.isEmpty) {
-          return const Center(child: CircularProgressIndicator());
-        }
-        if (snapshot.hasError && students.isEmpty) {
-          return _buildErrorState();
-        }
-        if (students.isEmpty &&
-            snapshot.connectionState == ConnectionState.done) {
-          return _buildEmptyState("All Caught Up!");
-        }
-        if (_topCardIndex >= students.length) {
-          return Center(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(
-                  Icons.check_circle_outline,
-                  size: 80,
-                  color: Colors.grey[300],
-                ),
-                const SizedBox(height: 16),
-                Text(
-                  "You've seen everyone!",
-                  style: Theme.of(context).textTheme.titleMedium,
-                ),
-              ],
+  Widget _buildCardStack(DiscoverConnectState state) {
+    if (state.isLoading && state.students.isEmpty) {
+      return const Center(child: CircularProgressIndicator());
+    }
+    if (state.errorMessage != null && state.students.isEmpty) {
+      return _buildErrorState();
+    }
+    if (state.students.isEmpty) {
+      return _buildEmptyState('All Caught Up!');
+    }
+    if (state.topCardIndex >= state.students.length) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              Icons.check_circle_outline,
+              size: 80,
+              color: Colors.grey[300],
             ),
-          );
-        }
+            const SizedBox(height: 16),
+            Text(
+              "You've seen everyone!",
+              style: Theme.of(context).textTheme.titleMedium,
+            ),
+          ],
+        ),
+      );
+    }
 
-        final remaining = students.length - _topCardIndex;
-        final visibleCount = remaining.clamp(0, 3);
-        final visibleIndexes = List<int>.generate(
-          visibleCount,
-          (i) => _topCardIndex + i,
-        );
+    final remaining = state.students.length - state.topCardIndex;
+    final visibleCount = remaining.clamp(0, 3);
+    final visibleIndexes = List<int>.generate(
+      visibleCount,
+      (i) => state.topCardIndex + i,
+    );
 
-        return Padding(
-          padding: const EdgeInsets.fromLTRB(16, 16, 16, 25),
-          child: Stack(
-            children: [
-              // Render back-to-front. Back cards scale according to the top card's drag.
-              for (final index in visibleIndexes.reversed)
-                Positioned.fill(
-                  child: index == _topCardIndex
-                      // The top card is independent
-                      ? _DraggableCard(
-                          key: ValueKey(students[index].id),
-                          enabled: true,
-                          swipeNotifier: _swipeProgressNotifier,
-                          onSwipedLeft: _advanceCard,
-                          onSwipedRight: () => _onSwipeRight(students[index]),
-                          child: _buildSwipeCard(
-                            students[index],
-                            interactive: true,
-                          ),
-                        )
-                      : ValueListenableBuilder<double>(
-                          valueListenable: _swipeProgressNotifier,
-                          builder: (context, dragProgress, _) {
-                            final depth = index - _topCardIndex; // 1 or 2
-                            // Scale moves smoothly from (1 - depth*0.04) up to (1 - (depth-1)*0.04)
-                            final scale =
-                                (1.0 - (depth * 0.04)) + (0.04 * dragProgress);
-                            // Slide moves smoothly from depth offset up to (depth-1) offset
-                            // Use FractionalTranslation to move relative to card height.
-                            // -0.018 in FractionalTranslation is a slight move upwards.
-                            final slideRatio =
-                                -0.018 * depth + (0.018 * dragProgress);
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 25),
+      child: Stack(
+        children: [
+          for (final index in visibleIndexes.reversed)
+            Positioned.fill(
+              child: index == state.topCardIndex
+                  ? _DraggableCard(
+                      key: ValueKey(state.students[index].id),
+                      enabled: true,
+                      swipeNotifier: _swipeProgressNotifier,
+                      onSwipedLeft: () => ref
+                          .read(discoverConnectProvider.notifier)
+                          .swipeLeft(state.students[index]),
+                      onSwipedRight: () => ref
+                          .read(discoverConnectProvider.notifier)
+                          .swipeRight(state.students[index]),
+                      child: _buildSwipeCard(
+                        state.students[index],
+                        interactive: true,
+                      ),
+                    )
+                  : ValueListenableBuilder<double>(
+                      valueListenable: _swipeProgressNotifier,
+                      builder: (context, dragProgress, _) {
+                        final depth = index - state.topCardIndex;
+                        final scale =
+                            (1.0 - (depth * 0.04)) + (0.04 * dragProgress);
+                        final slideRatio =
+                            -0.018 * depth + (0.018 * dragProgress);
 
-                            return FractionalTranslation(
-                              translation: Offset(0, slideRatio),
-                              child: Transform.scale(
-                                scale: scale,
-                                child: _DraggableCard(
-                                  key: ValueKey(students[index].id),
-                                  enabled: false,
-                                  onSwipedLeft: () {},
-                                  onSwipedRight: () {},
-                                  child: _buildSwipeCard(
-                                    students[index],
-                                    interactive: false,
-                                  ),
-                                ),
+                        return FractionalTranslation(
+                          translation: Offset(0, slideRatio),
+                          child: Transform.scale(
+                            scale: scale,
+                            child: _DraggableCard(
+                              key: ValueKey(state.students[index].id),
+                              enabled: false,
+                              onSwipedLeft: () {},
+                              onSwipedRight: () {},
+                              child: _buildSwipeCard(
+                                state.students[index],
+                                interactive: false,
                               ),
-                            );
-                          },
-                        ),
-                ),
-            ],
-          ),
-        );
-      },
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+            ),
+        ],
+      ),
     );
   }
 
@@ -980,7 +743,7 @@ class _ConnectDiscoverPageState extends State<ConnectDiscoverPage>
                               spacing: 6,
                               runSpacing: 6,
                               children: student.interests
-                                  .take(5)
+                                  .take(5) // Safety check, Although should never be more than 5
                                   .map(
                                     (Interest interest) => Container(
                                       padding: const EdgeInsets.symmetric(
@@ -1098,8 +861,9 @@ class _ConnectDiscoverPageState extends State<ConnectDiscoverPage>
             SizedBox(
               width: double.infinity,
               child: ElevatedButton(
-                onPressed: () =>
-                    _safeSetState(() => _discoverFuture = _loadDiscoverUsers()),
+                onPressed: () => ref
+                    .read(discoverConnectProvider.notifier)
+                    .refreshDiscoverUsers(forceRefresh: true),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: primaryBlue,
                   foregroundColor: Colors.white,

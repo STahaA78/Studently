@@ -93,19 +93,6 @@ class UserRepository {
     }
   }
 
-  Future<List<User>> fetchPendingRequests() async {
-    logger.i("[$runtimeType] Fetch Pending Requests Initiated");
-    try {
-      final response = await _apiService.get('/users/0/requests');
-      final List<dynamic> data = jsonDecode(response.body);
-      logger.i("[$runtimeType] Fetch Pending Requests Completed Successfully");
-      return data.map((item) => User.fromJson(item)).toList();
-    } catch (e) {
-      logger.e("[$runtimeType] Fetch Pending Requests Failed with error: $e");
-      rethrow;
-    }
-  }
-
   Future<void> respondRequest(String requesterId, String action) async {
     logger.i(
       "[$runtimeType] Respond Request Initiated for requesterId: $requesterId, action: $action",
@@ -136,78 +123,23 @@ class UserRepository {
     }
   }
 
-  Future<List<User>> discoverUsers() async {
-    logger.i("[$runtimeType] Discover Users Initiated");
-    try {
-      final response = await _apiService.get('/users/discover');
-      final List<dynamic> data = jsonDecode(response.body);
-      logger.d("[$runtimeType] Raw API Response: $data");
-      //logger.d("[$runtimeType] Fetched ${data.length} users from API");
-      logger.i("[$runtimeType] Discover Users Completed Successfully");
-      return data.map((item) => User.fromJson(item)).toList();
-    } catch (e) {
-      logger.e("[$runtimeType] Discover Users Failed with error: $e");
-      rethrow;
-    }
-  }
-
-  Future<List<User>> searchUsers(String query) async {
-    logger.i("[$runtimeType] Search Users Initiated for query: $query");
-    try {
-      final response = await _apiService.get('/users/search/?query=$query');
-      final List<dynamic> data = jsonDecode(response.body);
-      logger.d("[$runtimeType] Fetched ${data.length} users from API");
-      logger.i("[$runtimeType] Search Users Completed Successfully");
-      return data.map((item) => User.fromJson(item)).toList();
-    } catch (e) {
-      logger.e("[$runtimeType] Search Users Failed with error: $e");
-      rethrow;
-    }
-  }
-
-  Future<Map<String, String>> fetchConnectionStatuses(
-    List<String> targetIds,
-  ) async {
-    logger.i(
-      "[$runtimeType] Fetch Connection Statuses Initiated for ${targetIds.length} targets",
-    );
-    try {
-      final response = await _apiService.post(
-        '/users/0/status',
-        body: {"target_ids": targetIds},
-      );
-      final List<dynamic> data = jsonDecode(response.body);
-      final Map<String, String> statusMap = {};
-
-      for (var item in data) {
-        final friendStatus = FriendStatus.fromJson(item);
-        // Filter out "error" status - these users should not be displayed
-        if (friendStatus.status != "error") {
-          statusMap[friendStatus.id] = friendStatus.status;
-        }
-      }
-
-      logger.i(
-        "[$runtimeType] Fetch Connection Statuses Completed Successfully",
-      );
-      return statusMap;
-    } catch (e) {
-      logger.e(
-        "[$runtimeType] Fetch Connection Statuses Failed with error: $e",
-      );
-      rethrow;
-    }
-  }
-
   // Single fetch wrapper for backward compatibility
   Future<String> fetchConnectionStatus(String targetId) async {
     logger.i(
       "[$runtimeType] Fetch Connection Status Initiated for targetId: $targetId",
     );
     try {
-      final statuses = await fetchConnectionStatuses([targetId]);
+      final response = await _apiService.post(
+        '/users/0/status',
+        body: {"target_ids": [targetId]},
+      );
+      final List<dynamic> data = jsonDecode(response.body);
+      if (data.isEmpty) {
+        return "error";
+      }
+      final friendStatus = FriendStatus.fromJson(data.first);
       logger.i("[$runtimeType] Fetch Connection Status Completed Successfully");
-      return statuses[targetId] ?? "error";
+      return friendStatus.status;
     } catch (e) {
       logger.e("[$runtimeType] Fetch Connection Status Failed with error: $e");
       rethrow;
@@ -239,23 +171,6 @@ class UserRepository {
     } catch (e) {
       logger.e(
         "[$runtimeType] Cancel Connection Request Failed with error: $e",
-      );
-      rethrow;
-    }
-  }
-
-  Future<int> fetchPendingRequestsCount() async {
-    logger.i("[$runtimeType] Fetch Pending Requests Count Initiated");
-    try {
-      final response = await _apiService.get('/users/0/requests');
-      final List<dynamic> data = jsonDecode(response.body);
-      logger.i(
-        "[$runtimeType] Fetch Pending Requests Count Completed Successfully",
-      );
-      return data.length;
-    } catch (e) {
-      logger.e(
-        "[$runtimeType] Fetch Pending Requests Count Failed with error: $e",
       );
       rethrow;
     }

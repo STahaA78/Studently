@@ -388,7 +388,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                           },
                           child: Text(
                             "Edit Profile",
-                            style: TextStyle(color: blue, fontSize: 14),
+                            style: TextStyle(color: AppStyle.primaryBlue, fontSize: 14),
                           ),
                         ),
                       )

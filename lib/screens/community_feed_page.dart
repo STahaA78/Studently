@@ -121,13 +121,17 @@ class _CommunityFeedPageState extends ConsumerState<CommunityFeedPage> {
                       children: [
                         SvgPicture.asset(
                           'assets/images/logo.svg',
-                          height: AppStyle.logoSize * 0.9,
+                          height: AppStyle.logoSize,
+                          colorFilter: const ColorFilter.mode(
+                            AppStyle.primaryBlue,
+                            BlendMode.srcIn,
+                          ),
                         ),
                         Flexible(
                           child: Text(
                             'Studently',
                             style: GoogleFonts.poppins(
-                              color: blue,
+                              color: AppStyle.primaryBlue,
                               fontSize: AppStyle.titleFontSize * 0.9,
                               fontWeight: FontWeight.w700,
                               fontStyle: FontStyle.italic,
@@ -140,6 +144,8 @@ class _CommunityFeedPageState extends ConsumerState<CommunityFeedPage> {
                     actions: [
                       NotificationBadgeIcon(
                         unreadCount: unreadCount,
+                        svgAssetPath: 'assets/images/notifications.svg',
+                        iconColor: Colors.black87,
                         onPressed: () {
                           Navigator.push(
                             context,
@@ -150,10 +156,14 @@ class _CommunityFeedPageState extends ConsumerState<CommunityFeedPage> {
                         },
                       ),
                       IconButton(
-                        icon: const Icon(
-                          Icons.mail_outline_rounded,
-                          color: Colors.black,
-                          size: 26,
+                        icon: SvgPicture.asset(
+                          'assets/images/messages.svg',
+                          height: 24,
+                          width: 2,
+                          colorFilter: const ColorFilter.mode(
+                            Colors.black87,
+                            BlendMode.srcIn,
+                          ),
                         ),
                         onPressed: () {
                           Navigator.push(
@@ -167,27 +177,40 @@ class _CommunityFeedPageState extends ConsumerState<CommunityFeedPage> {
                       const SizedBox(width: 8),
                     ],
                   ),
-                  SliverList(
-                    delegate: SliverChildBuilderDelegate((context, index) {
-                      final post = posts[index];
-                      final currentUser = authService.value.currentUser?.uid;
-                      final bool isLiked = post.likes.contains(currentUser);
-                      final int likes = post.likes.length;
-                      final int comments = post.comments.length;
+                  if (posts.isEmpty)
+                    SliverFillRemaining(
+                      child: Center(
+                        child: Text(
+                          'No Posts Found',
+                          style: const TextStyle(
+                            color: Colors.grey,
+                          fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ),
+                    )
+                  else
+                    SliverList(
+                      delegate: SliverChildBuilderDelegate((context, index) {
+                        final post = posts[index];
+                        final currentUser = authService.value.currentUser?.uid;
+                        final bool isLiked = post.likes.contains(currentUser);
+                        final int likes = post.likes.length;
+                        final int comments = post.comments.length;
 
-                      return _buildPostCard(
-                        post: post,
-                        index: index,
-                        name: post.authorName,
-                        time: formatTime(post.timestamp),
-                        isLiked: isLiked,
-                        likes: likes,
-                        comments: comments,
-                        onCommentTap: () => openPostDetails(index, posts),
-                        allPosts: posts,
-                      );
-                    }, childCount: posts.length),
-                  ),
+                        return _buildPostCard(
+                          post: post,
+                          index: index,
+                          name: post.authorName,
+                          time: formatTime(post.timestamp),
+                          isLiked: isLiked,
+                          likes: likes,
+                          comments: comments,
+                          onCommentTap: () => openPostDetails(index, posts),
+                          allPosts: posts,
+                        );
+                      }, childCount: posts.length),
+                    ),
                   if (feedAsync.isLoading && posts.isNotEmpty)
                     const SliverToBoxAdapter(
                       child: Padding(

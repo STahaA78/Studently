@@ -85,7 +85,7 @@ class CustomNavBar extends StatelessWidget {
           'assets/images/connect-outlined.svg',
           'assets/images/connect-filled.svg',
         ),
-        ('assets/images/post-outlined.svg', 'assets/images/post-filled.svg'),
+        ('assets/images/post.svg', 'assets/images/post.svg'),
         (
           'assets/images/knowledgehub-outlined.svg',
           'assets/images/knowledgehub-filled.svg',

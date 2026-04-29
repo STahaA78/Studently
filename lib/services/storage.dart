@@ -6,6 +6,7 @@ import 'package:studently/storage/knowledge_hub.dart';
 import 'package:studently/storage/auth_storage.dart';
 import 'package:studently/storage/feed_storage.dart';
 import 'package:studently/storage/chat_storage.dart';
+import 'package:studently/storage/discover_storage.dart';
 import 'package:studently/storage/notifications.dart';
 import 'package:studently/logger.dart';
 
@@ -18,11 +19,14 @@ class StorageService {
   late Box _authBox;
   late Box _feedBox;
   late Box _profileFeedBox;
+  late Box _discoverBox;
   late Box _conversationsBox;
   late Box _messagesBox;
+  late Box _notificationsBox;
 
   late AuthStorage _authStorage;
   late FeedStorage _feedStorage;
+  late DiscoverStorage _discoverStorage;
   late ChatStorage _chatStorage;
   late NotificationStorage _notificationStorage;
 
@@ -61,15 +65,17 @@ class StorageService {
       _authBox = await Hive.openBox('authBox');
       _feedBox = await Hive.openBox('feedBox');
       _profileFeedBox = await Hive.openBox('profileFeedBox');
+      _discoverBox = await Hive.openBox('discoverBox');
       _conversationsBox = await Hive.openBox('conversationsBox');
       _messagesBox = await Hive.openBox('messagesBox');
-      await Hive.openBox('notificationsBox');
+      _notificationsBox = await Hive.openBox('notificationsBox');
 
       // Initialize dedicated storage wrappers
       _authStorage = AuthStorage(_authBox);
       _feedStorage = FeedStorage(_feedBox, _profileFeedBox);
+      _discoverStorage = DiscoverStorage(_discoverBox);
       _chatStorage = ChatStorage(_conversationsBox, _messagesBox);
-      _notificationStorage = NotificationStorage();
+      _notificationStorage = NotificationStorage(_notificationsBox);
 
       // Initialize the dedicated backend config storage
       _backendConfigStorage = BackendConfigStorage();
@@ -143,6 +149,7 @@ class StorageService {
       if (_isAppStorageInitialized) {
         await _feedBox.clear();
         await _profileFeedBox.clear();
+        await _discoverBox.clear();
         await _conversationsBox.clear();
         await _messagesBox.clear();
       }
@@ -185,6 +192,13 @@ class StorageService {
       throw Exception('App storage not initialized.');
     }
     return _profileFeedBox;
+  }
+
+  DiscoverStorage get discoverStorage {
+    if (!_isAppStorageInitialized) {
+      throw Exception('App storage not initialized.');
+    }
+    return _discoverStorage;
   }
 
   Box get conversationsBox {

@@ -70,8 +70,11 @@ class _LoginGooglePageState extends ConsumerState<LoginGooglePage> {
                       SvgPicture.asset(
                         'assets/images/logo.svg',
                         height: AppStyle.logoSize,
+                        colorFilter: const ColorFilter.mode(
+                          AppStyle.primaryBlue,
+                          BlendMode.srcIn,
+                        ),
                       ),
-                      const SizedBox(width: 8),
                       Text(
                         'Studently',
                         style: GoogleFonts.poppins(

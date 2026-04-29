@@ -106,17 +106,22 @@ class ResourceItem {
   });
 
   factory ResourceItem.fromJson(Map<String, dynamic> json) {
+    // Handle both camelCase (from some endpoints) and snake_case (from others)
+    final fileUrl = json['fileUrl'] ?? json['file_url'] ?? '';
+    final uploadedAt = json['uploadedAt'] ?? json['uploaded_at'];
+    final uploadedBy = json['uploadedBy'] ?? json['uploaded_by'] ?? '';
+    
     return ResourceItem(
-      id: json['id'],
-      course: Course.fromJson(json['course']),
-      type: json['type'],
-      year: json['year'],
-      semester: json['semester'],
-      isSolved: json['is_solved'],
-      midNumber: json['mid_number'],
-      fileUrl: (json['file_url'] as String).replaceAll(' ', '%20'),
-      uploadedAt: DateTime.parse(json['uploaded_at']),
-      uploadedBy: json['uploaded_by'],
+      id: json['id'] ?? '',
+      course: Course.fromJson(json['course'] ?? {}),
+      type: json['type'] ?? '',
+      year: json['year'] ?? 0,
+      semester: json['semester'] ?? '',
+      isSolved: json['isSolved'] ?? json['is_solved'],
+      midNumber: json['midNumber'] ?? json['mid_number'],
+      fileUrl: (fileUrl as String).replaceAll(' ', '%20'),
+      uploadedAt: uploadedAt != null ? DateTime.parse(uploadedAt) : DateTime.now(),
+      uploadedBy: uploadedBy,
       approved: json['approved'] ?? false,
     );
   }

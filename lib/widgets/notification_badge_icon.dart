@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 
 class NotificationBadgeIcon extends StatelessWidget {
   final int unreadCount;
-  final IconData icon;
+  final IconData? icon;
+  final String? svgAssetPath;
   final VoidCallback onPressed;
   final Color iconColor;
   final double iconSize;
@@ -11,10 +13,11 @@ class NotificationBadgeIcon extends StatelessWidget {
     super.key,
     required this.unreadCount,
     required this.onPressed,
-    this.icon = Icons.notifications_none_rounded,
-    this.iconColor = Colors.black,
-    this.iconSize = 26,
-  });
+    this.icon,
+    this.svgAssetPath,
+    this.iconColor = Colors.grey,
+    this.iconSize = 28,
+  }) : assert(icon != null || svgAssetPath != null, 'Either icon or svgAssetPath must be provided');
 
   @override
   Widget build(BuildContext context) {
@@ -23,7 +26,14 @@ class NotificationBadgeIcon extends StatelessWidget {
       icon: Stack(
         clipBehavior: Clip.none,
         children: [
-          Icon(icon, color: iconColor, size: iconSize),
+          svgAssetPath != null
+              ? SvgPicture.asset(
+                  svgAssetPath!,
+                  height: iconSize,
+                  width: iconSize,
+                  colorFilter: ColorFilter.mode(iconColor, BlendMode.srcIn),
+                )
+              : Icon(icon, color: iconColor, size: iconSize),
           if (unreadCount > 0)
             Positioned(
               right: -5,

@@ -8,13 +8,10 @@ class AppStyle {
   static const double defaultPadding = 16.0;
 
   // --- 1. Colors ---
-  static const Color primaryBlue = Color(
-    0xFF0095F6,
-  ); // Instagram-like action blue
+  static const Color primaryBlue = Colors.blue; // Instagram-like action blue
   static const Color primaryDark = Color(0xFF1877F2); // Facebook-like dark blue
-  static const Color backgroundLight = Color(
-    0xFFFAFAFA,
-  ); // Standard clean background
+  static const Color backgroundLight = Color.fromARGB(255, 250, 250, 251);
+
   static const Color pureWhite = Colors.white;
   static const Color textPrimary = Color(0xFF262626); // Clean dark gray/black
   static const Color textSecondary = Color(
@@ -56,7 +53,7 @@ class AppStyle {
   static const EdgeInsets normalVerticalPadding = EdgeInsets.symmetric(
     vertical: 12,
   );
-
+  
   // --- 4. Theme ---
   static ThemeData get theme {
     var baseTheme = ThemeData.light();
@@ -190,4 +187,28 @@ class AppStyle {
       ),
     );
   }
+  // custom search decoration for search fields
+  static InputDecoration searchDecoration(String hint) {
+  return InputDecoration(
+    hintText: hint,
+    prefixIcon: Icon(
+      Icons.search,
+      color: Colors.grey.shade700, // 👈 icon color
+    ),
+    filled: true,
+    fillColor: backgroundLight,
+    border: OutlineInputBorder(
+      borderRadius: BorderRadius.circular(30),
+      borderSide: BorderSide.none,
+    ),
+    enabledBorder: OutlineInputBorder(
+      borderRadius: BorderRadius.circular(30),
+      borderSide: BorderSide.none,
+    ),
+    focusedBorder: OutlineInputBorder(
+      borderRadius: BorderRadius.circular(30),
+      borderSide: BorderSide.none,
+    ),
+  );
+}
 }
