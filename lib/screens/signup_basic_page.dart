@@ -32,10 +32,9 @@ class _SignupBasicPageState extends ConsumerState<SignupBasicPage> {
   String? _nameError;
   String? _birthdayError;
   String? _completionError;
-  String? _departmentCode; // Store the extracted department code
-  bool _departmentExtracted = false; // Track if department was extracted
-  bool _batchExtracted = false; // Track if batch was extracted
-  bool _extractedFields = true; // Track if extraction was successful
+  String? _departmentCode;       // Selected department code (always via dropdown)
+  bool _batchExtracted = false;  // Track if batch was extracted from name
+  bool _extractedFields = true;  // True only if both name and batch were found
 
   DateTime? _selectedBirthday;
 
@@ -48,99 +47,70 @@ class _SignupBasicPageState extends ConsumerState<SignupBasicPage> {
       if (!_nameFocus.hasFocus) _validateName();
     });
 
-    // Listen to Firebase auth state changes
-    // If user gets signed out (e.g., abandoned signup), navigate back to login
     FirebaseAuth.instance.authStateChanges().listen((user) {
       if (user == null && mounted) {
         logger.i(
           "[$runtimeType] Firebase user signed out, navigating back to login",
         );
-        // Use pushReplacementNamed to safely replace the current route
         Navigator.of(context).pushReplacementNamed('/');
       }
     });
   }
 
   void _initializeFields() {
-    // Get the current Firebase user (already signed in via Google)
     final googleSignUpUser = authService.value.currentUser;
     if (googleSignUpUser != null) {
       _nameController.text = googleSignUpUser.displayName ?? '';
-
-      // Extract department and batch from name
-      _extractDepartmentAndBatch(_nameController.text);
+      _extractNameAndBatch(_nameController.text);
     }
   }
 
-  /// Extracts department, batch, and name from Google profile name
-  /// Example: "Hassan Musa BSCS 2022 FAST NU LHR" -> name: "Hassan Musa", department: "CS", batch: "2022"
-  /// Supports: BS, MS, BBA, BA, MA, MBA, and other degree patterns (2-4 uppercase letters)
-  void _extractDepartmentAndBatch(String fullName) {
-    logger.d("[$runtimeType] Extracting dept/batch from: $fullName");
+  /// Extracts name and batch from Google profile display name.
+  ///
+  /// Mirrors the backend Python logic:
+  ///   - Scan for the first 4-digit token → that is the batch year.
+  ///   - Name = all tokens *before* the token that precedes the batch
+  ///     (i.e. parts[0 .. batchIndex-1], dropping the degree abbreviation).
+  ///   - If no batch is found, keep the full display name as-is.
+  ///
+  /// Example: "Hassan Musa BSCS 2022 FAST NU LHR"
+  ///   batchIndex = 3  →  name = parts[0..1] = "Hassan Musa", batch = "2022"
+  void _extractNameAndBatch(String fullName) {
+    logger.d("[$runtimeType] Extracting name/batch from: $fullName");
 
     final parts = fullName.split(' ');
+    final batchPattern = RegExp(r'^\d{4}$');
 
-    String department = '';
     String batch = '';
-    String extractedName = '';
-    int degreeIndex = -1;
-
-    // Find the degree pattern using regex
-    // Matches: BS, MS, BBA, BA, MA, MBA, BSc, MSc, etc. (2-4 uppercase letters, optionally followed by lowercase)
-    final degreeRegex = RegExp(r'^[A-Z]{2,4}[a-z]*$');
+    int batchIndex = -1;
 
     for (int i = 0; i < parts.length; i++) {
-      final part = parts[i];
-      if (degreeRegex.hasMatch(part) && part.length > 2) {
-        // Extract letters after the initial uppercase prefix (usually 2-3 chars)
-        // Examples: BSCS -> CS, BBA -> BA, MSc -> c (we take everything after first 2 chars)
-        int substringStart =
-            (part.startsWith('BS') ||
-                part.startsWith('MS') ||
-                part.startsWith('BA') ||
-                part.startsWith('MA'))
-            ? 2
-            : 3;
-        if (substringStart < part.length) {
-          department = part.substring(substringStart);
-        } else {
-          // For patterns like BBA, BA, MA, take the suffix after the first 2 chars if available
-          department = part.length > 2 ? part.substring(2) : part;
-        }
-        degreeIndex = i;
+      if (batchPattern.hasMatch(parts[i])) {
+        batch = parts[i];
+        batchIndex = i;
         break;
       }
     }
 
-    // Look for year/batch (4 digits) after the degree
-    if (degreeIndex != -1) {
-      for (int i = degreeIndex + 1; i < parts.length; i++) {
-        if (RegExp(r'^\d{4}$').hasMatch(parts[i])) {
-          batch = parts[i];
-          break;
-        }
-      }
-      // Extract only the name part (before degree pattern)
-      extractedName = parts.sublist(0, degreeIndex).join(' ');
+    // Mirror Python: extracted_name = parts[:batchIndex - 1]
+    // (drops the degree abbreviation sitting right before the batch year)
+    String extractedName;
+    if (batchIndex >= 1) {
+      extractedName = parts.sublist(0, batchIndex - 1).join(' ');
     } else {
-      // No degree pattern found, use the whole name
-      extractedName = fullName;
-      logger.w("[$runtimeType] No degree pattern found in name");
+      extractedName = fullName; // no batch found → keep original name
     }
 
-    // Update UI state and track extraction success
     setState(() {
       _nameController.text = extractedName;
-      _departmentCode = department;
-      _departmentExtracted = department.isNotEmpty;
       _batchController.text = batch;
       _batchExtracted = batch.isNotEmpty;
-      // Mark as successful extraction only if both department and batch were found
-      _extractedFields = department.isNotEmpty && batch.isNotEmpty;
+      // Both name AND batch must have been resolved for "extractedFields" to be true
+      _extractedFields = extractedName.isNotEmpty && batch.isNotEmpty;
     });
 
     logger.d(
-      "[$runtimeType] Extracted - Name: $extractedName, Department: $department, Batch: $batch, Success: $_extractedFields",
+      "[$runtimeType] Extracted → Name: $extractedName | Batch: $batch | Success: $_extractedFields",
     );
   }
 
@@ -163,7 +133,6 @@ class _SignupBasicPageState extends ConsumerState<SignupBasicPage> {
             ),
             child: Column(
               children: [
-                // Header
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
@@ -178,13 +147,12 @@ class _SignupBasicPageState extends ConsumerState<SignupBasicPage> {
                     IconButton(
                       icon: const Icon(Icons.close, color: Colors.grey),
                       onPressed: () => Navigator.pop(context),
-                      constraints: BoxConstraints(),
+                      constraints: const BoxConstraints(),
                       padding: EdgeInsets.zero,
                     ),
                   ],
                 ),
                 const Divider(height: 16, color: Colors.grey),
-                // Calendar
                 Expanded(
                   child: Container(
                     decoration: BoxDecoration(
@@ -194,20 +162,18 @@ class _SignupBasicPageState extends ConsumerState<SignupBasicPage> {
                     child: SfDateRangePicker(
                       onSelectionChanged:
                           (DateRangePickerSelectionChangedArgs args) {
-                            if (args.value is DateTime) {
-                              setState(() {
-                                _selectedBirthday = args.value as DateTime;
-                                // Format as MM/DD/YYYY as expected by backend
-                                _birthdayController.text =
-                                    "${_selectedBirthday!.month}/${_selectedBirthday!.day}/${_selectedBirthday!.year}";
-                                _birthdayError = null;
-                              });
-                              Navigator.pop(context);
-                            }
-                          },
+                        if (args.value is DateTime) {
+                          setState(() {
+                            _selectedBirthday = args.value as DateTime;
+                            _birthdayController.text =
+                                "${_selectedBirthday!.month}/${_selectedBirthday!.day}/${_selectedBirthday!.year}";
+                            _birthdayError = null;
+                          });
+                          Navigator.pop(context);
+                        }
+                      },
                       selectionMode: DateRangePickerSelectionMode.single,
                       initialSelectedDate: _selectedBirthday,
-                      // Restrict selection to past dates only
                       selectableDayPredicate: (DateTime dateTime) {
                         return dateTime.isBefore(DateTime.now());
                       },
@@ -242,29 +208,28 @@ class _SignupBasicPageState extends ConsumerState<SignupBasicPage> {
   Future<void> _handleCompletion() async {
     final name = _nameController.text.trim();
     final birthday = _birthdayController.text.trim();
-    final departmentCode =
-        _departmentCode ?? ''; // The extracted department code
+    final departmentCode = _departmentCode ?? '';
     final batch = _batchController.text.trim();
 
     logger.i(
-      "[$runtimeType] Google Signup Completion - Name: $name, Birthday: $birthday, Department Code: $departmentCode",
+      "[$runtimeType] Google Signup Completion — Name: $name | Birthday: $birthday | DeptCode: $departmentCode | Batch: $batch",
     );
 
+    // Extra guard: department must be selected
+    if (departmentCode.isEmpty) {
+      setState(() => _completionError = 'Please select your department');
+      return;
+    }
+
     if (_validateBirthday() && _validateName()) {
-      setState(() {
-        _completionError = null;
-      });
+      setState(() => _completionError = null);
 
-      // Get the Firebase user (already signed in)
       final googleSignUpUser = authService.value.currentUser;
-
       if (googleSignUpUser != null) {
-        // Get the full Department object from backend config
         final backendConfigAsync = ref.watch(backendConfigProvider);
 
         backendConfigAsync.when(
           data: (config) {
-            // Find the Department object that matches the extracted code
             Department? department;
             for (final dept in config.departments) {
               if (dept.code.toUpperCase() == departmentCode.toUpperCase()) {
@@ -272,7 +237,6 @@ class _SignupBasicPageState extends ConsumerState<SignupBasicPage> {
                 break;
               }
             }
-            // Use first department as fallback if not found
             department ??= config.departments.isNotEmpty
                 ? config.departments.first
                 : null;
@@ -284,23 +248,22 @@ class _SignupBasicPageState extends ConsumerState<SignupBasicPage> {
               return;
             }
 
-            // Navigate directly to interests selection (skip email verification and additional pages)
             if (!mounted) return;
             Navigator.push(
               context,
               MaterialPageRoute(
                 builder: (context) => InterestsSelectionPage(
-                  initialInterests: [],
+                  initialInterests: const [],
                   user: studently_user.User(
                     id: googleSignUpUser.uid,
                     name: name,
                     email: googleSignUpUser.email ?? '',
-                    password: '', // Empty for Google signin
+                    password: '',
                     department: department,
                     batch: batch,
                     birthday: birthday,
                     picture: googleSignUpUser.photoURL ?? '',
-                    interests: [],
+                    interests: const [],
                   ),
                   completeSignup: true,
                   extractedFields: _extractedFields,
@@ -360,9 +323,8 @@ class _SignupBasicPageState extends ConsumerState<SignupBasicPage> {
     final Color blue = AppStyle.primaryBlue;
     final Size screenSize = MediaQuery.of(context).size;
     final bool isLandscape = screenSize.width > screenSize.height;
-    final double formWidth = isLandscape
-        ? screenSize.width * 0.6
-        : screenSize.width * 0.85;
+    final double formWidth =
+        isLandscape ? screenSize.width * 0.6 : screenSize.width * 0.85;
 
     return Scaffold(
       backgroundColor: Colors.white,
@@ -373,7 +335,7 @@ class _SignupBasicPageState extends ConsumerState<SignupBasicPage> {
             mainAxisAlignment: MainAxisAlignment.start,
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              // Back Button and Title
+              // ── Back Button + Title ──────────────────────────────────────
               Column(
                 children: [
                   Row(
@@ -391,11 +353,9 @@ class _SignupBasicPageState extends ConsumerState<SignupBasicPage> {
                             size: 30,
                           ),
                           onPressed: () async {
-                            // Sign out from Firebase and navigate back
                             await authService.value.signOut();
                             logger.i("[$runtimeType] Signed out from Firebase");
                             if (!context.mounted) return;
-                            // Use pushReplacementNamed to safely replace the current route
                             Navigator.of(context).pushReplacementNamed('/');
                           },
                         ),
@@ -408,7 +368,7 @@ class _SignupBasicPageState extends ConsumerState<SignupBasicPage> {
                       right: 40,
                     ),
                     child: ConstrainedBox(
-                      constraints: BoxConstraints(maxWidth: 400),
+                      constraints: const BoxConstraints(maxWidth: 400),
                       child: Column(
                         children: [
                           Align(
@@ -450,7 +410,7 @@ class _SignupBasicPageState extends ConsumerState<SignupBasicPage> {
               ),
               const SizedBox(height: 15),
 
-              // Subtitle
+              // ── Subtitle ────────────────────────────────────────────────
               const Text(
                 "Complete your profile",
                 textAlign: TextAlign.center,
@@ -458,19 +418,16 @@ class _SignupBasicPageState extends ConsumerState<SignupBasicPage> {
               ),
               const SizedBox(height: 40),
 
-              // FORM
+              // ── Form ────────────────────────────────────────────────────
               SizedBox(
                 width: formWidth,
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // Full Name
+                    // Full Name ──────────────────────────────────────────
                     const Text(
                       'Full Name',
-                      style: TextStyle(
-                        fontWeight: FontWeight.w500,
-                        fontSize: 15,
-                      ),
+                      style: TextStyle(fontWeight: FontWeight.w500, fontSize: 15),
                     ),
                     const SizedBox(height: 6),
                     SizedBox(
@@ -478,7 +435,7 @@ class _SignupBasicPageState extends ConsumerState<SignupBasicPage> {
                       child: TextField(
                         controller: _nameController,
                         focusNode: _nameFocus,
-                        enabled: false,
+                        // Editable: user can correct if extraction was wrong
                         decoration: InputDecoration(
                           hintText: 'Full Name',
                           contentPadding: const EdgeInsets.symmetric(
@@ -488,15 +445,13 @@ class _SignupBasicPageState extends ConsumerState<SignupBasicPage> {
                           border: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(16),
                           ),
-                          disabledBorder: OutlineInputBorder(
+                          enabledBorder: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(16),
                             borderSide: const BorderSide(
                               color: Color(0xFFD0D0D0),
                               width: 1.2,
                             ),
                           ),
-                          filled: true,
-                          fillColor: Colors.grey[200],
                         ),
                         onChanged: (_) {
                           if (_nameError != null) {
@@ -519,157 +474,69 @@ class _SignupBasicPageState extends ConsumerState<SignupBasicPage> {
                       ),
                     const SizedBox(height: 16),
 
-                    // Department (editable if not extracted)
+                    // Department — always a dropdown ─────────────────────
                     const Text(
                       'Department',
-                      style: TextStyle(
-                        fontWeight: FontWeight.w500,
-                        fontSize: 15,
-                      ),
+                      style: TextStyle(fontWeight: FontWeight.w500, fontSize: 15),
                     ),
                     const SizedBox(height: 6),
-                    if (_departmentExtracted) ...[
-                      // Read-only display if extracted - show full name from config
-                      ref
-                          .watch(backendConfigProvider)
-                          .when(
-                            data: (config) {
-                              // Find the department name for the extracted code
-                              String deptName = _departmentCode!;
-                              for (final dept in config.departments) {
-                                if (dept.code.toUpperCase() ==
-                                    _departmentCode!.toUpperCase()) {
-                                  deptName = dept.name;
-                                  break;
-                                }
+                    ref.watch(backendConfigProvider).when(
+                      data: (config) {
+                        return SizedBox(
+                          height: 50,
+                          child: DropdownButtonFormField<String>(
+                            initialValue: _departmentCode,
+                            hint: const Text('Select Department'),
+                            items: config.departments.map((dept) {
+                              return DropdownMenuItem<String>(
+                                value: dept.code,
+                                child: Text(dept.name),
+                              );
+                            }).toList(),
+                            onChanged: (value) {
+                              if (value != null) {
+                                setState(() => _departmentCode = value);
                               }
-                              return SizedBox(
-                                height: 50,
-                                child: TextField(
-                                  controller: TextEditingController(
-                                    text: deptName,
-                                  ),
-                                  enabled: false,
-                                  decoration: InputDecoration(
-                                    contentPadding: const EdgeInsets.symmetric(
-                                      horizontal: 18,
-                                      vertical: 14,
-                                    ),
-                                    border: OutlineInputBorder(
-                                      borderRadius: BorderRadius.circular(16),
-                                    ),
-                                    disabledBorder: OutlineInputBorder(
-                                      borderRadius: BorderRadius.circular(16),
-                                      borderSide: const BorderSide(
-                                        color: Color(0xFFD0D0D0),
-                                        width: 1.2,
-                                      ),
-                                    ),
-                                    filled: true,
-                                    fillColor: Colors.grey[200],
-                                  ),
-                                ),
-                              );
                             },
-                            loading: () => const SizedBox(
-                              height: 50,
-                              child: Center(child: CircularProgressIndicator()),
-                            ),
-                            error: (error, stack) => SizedBox(
-                              height: 50,
-                              child: TextField(
-                                controller: TextEditingController(
-                                  text: _departmentCode!,
-                                ),
-                                enabled: false,
-                                decoration: InputDecoration(
-                                  contentPadding: const EdgeInsets.symmetric(
-                                    horizontal: 18,
-                                    vertical: 14,
-                                  ),
-                                  border: OutlineInputBorder(
-                                    borderRadius: BorderRadius.circular(16),
-                                  ),
-                                  disabledBorder: OutlineInputBorder(
-                                    borderRadius: BorderRadius.circular(16),
-                                    borderSide: const BorderSide(
-                                      color: Color(0xFFD0D0D0),
-                                      width: 1.2,
-                                    ),
-                                  ),
-                                  filled: true,
-                                  fillColor: Colors.grey[200],
-                                ),
+                            decoration: InputDecoration(
+                              contentPadding: const EdgeInsets.symmetric(
+                                horizontal: 18,
+                                vertical: 14,
+                              ),
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(16),
                               ),
                             ),
                           ),
-                    ] else ...[
-                      // Editable dropdown if not extracted
-                      ref
-                          .watch(backendConfigProvider)
-                          .when(
-                            data: (config) {
-                              return SizedBox(
-                                height: 50,
-                                child: DropdownButtonFormField<String>(
-                                  initialValue: _departmentCode,
-                                  hint: const Text('Select Department'),
-                                  items: config.departments.map((dept) {
-                                    return DropdownMenuItem<String>(
-                                      value: dept.code,
-                                      child: Text(dept.name),
-                                    );
-                                  }).toList(),
-                                  onChanged: (value) {
-                                    if (value != null) {
-                                      setState(() {
-                                        _departmentCode = value;
-                                      });
-                                    }
-                                  },
-                                  decoration: InputDecoration(
-                                    contentPadding: const EdgeInsets.symmetric(
-                                      horizontal: 18,
-                                      vertical: 14,
-                                    ),
-                                    border: OutlineInputBorder(
-                                      borderRadius: BorderRadius.circular(16),
-                                    ),
-                                  ),
-                                ),
-                              );
-                            },
-                            loading: () => const SizedBox(
-                              height: 50,
-                              child: Center(child: CircularProgressIndicator()),
-                            ),
-                            error: (error, stack) => SizedBox(
-                              height: 50,
-                              child: TextField(
-                                enabled: false,
-                                decoration: InputDecoration(
-                                  hintText: 'Error loading departments',
-                                  border: OutlineInputBorder(
-                                    borderRadius: BorderRadius.circular(16),
-                                  ),
-                                ),
-                              ),
+                        );
+                      },
+                      loading: () => const SizedBox(
+                        height: 50,
+                        child: Center(child: CircularProgressIndicator()),
+                      ),
+                      error: (error, stack) => SizedBox(
+                        height: 50,
+                        child: TextField(
+                          enabled: false,
+                          decoration: InputDecoration(
+                            hintText: 'Error loading departments',
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(16),
                             ),
                           ),
-                    ],
+                        ),
+                      ),
+                    ),
                     const SizedBox(height: 16),
 
-                    // Batch (for Google signup - editable if not extracted)
+                    // Batch ───────────────────────────────────────────────
                     const Text(
                       'Batch',
-                      style: TextStyle(
-                        fontWeight: FontWeight.w500,
-                        fontSize: 15,
-                      ),
+                      style: TextStyle(fontWeight: FontWeight.w500, fontSize: 15),
                     ),
                     const SizedBox(height: 6),
                     if (_batchExtracted) ...[
-                      // Read-only display if extracted
+                      // Read-only if successfully extracted
                       SizedBox(
                         height: 50,
                         child: TextField(
@@ -696,76 +563,67 @@ class _SignupBasicPageState extends ConsumerState<SignupBasicPage> {
                         ),
                       ),
                     ] else ...[
-                      // Editable dropdown if not extracted
-                      ref
-                          .watch(backendConfigProvider)
-                          .when(
-                            data: (config) {
-                              final batches = List<int>.generate(
-                                config.batchRange.end -
-                                    config.batchRange.start +
-                                    1,
-                                (i) => config.batchRange.start + i,
-                              );
-                              return SizedBox(
-                                height: 50,
-                                child: DropdownButtonFormField<String>(
-                                  initialValue: _batchController.text.isNotEmpty
-                                      ? _batchController.text
-                                      : null,
-                                  hint: const Text('Select Batch'),
-                                  items: batches.map((batch) {
-                                    return DropdownMenuItem<String>(
-                                      value: batch.toString(),
-                                      child: Text(batch.toString()),
-                                    );
-                                  }).toList(),
-                                  onChanged: (value) {
-                                    if (value != null) {
-                                      setState(() {
-                                        _batchController.text = value;
-                                      });
-                                    }
-                                  },
-                                  decoration: InputDecoration(
-                                    contentPadding: const EdgeInsets.symmetric(
-                                      horizontal: 18,
-                                      vertical: 14,
-                                    ),
-                                    border: OutlineInputBorder(
-                                      borderRadius: BorderRadius.circular(16),
-                                    ),
-                                  ),
+                      // Dropdown if not extracted
+                      ref.watch(backendConfigProvider).when(
+                        data: (config) {
+                          final batches = List<int>.generate(
+                            config.batchRange.end - config.batchRange.start + 1,
+                            (i) => config.batchRange.start + i,
+                          );
+                          return SizedBox(
+                            height: 50,
+                            child: DropdownButtonFormField<String>(
+                              initialValue: _batchController.text.isNotEmpty
+                                  ? _batchController.text
+                                  : null,
+                              hint: const Text('Select Batch'),
+                              items: batches.map((batch) {
+                                return DropdownMenuItem<String>(
+                                  value: batch.toString(),
+                                  child: Text(batch.toString()),
+                                );
+                              }).toList(),
+                              onChanged: (value) {
+                                if (value != null) {
+                                  setState(() => _batchController.text = value);
+                                }
+                              },
+                              decoration: InputDecoration(
+                                contentPadding: const EdgeInsets.symmetric(
+                                  horizontal: 18,
+                                  vertical: 14,
                                 ),
-                              );
-                            },
-                            loading: () => const SizedBox(
-                              height: 50,
-                              child: Center(child: CircularProgressIndicator()),
-                            ),
-                            error: (error, stack) => SizedBox(
-                              height: 50,
-                              child: TextField(
-                                enabled: false,
-                                decoration: InputDecoration(
-                                  hintText: 'Error loading batches',
-                                  border: OutlineInputBorder(
-                                    borderRadius: BorderRadius.circular(16),
-                                  ),
+                                border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(16),
                                 ),
                               ),
                             ),
+                          );
+                        },
+                        loading: () => const SizedBox(
+                          height: 50,
+                          child: Center(child: CircularProgressIndicator()),
+                        ),
+                        error: (error, stack) => SizedBox(
+                          height: 50,
+                          child: TextField(
+                            enabled: false,
+                            decoration: InputDecoration(
+                              hintText: 'Error loading batches',
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(16),
+                              ),
+                            ),
                           ),
+                        ),
+                      ),
                     ],
                     const SizedBox(height: 16),
 
-                    // Birthday
+                    // Birthday ────────────────────────────────────────────
                     const Text(
                       'Birthday',
-                      style: TextStyle(
-                        fontWeight: FontWeight.w500,
-                        fontSize: 15,
-                      ),
+                      style: TextStyle(fontWeight: FontWeight.w500, fontSize: 15),
                     ),
                     const SizedBox(height: 6),
                     SizedBox(
@@ -795,8 +653,8 @@ class _SignupBasicPageState extends ConsumerState<SignupBasicPage> {
                                 color: Color(0xFFD0D0D0),
                               ),
                             ),
-                            suffixIcon: Padding(
-                              padding: const EdgeInsets.only(right: 12),
+                            suffixIcon: const Padding(
+                              padding: EdgeInsets.only(right: 12),
                               child: Icon(Icons.calendar_today),
                             ),
                           ),
@@ -816,17 +674,16 @@ class _SignupBasicPageState extends ConsumerState<SignupBasicPage> {
                         ),
                       ),
                     const SizedBox(height: 16),
-                    // NEXT BUTTON
+
+                    // Next Button ─────────────────────────────────────────
                     SizedBox(
                       height: 45,
                       width: double.infinity,
                       child: ElevatedButton(
-                        onPressed: () async {
-                          await _handleCompletion();
-                        },
-                        child: Text(
+                        onPressed: () async => _handleCompletion(),
+                        child: const Text(
                           'Next',
-                          style: const TextStyle(
+                          style: TextStyle(
                             fontSize: 18,
                             color: Colors.white,
                             fontWeight: FontWeight.w500,

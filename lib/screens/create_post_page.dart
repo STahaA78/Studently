@@ -1,9 +1,12 @@
+import 'dart:typed_data';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:studently/app_style.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../providers/feed_provider.dart';
+import 'package:studently/providers/feed_provider.dart';
 import 'package:studently/services/firebase_auth.dart';
+import 'package:studently/screens/photo_crop.dart';
 
 class CreatePostPage extends ConsumerStatefulWidget {
   const CreatePostPage({super.key});
@@ -16,19 +19,44 @@ class _CreatePostPageState extends ConsumerState<CreatePostPage> {
   final TextEditingController controller = TextEditingController();
 
   XFile? selectedImage;
+  Uint8List? selectedImageBytes;
   final ImagePicker picker = ImagePicker();
 
   bool isPosting = false;
 
   /// PICK IMAGE
   Future<void> pickImage() async {
-    final picked = await picker.pickImage(source: ImageSource.gallery);
+    final picked = await picker.pickImage(source: ImageSource.gallery, maxWidth: 1080, maxHeight: 1350, imageQuality: 80);
 
-    if (picked != null) {
+    if (picked == null || !mounted) return;
+
+    final croppedImageBytes = await Navigator.of(context).push<Uint8List>(
+      MaterialPageRoute(
+        builder: (context) => PostPhotoCropScreen(initialImage: picked),
+      ),
+    );
+
+    if (croppedImageBytes != null && mounted) {
+      final fallbackName =
+          'post_${DateTime.now().millisecondsSinceEpoch}.png';
+      final fileName = picked.name.isNotEmpty ? picked.name : fallbackName;
+
       setState(() {
-        selectedImage = picked;
+        selectedImageBytes = croppedImageBytes;
+        selectedImage = XFile.fromData(
+          croppedImageBytes,
+          name: fileName.endsWith('.png') ? fileName : '$fileName.png',
+          mimeType: 'image/png',
+        );
       });
     }
+  }
+
+  void clearImage() {
+    setState(() {
+      selectedImage = null;
+      selectedImageBytes = null;
+    });
   }
 
   /// SUBMIT POST
@@ -95,7 +123,7 @@ class _CreatePostPageState extends ConsumerState<CreatePostPage> {
                 : const Text(
                     "Post",
                     style: TextStyle(
-                      color: AppStyle.primaryBlue,
+                      color: AppStyle.textPrimary,
                       fontWeight: FontWeight.bold,
                       fontSize: 16,
                     ),
@@ -106,54 +134,87 @@ class _CreatePostPageState extends ConsumerState<CreatePostPage> {
         ],
       ),
 
-      body: Padding(
-        padding: const EdgeInsets.all(16),
-
-        child: Column(
-          children: [
-            /// POST TEXT
-            Expanded(
-              child: TextField(
+      body: SafeArea(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              /// POST TEXT
+              TextField(
                 controller: controller,
+                minLines: 6,
                 maxLines: null,
-                expands: true,
                 keyboardType: TextInputType.multiline,
+                textAlignVertical: TextAlignVertical.top,
                 decoration: const InputDecoration(
                   hintText: "What's on your mind?",
+                  fillColor: Colors.white,
+                  filled: true,
                   border: InputBorder.none,
+                  enabledBorder: InputBorder.none,
+                  focusedBorder: InputBorder.none,
+                  disabledBorder: InputBorder.none,
+                  contentPadding: EdgeInsets.zero,
                 ),
-                style: const TextStyle(fontSize: 18),
+                style: const TextStyle(fontSize: 16),
               ),
-            ),
+              const SizedBox(height: 12),
 
-            /// IMAGE PREVIEW
-            if (selectedImage != null)
-              Padding(
-                padding: const EdgeInsets.only(bottom: 12),
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(12),
-                  child: Image.network(
-                    selectedImage!.path,
-                    height: 200,
-                    width: double.infinity,
-                    fit: BoxFit.cover,
+              /// IMAGE PREVIEW
+              if (selectedImageBytes != null)
+                Center(
+                  child: ConstrainedBox(
+                    constraints: BoxConstraints(
+                      maxWidth: kIsWeb ? 640 : double.infinity,
+                    ),
+                    child: Card(
+                      margin: const EdgeInsets.only(bottom: 12),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                      clipBehavior: Clip.antiAlias,
+                      child: Stack(
+                        children: [
+                          AspectRatio(
+                            aspectRatio: 4 / 5,
+                            child: Image.memory(
+                              selectedImageBytes!,
+                              width: double.infinity,
+                              fit: BoxFit.cover,
+                            ),
+                          ),
+                          Positioned(
+                            left: 8,
+                            top: 8,
+                            child: IconButton(
+                              onPressed: clearImage,
+                              icon: const Icon(Icons.close, color: Colors.white),
+                              style: IconButton.styleFrom(
+                                backgroundColor: Colors.black54,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
                   ),
                 ),
-              ),
 
-            /// IMAGE PICK BUTTON
-            Align(
-              alignment: Alignment.centerLeft,
-              child: IconButton(
-                icon: const Icon(
-                  Icons.image,
-                  color: AppStyle.primaryBlue,
-                  size: 28,
+              /// IMAGE PICK BUTTON
+              Align(
+                alignment: Alignment.centerLeft,
+                child: IconButton(
+                  icon: const Icon(
+                    Icons.image,
+                    color: AppStyle.textPrimary,
+                    size: 28,
+                  ),
+                  onPressed: pickImage,
                 ),
-                onPressed: pickImage,
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );

@@ -7,7 +7,7 @@ import 'package:studently/models/backend_config.dart';
 import 'package:studently/providers/backend_config_provider.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:studently/screens/interests.dart';
-import 'package:studently/screens/profile_photo_crop.dart';
+import 'package:studently/screens/photo_crop.dart';
 import 'package:studently/logger.dart';
 import 'package:studently/providers/auth_provider.dart';
 

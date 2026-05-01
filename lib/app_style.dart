@@ -60,6 +60,7 @@ class AppStyle {
     return ThemeData(
       primaryColor: primaryBlue,
       scaffoldBackgroundColor: pureWhite,
+      hoverColor: Colors.transparent,
       colorScheme: ColorScheme.fromSeed(
         seedColor: primaryBlue,
         primary: primaryBlue,

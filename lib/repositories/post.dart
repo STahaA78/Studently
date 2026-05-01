@@ -1,10 +1,10 @@
 import 'dart:convert';
-import 'package:http/http.dart' as http;
+import 'dart:typed_data';
 import 'package:image_picker/image_picker.dart';
 import '../models/post.dart';
 import '../services/api.dart';
-import 'package:studently/services/firebase_auth.dart';
 import 'package:studently/logger.dart';
+import 'package:studently/utils/image_compression.dart';
 
 /// Repository for handling all Post and Feed related API operations
 class PostRepository {
@@ -76,37 +76,34 @@ Future<Post> getPostById(String postId) async {
   Future<void> createPost(String content, XFile? image) async {
     logger.i("[$runtimeType] Create Post Initiated");
     try {
-      final token = await authService.value.getIdToken();
-
-      var request = http.MultipartRequest(
-        "POST",
-        Uri.parse(_apiService.getCompleteUrl("/feed/")),
-      );
-
-      request.headers["Authorization"] = "Bearer $token";
-      request.fields["content"] = content;
 
       if (image != null) {
-        request.files.add(
-          http.MultipartFile.fromBytes(
-            "file",
-            await image.readAsBytes(),
-            filename: image.name,
-          ),
+        final originalBytes = await image.readAsBytes();
+        final compressedBytes = await ImageCompressionUtil.compressImage(
+          Uint8List.fromList(originalBytes),
+          quality: 85,
         );
-      }
 
-      final response = await request.send();
+        final rawName = image.name.isNotEmpty ? image.name : 'post.jpg';
+        final filename = rawName.endsWith('.jpg') || rawName.endsWith('.jpeg')
+            ? rawName
+            : '${rawName.split('.').first}.jpg';
+
+        final response = await _apiService.multiPartFromBytes(
+        endpoint: "/feed/",
+        fileBytes: compressedBytes,
+        filename: filename,
+      );
 
       if (response.statusCode != 200) {
-        final resp = await http.Response.fromStream(response);
         logger.e(
-          "[$runtimeType] Create Post Request failed ${resp.statusCode} body: ${resp.body}",
+          "[$runtimeType] Create Post Request failed ${response.statusCode} body: ${response.body}",
         );
-        throw Exception("Failed to create post: ${resp.statusCode}");
+        throw Exception("Failed to create post: ${response.statusCode}");
       }
 
       logger.i("[$runtimeType] Create Post Completed Successfully");
+      }
     } catch (e) {
       logger.e("[$runtimeType] Create Post Failed with error: $e");
       rethrow;

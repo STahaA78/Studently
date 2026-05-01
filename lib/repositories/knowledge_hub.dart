@@ -242,6 +242,7 @@ class KnowledgeHubRepository {
     );
     try {
       await _apiService.multiPart(
+        endpoint: '/hub/resources/upload',
         file: File(filePath),
         metadata: resourceItemRequest.toJson(),
       );

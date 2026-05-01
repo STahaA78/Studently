@@ -198,12 +198,13 @@ class ApiService {
   /// MULTIPART UPLOAD
   /// ===============================
   Future<http.Response> multiPart({
+    required String endpoint,
     required File file,
     required Map<String, dynamic> metadata,
   }) async {
     logger.i("[$runtimeType] Multipart POST request Initiated");
 
-    final url = Uri.parse("$_baseUrl/hub/resources/upload");
+    final url = Uri.parse("$_baseUrl$endpoint");
 
     try {
       var request = http.MultipartRequest('POST', url)
@@ -259,7 +260,7 @@ class ApiService {
     required String endpoint,
     required List<int> fileBytes,
     required String filename,
-    required Map<String, dynamic> metadata,
+    Map<String, dynamic>? metadata,
     String fieldName = 'file', // Customizable field name (default: 'file')
   }) async {
     logger.i("[$runtimeType] Multipart (bytes) request to $endpoint Initiated");

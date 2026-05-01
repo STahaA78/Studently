@@ -1,5 +1,6 @@
 import '../models/post.dart';
 import 'package:studently/services/firebase_auth.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'direct_messages_page.dart';
 import '../widgets/custom_nav_bar.dart';
@@ -142,6 +143,17 @@ class _CommunityFeedPageState extends ConsumerState<CommunityFeedPage> {
                       ],
                     ),
                     actions: [
+                      if (kIsWeb)
+                        IconButton(
+                          icon: const Icon(
+                            Icons.refresh_rounded,
+                            color: Colors.black87,
+                          ),
+                          tooltip: 'Refresh feed',
+                          onPressed: () => ref
+                              .read(feedProvider.notifier)
+                              .refresh(),
+                        ),
                       NotificationBadgeIcon(
                         unreadCount: unreadCount,
                         svgAssetPath: 'assets/images/notifications.svg',
@@ -419,12 +431,15 @@ class _CommunityFeedPageState extends ConsumerState<CommunityFeedPage> {
           if (post.mediaUrls.isNotEmpty)
             Padding(
               padding: const EdgeInsets.only(top: 10),
-              child: Image.network(
-                api.getCompleteUrl(post.mediaUrls.first),
-                fit: BoxFit.cover,
-                errorBuilder: (context, error, stackTrace) {
-                  return const SizedBox();
-                },
+              child: AspectRatio(
+                aspectRatio: 4 / 5,
+                child: Image.network(
+                  post.mediaUrls.first,
+                  fit: BoxFit.cover,
+                  errorBuilder: (context, error, stackTrace) {
+                    return const SizedBox();
+                  },
+                ),
               ),
             ),
           const SizedBox(height: 12),

@@ -657,7 +657,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                 children: [
                   Positioned.fill(
                     child: Image.network(
-                      apiService.getCompleteUrl(imageUrl),
+                      imageUrl,
                       fit: BoxFit.cover,
                       errorBuilder: (context, error, stackTrace) {
                         return Container(
