@@ -305,8 +305,8 @@ class DiscoverConnectNotifier extends Notifier<DiscoverConnectState> {
 
     try {
       final results = await _repository.searchUsers(query);
-      final filtered = _filterSwipedLeft(results, state.swipedLeftIds);
-      state = state.copyWith(students: filtered, isLoading: false);
+      //final filtered = _filterSwipedLeft(results, state.swipedLeftIds);
+      state = state.copyWith(students: results, isLoading: false);
     } catch (e) {
       logger.e('[DiscoverConnectNotifier] runSearch failed: $e');
       state = state.copyWith(students: [], isLoading: false);

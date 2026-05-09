@@ -1,20 +1,21 @@
-import '../models/post.dart';
+import 'package:studently/models/post.dart';
 import 'package:studently/services/firebase_auth.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
-import 'direct_messages_page.dart';
-import '../widgets/custom_nav_bar.dart';
-import '../widgets/notification_badge_icon.dart';
-import 'post_details_page.dart';
-import 'notifications_page.dart';
+import 'package:studently/screens/direct_messages_page.dart';
+import 'package:studently/widgets/custom_nav_bar.dart';
+import 'package:studently/widgets/notification_badge_icon.dart';
+import 'package:studently/screens/post_details_page.dart';
+import 'package:studently/screens/notifications_page.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:studently/app_style.dart';
-import '../screens/profile_main.dart';
-import '../services/api.dart';
+import 'package:studently/screens/profile_main.dart';
+import 'package:studently/services/api.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../providers/feed_provider.dart';
-import '../providers/notifications_provider.dart';
+import 'package:studently/providers/feed_provider.dart';
+import 'package:studently/providers/notifications_provider.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 
 class CommunityFeedPage extends ConsumerStatefulWidget {
   const CommunityFeedPage({super.key});
@@ -311,7 +312,8 @@ class _CommunityFeedPageState extends ConsumerState<CommunityFeedPage> {
         );
       }
     }
-
+    final String? pic = post.authorPic;
+    final bool hasPic = pic != null && pic.isNotEmpty;
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.only(top: 12, bottom: 12),
@@ -330,13 +332,16 @@ class _CommunityFeedPageState extends ConsumerState<CommunityFeedPage> {
                     children: [
                       CircleAvatar(
                         backgroundColor: Colors.grey.shade300,
-                        child: Text(
-                          name.isNotEmpty ? name[0] : "?",
-                          style: const TextStyle(
-                            color: Colors.black,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
+                        backgroundImage: hasPic ? CachedNetworkImageProvider(pic) : null,
+                        child: hasPic
+                            ? null
+                            : Text(
+                                name.isNotEmpty ? name[0] : "?",
+                                style: const TextStyle(
+                                  color: Colors.black,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
                       ),
                       const SizedBox(width: 10),
                       Column(

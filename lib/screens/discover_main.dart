@@ -10,6 +10,7 @@ import 'package:studently/screens/profile_main.dart';
 import 'package:studently/widgets/custom_nav_bar.dart';
 import 'package:studently/screens/discover_requests.dart';
 import 'package:studently/app_style.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 
 class ConnectDiscoverPage extends ConsumerStatefulWidget {
   const ConnectDiscoverPage({super.key});
@@ -383,7 +384,7 @@ class _ConnectDiscoverPageState extends ConsumerState<ConnectDiscoverPage> with 
               const SizedBox(height: 16),
               Text(
                 "No Students Found",
-                style: Theme.of(context).textTheme.titleMedium,
+                style: TextStyle(color: Colors.grey[600]),
               ),
             ],
           ),
@@ -424,7 +425,7 @@ class _ConnectDiscoverPageState extends ConsumerState<ConnectDiscoverPage> with 
               radius: 25,
               backgroundColor: Colors.grey[300],
               backgroundImage: user.picture != null && user.picture!.isNotEmpty
-                  ? NetworkImage(user.picture!)
+                  ? CachedNetworkImageProvider(user.picture!)
                   : null,
               child: user.picture == null || user.picture!.isEmpty
                   ? const Icon(Icons.person, size: 32, color: Colors.grey)
