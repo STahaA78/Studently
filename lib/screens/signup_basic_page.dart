@@ -435,7 +435,9 @@ class _SignupBasicPageState extends ConsumerState<SignupBasicPage> {
                       child: TextField(
                         controller: _nameController,
                         focusNode: _nameFocus,
-                        // Editable: user can correct if extraction was wrong
+                        // Read-only when batch was successfully extracted;
+                        // editable only when extraction failed so the user can correct it.
+                        enabled: !_batchExtracted,
                         decoration: InputDecoration(
                           hintText: 'Full Name',
                           contentPadding: const EdgeInsets.symmetric(
@@ -452,6 +454,15 @@ class _SignupBasicPageState extends ConsumerState<SignupBasicPage> {
                               width: 1.2,
                             ),
                           ),
+                          disabledBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(16),
+                            borderSide: const BorderSide(
+                              color: Color(0xFFD0D0D0),
+                              width: 1.2,
+                            ),
+                          ),
+                          filled: _batchExtracted,
+                          fillColor: _batchExtracted ? Colors.grey[200] : null,
                         ),
                         onChanged: (_) {
                           if (_nameError != null) {

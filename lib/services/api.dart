@@ -261,6 +261,7 @@ class ApiService {
     required List<int> fileBytes,
     required String filename,
     Map<String, dynamic>? metadata,
+    Map<String, String>? formFields,
     String fieldName = 'file', // Customizable field name (default: 'file')
   }) async {
     logger.i("[$runtimeType] Multipart (bytes) request to $endpoint Initiated");
@@ -279,6 +280,11 @@ class ApiService {
             filename: filename,
           ),
         );
+
+      // Add additional form fields if provided
+      if (formFields != null) {
+        request.fields.addAll(formFields);
+      }
 
       final streamedResponse = await request.send();
 

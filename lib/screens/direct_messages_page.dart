@@ -263,22 +263,9 @@ class _DirectMessagesPageState extends ConsumerState<DirectMessagesPage> {
   Widget _buildSearchBar() {
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
-      child: Container(
-        decoration: BoxDecoration(
-          color: Colors.grey.shade100,
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: Colors.grey.shade200),
-        ),
-        child: TextField(
-          controller: _searchController,
-          decoration: const InputDecoration(
-            hintText: "Search messages...",
-            hintStyle: TextStyle(color: Colors.grey, fontSize: 14),
-            prefixIcon: Icon(Icons.search, color: Colors.grey, size: 20),
-            border: InputBorder.none,
-            contentPadding: EdgeInsets.symmetric(vertical: 12),
-          ),
-        ),
+      child: TextField(
+        controller: _searchController,
+        decoration: AppStyle.searchDecoration("Search messages..."),
       ),
     );
   }
@@ -516,10 +503,6 @@ class _DirectMessagesPageState extends ConsumerState<DirectMessagesPage> {
                   ),
                   Container(
                     margin: const EdgeInsets.symmetric(vertical: 10),
-                    decoration: BoxDecoration(
-                      color: Colors.grey.shade100,
-                      borderRadius: BorderRadius.circular(15),
-                    ),
                     child: TextField(
                       onChanged: (value) {
                         setModalState(() {
@@ -532,12 +515,7 @@ class _DirectMessagesPageState extends ConsumerState<DirectMessagesPage> {
                               .toList();
                         });
                       },
-                      decoration: const InputDecoration(
-                        hintText: "Search friends...",
-                        prefixIcon: Icon(Icons.search),
-                        border: InputBorder.none,
-                        contentPadding: EdgeInsets.symmetric(vertical: 15),
-                      ),
+                      decoration: AppStyle.searchDecoration("Search friends..."),
                     ),
                   ),
                   const SizedBox(height: 10),

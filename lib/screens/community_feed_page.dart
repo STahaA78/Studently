@@ -146,9 +146,10 @@ class _CommunityFeedPageState extends ConsumerState<CommunityFeedPage> {
                       if (kIsWeb)
                         IconButton(
                           icon: const Icon(
-                            Icons.refresh_rounded,
-                            color: Colors.black87,
+                            Icons.refresh,
+                            color: Colors.black,
                           ),
+                          iconSize: 25,
                           tooltip: 'Refresh feed',
                           onPressed: () => ref
                               .read(feedProvider.notifier)
@@ -156,8 +157,9 @@ class _CommunityFeedPageState extends ConsumerState<CommunityFeedPage> {
                         ),
                       NotificationBadgeIcon(
                         unreadCount: unreadCount,
-                        svgAssetPath: 'assets/images/notifications.svg',
-                        iconColor: Colors.black87,
+                        icon: Icons.notifications_none_outlined,
+                        iconColor: Colors.black,
+                        iconSize: 24,
                         onPressed: () {
                           Navigator.push(
                             context,
@@ -168,15 +170,11 @@ class _CommunityFeedPageState extends ConsumerState<CommunityFeedPage> {
                         },
                       ),
                       IconButton(
-                        icon: SvgPicture.asset(
-                          'assets/images/messages.svg',
-                          height: 24,
-                          width: 2,
-                          colorFilter: const ColorFilter.mode(
-                            Colors.black87,
-                            BlendMode.srcIn,
-                          ),
+                        icon: const Icon(
+                          Icons.inbox,
+                          color: Colors.black,
                         ),
+                        iconSize: 24,
                         onPressed: () {
                           Navigator.push(
                             context,
@@ -235,7 +233,52 @@ class _CommunityFeedPageState extends ConsumerState<CommunityFeedPage> {
             ),
           ),
           loading: () => const Center(child: CircularProgressIndicator()),
-          error: (err, stack) => Center(child: Text("Error: $err")),
+          error: (err, stack) => Center(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 32),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(
+                    Icons.cloud_off_rounded,
+                    size: 80,
+                    color: Colors.grey[400],
+                  ),
+                  const SizedBox(height: 24),
+                  const Text(
+                    "Error retrieving feed",
+                    style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    "We couldn't reach our backend. Refresh to try again.",
+                    textAlign: TextAlign.center,
+                    style: TextStyle(color: Colors.grey[600], fontSize: 14),
+                  ),
+                  const SizedBox(height: 24),
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton.icon(
+                      onPressed: () => ref.read(feedProvider.notifier).refresh(),
+                      icon: const Icon(Icons.refresh, color: Colors.white),
+                      label: const Text(
+                        "Refresh",
+                        style: TextStyle(color: Colors.white, fontSize: 16),
+                      ),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppStyle.primaryBlue,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(24),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
         ),
       ),
       bottomNavigationBar: const CustomNavBar(currentIndex: 0),
@@ -428,16 +471,47 @@ class _CommunityFeedPageState extends ConsumerState<CommunityFeedPage> {
               style: const TextStyle(fontSize: 15, color: Colors.black87),
             ),
           ),
-          if (post.mediaUrls.isNotEmpty)
+          if (post.mediaUrl != null && post.mediaUrl!.isNotEmpty)
             Padding(
               padding: const EdgeInsets.only(top: 10),
               child: AspectRatio(
-                aspectRatio: 4 / 5,
+                aspectRatio: post.mediaAspectRatio ?? 4 / 5,
                 child: Image.network(
-                  post.mediaUrls.first,
+                  post.mediaUrl!,
                   fit: BoxFit.cover,
                   errorBuilder: (context, error, stackTrace) {
-                    return const SizedBox();
+                    return Container(
+                      color: Colors.grey[200],
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        crossAxisAlignment: CrossAxisAlignment.center,
+                        children: [
+                          Icon(
+                            Icons.image_not_supported_outlined,
+                            color: Colors.grey[600],
+                            size: 48,
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            'Image failed to load',
+                            style: TextStyle(
+                              color: Colors.grey[600],
+                              fontSize: 14,
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          IconButton(
+                            icon: Icon(
+                              Icons.refresh,
+                              color: Colors.grey[600],
+                            ),
+                            onPressed: () {
+                              setState(() {});
+                            },
+                          ),
+                        ],
+                      ),
+                    );
                   },
                 ),
               ),
@@ -465,8 +539,8 @@ class _CommunityFeedPageState extends ConsumerState<CommunityFeedPage> {
                   },
                   child: Icon(
                     isLiked ? Icons.favorite : Icons.favorite_border,
-                    color: isLiked ? Colors.red : Colors.grey,
-                    size: 22,
+                    color: isLiked ? Colors.red : Colors.black,
+                    size: 23,
                   ),
                 ),
                 const SizedBox(width: 6),
@@ -480,7 +554,7 @@ class _CommunityFeedPageState extends ConsumerState<CommunityFeedPage> {
                   child: const Icon(
                     Icons.chat_bubble_outline,
                     size: 22,
-                    color: Colors.grey,
+                    color: Colors.black,
                   ),
                 ),
                 const SizedBox(width: 6),

@@ -8,7 +8,7 @@ import '../widgets/custom_nav_bar.dart';
 import 'package:studently/models/knowledge_hub.dart';
 import 'package:studently/logger.dart';
 import 'package:studently/providers/knowledge_hub_provider.dart';
-import 'package:js/js_util.dart' as js_util;
+import 'package:studently/utils/web_utils.dart' as web_utils;
 
 class RepositoryUserPage extends ConsumerStatefulWidget {
   final Course course;
@@ -35,15 +35,7 @@ class _RepositoryUserPageState extends ConsumerState<RepositoryUserPage>
   bool _isPWA() {
     if (!kIsWeb) return false;
     try {
-      // Check if running in standalone mode (installed as PWA)
-      final dynamic window = js_util.getProperty(js_util.globalThis, 'window');
-      final dynamic navigator = js_util.getProperty(window, 'navigator');
-
-      // Check for standalone mode
-      final dynamic standalone = js_util.getProperty(navigator, 'standalone');
-      if (standalone == true) return true;
-
-      return false;
+      return web_utils.isStandalonePwa();
     } catch (e) {
       logger.w('Error checking PWA status: $e');
       return false;
@@ -378,11 +370,7 @@ class _RepositoryUserPageState extends ConsumerState<RepositoryUserPage>
             // For web (non-PWA), open PDF in a new tab
             if (kIsWeb && !_isPWA()) {
               try {
-                final dynamic window = js_util.getProperty(
-                  js_util.globalThis,
-                  'window',
-                );
-                js_util.callMethod(window, 'open', [item.fileUrl, '_blank']);
+                web_utils.openInNewTab(item.fileUrl);
               } catch (e) {
                 logger.e('Error opening PDF in new tab: $e');
               }

@@ -258,7 +258,10 @@ class _PhotoCropScreenState extends State<PhotoCropScreen> {
     final byteData = await uiImg.toByteData(format: ui.ImageByteFormat.png);
 
     if (!mounted) return;
-    Navigator.of(context).pop(byteData!.buffer.asUint8List());
+    Navigator.of(context).pop({
+      'bytes': byteData!.buffer.asUint8List(),
+      'aspectRatio': _rectAspectRatio,
+    });
   }
 
   void _handleScaleStart(ScaleStartDetails details) {

@@ -15,12 +15,10 @@ class ConnectDiscoverPage extends ConsumerStatefulWidget {
   const ConnectDiscoverPage({super.key});
 
   @override
-  ConsumerState<ConnectDiscoverPage> createState() =>
-      _ConnectDiscoverPageState();
+  ConsumerState<ConnectDiscoverPage> createState() =>_ConnectDiscoverPageState();
 }
 
-class _ConnectDiscoverPageState extends ConsumerState<ConnectDiscoverPage>
-    with WidgetsBindingObserver {
+class _ConnectDiscoverPageState extends ConsumerState<ConnectDiscoverPage> with WidgetsBindingObserver {
   final TextEditingController _searchController = TextEditingController();
   final Color primaryBlue = const Color(0xFF0F74C5);
   final ValueNotifier<double> _swipeProgressNotifier = ValueNotifier<double>(

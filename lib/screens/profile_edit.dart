@@ -26,13 +26,6 @@ class _EditProfilePageState extends ConsumerState<EditProfilePage> {
   String? selectedDepartment;
   String? selectedBatch;
   List<Interest> interests = [];
-  final List<String> _defaultDepartments = [
-    'Computer Science',
-    'IT',
-    'ECE',
-    'Mechanical',
-  ];
-  final List<String> _defaultBatches = ['2022', '2023', '2024', '2025'];
   bool isSaving = false;
   String? _departmentError;
   String? _batchError;
@@ -186,7 +179,7 @@ class _EditProfilePageState extends ConsumerState<EditProfilePage> {
 
     final configDepartments = configAsync.maybeWhen(
       data: (config) => config.departments.map((d) => d.name).toList(),
-      orElse: () => _defaultDepartments,
+      orElse: () => <String>[],
     );
 
     final configBatches = configAsync.maybeWhen(
@@ -196,7 +189,7 @@ class _EditProfilePageState extends ConsumerState<EditProfilePage> {
           (i) => (config.batchRange.start + i).toString(),
         );
       },
-      orElse: () => _defaultBatches,
+      orElse: () => <String>[],
     );
 
     final departmentOptions = _buildDropdownOptions(
@@ -345,22 +338,34 @@ class _EditProfilePageState extends ConsumerState<EditProfilePage> {
                       ),
                     ),
                     const SizedBox(height: 6),
-                    SizedBox(
+                    Container(
                       height: 50,
+                      decoration: BoxDecoration(
+                        color: Colors.grey.shade100,
+                        borderRadius: BorderRadius.circular(25),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withValues(alpha: 0.04),
+                            blurRadius: 6,
+                            offset: const Offset(0, 2),
+                          ),
+                        ],
+                      ),
                       child: TextFormField(
                         controller: nameController,
                         textCapitalization: TextCapitalization.words,
-                        decoration: InputDecoration(
-                          contentPadding: const EdgeInsets.symmetric(
+                        readOnly: true,
+                        enableInteractiveSelection: false,
+                        showCursor: false,
+                        style: TextStyle(
+                          color: Colors.grey.shade700,
+                        ),
+                        decoration: const InputDecoration(
+                          contentPadding: EdgeInsets.symmetric(
                             horizontal: 18,
                             vertical: 14,
                           ),
-                          filled: true,
-                          fillColor: Colors.grey.shade100,
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(25),
-                            borderSide: BorderSide.none,
-                          ),
+                          border: InputBorder.none,
                         ),
                         validator: (v) => v == null || v.trim().isEmpty
                             ? 'Enter your name'
@@ -385,6 +390,10 @@ class _EditProfilePageState extends ConsumerState<EditProfilePage> {
                       ),
                       child: DropdownButtonFormField<String>(
                         initialValue: effectiveDepartmentValue,
+                        style: const TextStyle(
+                          fontSize: 15,
+                          color: Colors.black87,
+                        ),
                         decoration: InputDecoration(
                           contentPadding: const EdgeInsets.symmetric(
                             horizontal: 18,
@@ -443,39 +452,30 @@ class _EditProfilePageState extends ConsumerState<EditProfilePage> {
                       decoration: BoxDecoration(
                         color: Colors.grey.shade100,
                         borderRadius: BorderRadius.circular(25),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withValues(alpha: 0.04),
+                            blurRadius: 6,
+                            offset: const Offset(0, 2),
+                          ),
+                        ],
                       ),
-                      child: DropdownButtonFormField<String>(
-                        initialValue: effectiveBatchValue,
+                      child: TextFormField(
+                        initialValue: effectiveBatchValue ?? '',
+                        readOnly: true,
+                        enableInteractiveSelection: false,
+                        showCursor: false,
+                        style: TextStyle(
+                          color: Colors.grey.shade700,
+                        ),
                         decoration: InputDecoration(
                           contentPadding: const EdgeInsets.symmetric(
                             horizontal: 18,
-                            vertical: 8,
+                            vertical: 14,
                           ),
                           border: InputBorder.none,
                           errorText: _batchError,
                         ),
-                        isExpanded: true,
-                        dropdownColor: Colors.white,
-                        icon: const Icon(
-                          Icons.keyboard_arrow_down_rounded,
-                          color: Colors.grey,
-                        ),
-                        items: batchOptions
-                            .map(
-                              (batch) => DropdownMenuItem(
-                                value: batch,
-                                child: Text(batch),
-                              ),
-                            )
-                            .toList(),
-                        onChanged: (val) {
-                          setState(() {
-                            selectedBatch = val;
-                            _batchError = null;
-                          });
-                        },
-                        borderRadius: BorderRadius.circular(20),
-                        menuMaxHeight: 220,
                       ),
                     ),
                     if (_batchError != null)
@@ -779,7 +779,7 @@ class _EditProfilePageState extends ConsumerState<EditProfilePage> {
       if (pickedFile != null) {
         // Navigate to crop screen
         if (!mounted) return;
-        final croppedImageBytes = await Navigator.of(context).push<Uint8List>(
+        final croppedResult = await Navigator.of(context).push<Map<String, dynamic>>(
           MaterialPageRoute(
             builder: (context) =>
                 ProfilePhotoCropScreen(initialImage: pickedFile),
@@ -787,20 +787,15 @@ class _EditProfilePageState extends ConsumerState<EditProfilePage> {
         );
 
         // Store the cropped image locally (no upload yet)
-        if (croppedImageBytes != null && mounted) {
-          setState(() {
-            _croppedPhotoBytes = croppedImageBytes;
-            _croppedPhotoFileName = pickedFile.name;
-          });
+        if (croppedResult != null && mounted) {
+          final croppedImageBytes = croppedResult['bytes'] as Uint8List?;
+          if (croppedImageBytes != null) {
+            setState(() {
+              _croppedPhotoBytes = croppedImageBytes;
+              _croppedPhotoFileName = pickedFile.name;
+            });
 
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text(
-                'Photo preview updated. Tap Save to apply changes.',
-              ),
-              duration: Duration(seconds: 2),
-            ),
-          );
+          }
         }
       }
     }

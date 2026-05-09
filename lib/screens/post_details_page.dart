@@ -293,7 +293,53 @@ class _PostDetailsPageState extends ConsumerState<PostDetailsPage> {
 
           const SizedBox(height: 8),
 
+          if (post.mediaUrl != null && post.mediaUrl!.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.only(top: 10),
+              child: AspectRatio(
+                aspectRatio: post.mediaAspectRatio ?? 4 / 5,
+                child: Image.network(
+                  post.mediaUrl!,
+                  fit: BoxFit.cover,
+                  errorBuilder: (context, error, stackTrace) {
+                    return Container(
+                      color: Colors.grey[200],
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(
+                            Icons.image_not_supported_outlined,
+                            color: Colors.grey[600],
+                            size: 48,
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            'Image failed to load',
+                            style: TextStyle(
+                              color: Colors.grey[600],
+                              fontSize: 14,
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          IconButton(
+                            icon: Icon(
+                              Icons.refresh,
+                              color: Colors.grey[600],
+                            ),
+                            onPressed: () {
+                              setState(() {});
+                            },
+                          ),
+                        ],
+                      ),
+                    );
+                  },
+                ),
+              ),
+            ),
+
           /// LIKE + COMMENT
+          const SizedBox(height: 12),
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 19),
             child: Row(
@@ -306,8 +352,8 @@ class _PostDetailsPageState extends ConsumerState<PostDetailsPage> {
                         : Icons.favorite_border,
                     color: post.likes.contains(currentUserId)
                         ? Colors.red
-                        : Colors.grey,
-                    size: 22,
+                        : Colors.black,
+                    size: 23,
                   ),
                 ),
 
@@ -319,7 +365,7 @@ class _PostDetailsPageState extends ConsumerState<PostDetailsPage> {
                 const Icon(
                   Icons.chat_bubble_outline,
                   size: 22,
-                  color: Colors.grey,
+                  color: Colors.black,
                 ),
 
                 const SizedBox(width: 6),

@@ -20,6 +20,7 @@ class _CreatePostPageState extends ConsumerState<CreatePostPage> {
 
   XFile? selectedImage;
   Uint8List? selectedImageBytes;
+  double? selectedImageAspectRatio;
   final ImagePicker picker = ImagePicker();
 
   bool isPosting = false;
@@ -30,25 +31,31 @@ class _CreatePostPageState extends ConsumerState<CreatePostPage> {
 
     if (picked == null || !mounted) return;
 
-    final croppedImageBytes = await Navigator.of(context).push<Uint8List>(
+    final croppedResult = await Navigator.of(context).push<Map<String, dynamic>>(
       MaterialPageRoute(
         builder: (context) => PostPhotoCropScreen(initialImage: picked),
       ),
     );
 
-    if (croppedImageBytes != null && mounted) {
-      final fallbackName =
-          'post_${DateTime.now().millisecondsSinceEpoch}.png';
-      final fileName = picked.name.isNotEmpty ? picked.name : fallbackName;
+    if (croppedResult != null && mounted) {
+      final croppedImageBytes = croppedResult['bytes'] as Uint8List?;
+      final aspectRatio = croppedResult['aspectRatio'] as double?;
 
-      setState(() {
-        selectedImageBytes = croppedImageBytes;
-        selectedImage = XFile.fromData(
-          croppedImageBytes,
-          name: fileName.endsWith('.png') ? fileName : '$fileName.png',
-          mimeType: 'image/png',
-        );
-      });
+      if (croppedImageBytes != null) {
+        final fallbackName =
+            'post_${DateTime.now().millisecondsSinceEpoch}.png';
+        final fileName = picked.name.isNotEmpty ? picked.name : fallbackName;
+
+        setState(() {
+          selectedImageBytes = croppedImageBytes;
+          selectedImageAspectRatio = aspectRatio;
+          selectedImage = XFile.fromData(
+            croppedImageBytes,
+            name: fileName.endsWith('.png') ? fileName : '$fileName.png',
+            mimeType: 'image/png',
+          );
+        });
+      }
     }
   }
 
@@ -56,6 +63,7 @@ class _CreatePostPageState extends ConsumerState<CreatePostPage> {
     setState(() {
       selectedImage = null;
       selectedImageBytes = null;
+      selectedImageAspectRatio = null;
     });
   }
 
@@ -76,7 +84,7 @@ class _CreatePostPageState extends ConsumerState<CreatePostPage> {
 
     try {
       final repository = ref.read(postRepositoryProvider);
-      await repository.createPost(text, selectedImage);
+      await repository.createPost(text, selectedImage, selectedImageAspectRatio);
 
       // Trigger global refresh to sync Feed and Profile
       ref.read(feedProvider.notifier).refresh();
@@ -177,7 +185,7 @@ class _CreatePostPageState extends ConsumerState<CreatePostPage> {
                       child: Stack(
                         children: [
                           AspectRatio(
-                            aspectRatio: 4 / 5,
+                            aspectRatio: selectedImageAspectRatio ?? 4 / 5,
                             child: Image.memory(
                               selectedImageBytes!,
                               width: double.infinity,

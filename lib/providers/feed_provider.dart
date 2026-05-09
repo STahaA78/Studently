@@ -45,7 +45,7 @@ class FeedNotifier extends AsyncNotifier<List<Post>> {
     if (cachedPosts.isEmpty ||
         lastFetch == null ||
         (now - lastFetch) > 300000) {
-      _fetchFreshFeed();
+      _fetchFreshFeed(showError: false);
     }
 
     return cachedPosts;
@@ -65,7 +65,7 @@ class FeedNotifier extends AsyncNotifier<List<Post>> {
     }).toList();
   }
 
-  Future<void> _fetchFreshFeed() async {
+  Future<void> _fetchFreshFeed({required bool showError}) async {
     if (_isFetchingMore) return;
     _isFetchingMore = true;
     try {
@@ -87,6 +87,9 @@ class FeedNotifier extends AsyncNotifier<List<Post>> {
       _feedStorage.setLastFetchTime(DateTime.now().millisecondsSinceEpoch);
     } catch (e, stack) {
       logger.e("Feed fetch failed", error: e, stackTrace: stack);
+      if (showError || (state.value?.isEmpty ?? true)) {
+        state = AsyncValue.error(e, stack);
+      }
     } finally {
       _isFetchingMore = false;
     }
@@ -94,7 +97,7 @@ class FeedNotifier extends AsyncNotifier<List<Post>> {
 
   Future<void> refresh() async {
     state = const AsyncLoading();
-    await _fetchFreshFeed();
+    await _fetchFreshFeed(showError: true);
   }
 
   Future<void> loadMore() async {
@@ -133,6 +136,8 @@ class FeedNotifier extends AsyncNotifier<List<Post>> {
       } else if (nextPosts.length < _limit) {
         _hasMore = false;
       }
+    } catch (e, stack) {
+      logger.e("Feed loadMore failed", error: e, stackTrace: stack);
     } finally {
       _isFetchingMore = false;
     }

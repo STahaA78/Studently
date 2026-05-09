@@ -626,13 +626,8 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
   }
 
   Widget _buildPostCard(BuildContext context, Post post) {
-    final mediaUrls = post.mediaUrls;
-    String imageUrl = "";
-    if (mediaUrls.isNotEmpty) {
-      imageUrl = mediaUrls[0];
-    }
-
     final String caption = post.content;
+    String imageUrl = post.mediaUrl ?? "";
     final bool hasImage = imageUrl.isNotEmpty;
 
     // HYBRID FIX: Wrapped the beautiful development UI inside the necessary community Navigation logic

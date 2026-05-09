@@ -318,10 +318,7 @@ class _KnowledgeHubPageState extends ConsumerState<KnowledgeHubPage> {
                   ),
                   child: TextField(
                     controller: _searchController,
-                    decoration: const InputDecoration(
-                      prefixIcon: Icon(Icons.search, color: Colors.grey),
-                      hintText: "Search courses...",
-                    ),
+                    decoration: AppStyle.searchDecoration("Search courses..."),
                   ),
                 ),
               ),

@@ -73,7 +73,7 @@ Future<Post> getPostById(String postId) async {
   }
 
   /// Creates a new post with optional image content
-  Future<void> createPost(String content, XFile? image) async {
+  Future<void> createPost(String content, XFile? image, double? aspectRatio) async {
     logger.i("[$runtimeType] Create Post Initiated");
     try {
 
@@ -89,10 +89,16 @@ Future<Post> getPostById(String postId) async {
             ? rawName
             : '${rawName.split('.').first}.jpg';
 
+        final formFields = {
+          'content': content,
+          if (aspectRatio != null) 'media_aspect_ratio': aspectRatio.toString(),
+        };
+
         final response = await _apiService.multiPartFromBytes(
         endpoint: "/feed/",
         fileBytes: compressedBytes,
         filename: filename,
+        formFields: formFields,
       );
 
       if (response.statusCode != 200) {
