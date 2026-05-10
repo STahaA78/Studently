@@ -463,8 +463,10 @@ class DiscoverRequestsNotifier extends Notifier<DiscoverRequestsState> {
     _repository = ref.read(discoverRepositoryProvider);
     _storage = StorageService().discoverStorage;
 
-    _hydrateFromCache();
-    refreshRequests(showLoading: false);
+    Future.microtask(() {
+      _hydrateFromCache();
+      unawaited(refreshRequests(showLoading: false));
+    });
 
     return DiscoverRequestsState.initial();
   }

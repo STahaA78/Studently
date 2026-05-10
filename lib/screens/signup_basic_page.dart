@@ -497,7 +497,17 @@ class _SignupBasicPageState extends ConsumerState<SignupBasicPage> {
                           height: 50,
                           child: DropdownButtonFormField<String>(
                             initialValue: _departmentCode,
-                            hint: const Text('Select Department'),
+                            style: const TextStyle(
+                              fontSize: 15,
+                              color: Colors.black87,
+                            ),
+                            hint: const Text(
+                              'Select Department',
+                              style: TextStyle(
+                                fontSize: 15,
+                                color: Colors.black87,
+                              ),
+                            ),
                             items: config.departments.map((dept) {
                               return DropdownMenuItem<String>(
                                 value: dept.code,

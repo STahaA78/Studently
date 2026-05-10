@@ -385,7 +385,7 @@ class _EditProfilePageState extends ConsumerState<EditProfilePage> {
                     Container(
                       height: 50,
                       decoration: BoxDecoration(
-                        color: Colors.grey.shade100,
+                        color: Colors.white,
                         borderRadius: BorderRadius.circular(25),
                       ),
                       child: DropdownButtonFormField<String>(
@@ -395,6 +395,7 @@ class _EditProfilePageState extends ConsumerState<EditProfilePage> {
                           color: Colors.black87,
                         ),
                         decoration: InputDecoration(
+                          filled: false,
                           contentPadding: const EdgeInsets.symmetric(
                             horizontal: 18,
                             vertical: 8,

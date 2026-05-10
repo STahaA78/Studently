@@ -12,6 +12,7 @@ import 'package:studently/providers/auth_provider.dart';
 import 'package:studently/providers/feed_provider.dart';
 import 'package:studently/models/post.dart';
 import 'package:studently/screens/post_details_page.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 
 class ProfilePage extends ConsumerStatefulWidget {
   final String? userId;
@@ -606,22 +607,34 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
       );
     }
     final bool imageFailed = failedProfileImages.contains(user.picture);
+
     return CircleAvatar(
       key: ValueKey<String>(user.picture!),
       radius: 45,
       backgroundColor: Colors.grey.shade400,
-      backgroundImage: NetworkImage(user.picture!),
-      onBackgroundImageError: (exception, stackTrace) {
-        // Defer setState to avoid calling it during paint phase
-        SchedulerBinding.instance.addPostFrameCallback((_) {
-          if (mounted) {
-            setState(() => failedProfileImages.add(user.picture!));
-          }
-        });
-      },
+      // We leave backgroundImage null and handle the image as a child for offset control
       child: imageFailed
           ? const Icon(Icons.person, size: 40, color: Colors.white)
-          : null,
+          : ClipOval(
+              child: Transform.translate(
+                // x: positive moves right, negative moves left
+                // y: positive moves down, negative moves up
+                offset: const Offset(1.0, 0.0), 
+                child: Image(
+                  image: CachedNetworkImageProvider(user.picture!),
+                  fit: BoxFit.cover,
+                  errorBuilder: (context, error, stackTrace) {
+                    // Keep your existing error logic
+                    SchedulerBinding.instance.addPostFrameCallback((_) {
+                      if (mounted) {
+                        setState(() => failedProfileImages.add(user.picture!));
+                      }
+                    });
+                    return const Icon(Icons.person, size: 40, color: Colors.white);
+                  },
+                ),
+              ),
+            ),
     );
   }
 
