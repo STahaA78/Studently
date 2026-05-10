@@ -28,11 +28,11 @@ class PostRepository {
     }
   }
 
-Future<Post> getPostById(String postId) async {
-  final response = await _apiService.get('/feed/$postId');
-  final data = jsonDecode(response.body) as Map<String, dynamic>;
-  return Post.fromJson(data);
-}
+  Future<Post> getPostById(String postId) async {
+    final response = await _apiService.get('/feed/$postId');
+    final data = jsonDecode(response.body) as Map<String, dynamic>;
+    return Post.fromJson(data);
+  }
 
   /// Likes a specific post by its ID
   Future<void> likePost(String postId) async {
@@ -76,7 +76,6 @@ Future<Post> getPostById(String postId) async {
   Future<void> createPost(String content, XFile? image, double? aspectRatio) async {
     logger.i("[$runtimeType] Create Post Initiated");
     try {
-
       if (image != null) {
         final originalBytes = await image.readAsBytes();
         final compressedBytes = await ImageCompressionUtil.compressImage(
@@ -95,20 +94,35 @@ Future<Post> getPostById(String postId) async {
         };
 
         final response = await _apiService.multiPartFromBytes(
-        endpoint: "/feed/",
-        fileBytes: compressedBytes,
-        filename: filename,
-        formFields: formFields,
-      );
-
-      if (response.statusCode != 200) {
-        logger.e(
-          "[$runtimeType] Create Post Request failed ${response.statusCode} body: ${response.body}",
+          endpoint: "/feed/",
+          fileBytes: compressedBytes,
+          filename: filename,
+          formFields: formFields,
         );
-        throw Exception("Failed to create post: ${response.statusCode}");
-      }
 
-      logger.i("[$runtimeType] Create Post Completed Successfully");
+        if (response.statusCode != 200 && response.statusCode != 201) {
+          logger.e(
+            "[$runtimeType] Create Post Request failed ${response.statusCode} body: ${response.body}",
+          );
+          throw Exception("Failed to create post: ${response.statusCode}");
+        }
+
+        logger.i("[$runtimeType] Create Post (with image) Completed Successfully");
+      } else {
+        // FIXED: Handle text-only posts
+        final response = await _apiService.post(
+          "/feed/", 
+          body: {"content": content}
+        );
+        
+        if (response.statusCode != 200 && response.statusCode != 201) {
+          logger.e(
+            "[$runtimeType] Create text Post Request failed ${response.statusCode}",
+          );
+          throw Exception("Failed to create text post: ${response.statusCode}");
+        }
+        
+        logger.i("[$runtimeType] Create Post (text-only) Completed Successfully");
       }
     } catch (e) {
       logger.e("[$runtimeType] Create Post Failed with error: $e");

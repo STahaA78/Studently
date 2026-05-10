@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:studently/models/notifications.dart';
+import 'package:studently/models/post.dart';
 import 'package:studently/providers/feed_provider.dart';
 import 'package:studently/providers/notifications_provider.dart';
 import 'package:studently/repositories/chat.dart';
@@ -266,16 +267,34 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
       case 'NEW_COMMENT':
         if (notification.entityId.isEmpty) return;
         try {
-          final repo = ref.read(postRepositoryProvider);
-          final post = await repo.getPostById(notification.entityId);
+          // 1. Try to find the post in the local feed cache first
+          final currentFeed = ref.read(feedProvider).value ?? [];
+          Post? targetPost;
+          try {
+            targetPost = currentFeed.firstWhere((p) => p.id == notification.entityId);
+          } catch (_) {}
+
+          // 2. Fallback to the API if not found locally
+          if (targetPost == null) {
+            final repo = ref.read(postRepositoryProvider);
+            targetPost = await repo.getPostById(notification.entityId);
+          }
+
           if (!context.mounted) return;
           await Navigator.push(
             context,
             MaterialPageRoute(
-              builder: (_) => PostDetailsPage(postData: post),
+              builder: (_) => PostDetailsPage(postData: targetPost!),
             ),
           );
-        } catch (_) {}
+        } catch (e) {
+          // Fallback UI indication instead of failing silently on 500 error
+          if (context.mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text("Unable to load post. It may have been deleted.")),
+            );
+          }
+        }
         return;
 
       case 'FRIEND_REQUEST':

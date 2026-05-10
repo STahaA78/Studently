@@ -8,6 +8,7 @@ import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:studently/logger.dart';
 import 'package:studently/models/notifications.dart';
+import 'package:studently/models/post.dart';
 import 'package:studently/providers/feed_provider.dart';
 import 'package:studently/repositories/notifications.dart';
 import 'package:studently/repositories/chat.dart';
@@ -186,12 +187,23 @@ class NotificationController extends Notifier<NotificationState> {
       '[NotificationController] Notification permission: ${settings.authorizationStatus}',
     );
 
-    final token = await _messaging.getToken();
-    if (token != null && token.isNotEmpty) {
-      _registeredToken = token;
-      await _repository.registerFcmToken(token);
+    // 1. GET TOKEN FIRST (Crucial for Android to avoid SERVICE_NOT_AVAILABLE)
+    try {
+      final token = await _messaging.getToken();
+      if (token != null && token.isNotEmpty) {
+        _registeredToken = token;
+        await _repository.registerFcmToken(token);
+      }
+    } catch (e) {
+      logger.w('[NotificationController] Failed to get FCM token: $e');
     }
 
+    // 2. SUBSCRIBE TO TOPIC ASYNCHRONOUSLY (Don't await, so it doesn't block listeners if it fails)
+    _messaging.subscribeToTopic("global_feed").catchError((e) {
+      logger.w('[NotificationController] Failed to subscribe to global_feed: $e');
+    });
+
+    // 3. SETUP LISTENERS
     _tokenRefreshSub = _messaging.onTokenRefresh.listen((token) async {
       if (token.isEmpty) return;
       _registeredToken = token;
@@ -208,8 +220,6 @@ class NotificationController extends Notifier<NotificationState> {
 
       await _handleForegroundMessage(message);
 
-      // If user is already in this conversation, keep notifications quiet and
-      // avoid pulling this message-notification into the list.
       if (isActiveChatMessage && entityId != null) {
         _removeConversationMessageNotifications(entityId);
         try {
@@ -218,11 +228,10 @@ class NotificationController extends Notifier<NotificationState> {
         return;
       }
 
-      // Check if it's a feed-related event that should trigger a reload
       if (messageType == 'NEW_POST' ||
           messageType == 'NEW_COMMENT' ||
           messageType == 'POST_LIKE') {
-        ref.read(feedProvider.notifier).refresh();
+        ref.read(feedProvider.notifier).silentRefresh(); 
       }
 
       await refreshFromServer();
@@ -237,7 +246,7 @@ class NotificationController extends Notifier<NotificationState> {
       if (messageType == 'NEW_POST' ||
           messageType == 'NEW_COMMENT' ||
           messageType == 'POST_LIKE') {
-        ref.read(feedProvider.notifier).refresh();
+        ref.read(feedProvider.notifier).silentRefresh();
       }
 
       await refreshFromServer();
@@ -250,7 +259,7 @@ class NotificationController extends Notifier<NotificationState> {
       if (messageType == 'NEW_POST' ||
           messageType == 'NEW_COMMENT' ||
           messageType == 'POST_LIKE') {
-        Future.microtask(() => ref.read(feedProvider.notifier).refresh());
+        Future.microtask(() => ref.read(feedProvider.notifier).silentRefresh());
       }
 
       await refreshFromServer();
@@ -331,6 +340,11 @@ class NotificationController extends Notifier<NotificationState> {
   Future<void> _handleForegroundMessage(RemoteMessage message) async {
     final messageType = message.data['type']?.toString();
     final entityId = message.data['entity_id']?.toString();
+
+    // Do NOT show foreground toast if it's a silent NEW_POST broadcast
+    if (messageType == 'NEW_POST') {
+      return;
+    }
 
     if (messageType == 'NEW_MESSAGE' &&
         entityId != null &&
@@ -494,11 +508,22 @@ class NotificationController extends Notifier<NotificationState> {
             return true;
           }
           try {
-            final repo = ref.read(postRepositoryProvider);
-            final post = await repo.getPostById(entityId);
+            // Check cache first to bypass potential 500 error on api call
+            final currentFeed = ref.read(feedProvider).value ?? [];
+            Post? targetPost;
+            try {
+              targetPost = currentFeed.firstWhere((p) => p.id == entityId);
+            } catch (_) {}
+
+            // Fallback to network if not in local feed
+            if (targetPost == null) {
+              final repo = ref.read(postRepositoryProvider);
+              targetPost = await repo.getPostById(entityId);
+            }
+
             await navigator.push(
               MaterialPageRoute(
-                builder: (_) => PostDetailsPage(postData: post),
+                builder: (_) => PostDetailsPage(postData: targetPost!),
               ),
             );
           } catch (_) {

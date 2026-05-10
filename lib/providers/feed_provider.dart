@@ -100,6 +100,11 @@ class FeedNotifier extends AsyncNotifier<List<Post>> {
     await _fetchFreshFeed(showError: true);
   }
 
+  /// Fetches new posts in the background without showing a loading spinner
+  Future<void> silentRefresh() async {
+    await _fetchFreshFeed(showError: false);
+  }
+
   Future<void> loadMore() async {
     if (_isFetchingMore || !_hasMore) return;
     _isFetchingMore = true;
@@ -355,6 +360,11 @@ class ProfileFeedNotifier extends AsyncNotifier<List<Post>> {
 
   Future<void> refresh() async {
     state = const AsyncLoading();
+    await _fetchProfilePosts(reset: true);
+  }
+  
+  /// Fetches profile posts in the background without showing a loading spinner
+  Future<void> silentRefresh() async {
     await _fetchProfilePosts(reset: true);
   }
 
