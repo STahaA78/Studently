@@ -211,7 +211,7 @@ class _DirectMessagesPageState extends ConsumerState<DirectMessagesPage> {
                 ? Center(
                     child: Text(
                       chatState.conversations.isEmpty
-                          ? "Loading or no chats yet..." // Fallback text
+                          ? "No chats" // Fallback text
                           : "No messages match your search",
                       style: TextStyle(color: Colors.grey.shade500),
                     ),
@@ -451,6 +451,7 @@ class _DirectMessagesPageState extends ConsumerState<DirectMessagesPage> {
     List<Map<String, String>> allFriends = List.from(authNotifier.friendsList);
     List<Map<String, String>> displayList = List.from(allFriends);
     bool isFetchingFriends = false;
+    bool hasAttemptedFetch = false;
 
     showModalBottomSheet(
       context: context,
@@ -464,8 +465,9 @@ class _DirectMessagesPageState extends ConsumerState<DirectMessagesPage> {
           builder: (BuildContext context, StateSetter setModalState) {
             // If the list is empty and we haven't started a fetch yet, kick one
             // off now and refresh the modal when it resolves.
-            if (allFriends.isEmpty && !isFetchingFriends) {
+            if (allFriends.isEmpty && !isFetchingFriends && !hasAttemptedFetch) {
               isFetchingFriends = true;
+              hasAttemptedFetch = true;
               authNotifier.fetchFriendsList().then((_) {
                 if (outerContext.mounted) {
                   setModalState(() {
@@ -527,7 +529,7 @@ class _DirectMessagesPageState extends ConsumerState<DirectMessagesPage> {
                         ? Center(
                             child: Text(
                               allFriends.isEmpty
-                                  ? "No friends yet"
+                                  ? "No friends"
                                   : "No results found",
                             ),
                           )

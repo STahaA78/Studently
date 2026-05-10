@@ -326,41 +326,47 @@ class _CommunityFeedPageState extends ConsumerState<CommunityFeedPage> {
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                GestureDetector(
-                  onTap: openProfile,
-                  child: Row(
-                    children: [
-                      CircleAvatar(
-                        backgroundColor: Colors.grey.shade300,
-                        backgroundImage: hasPic ? CachedNetworkImageProvider(pic) : null,
-                        child: hasPic
-                            ? null
-                            : Text(
-                                name.isNotEmpty ? name[0] : "?",
+                Expanded(
+                  child: GestureDetector(
+                    onTap: openProfile,
+                    child: Row(
+                      children: [
+                        CircleAvatar(
+                          backgroundColor: Colors.grey.shade300,
+                          backgroundImage: hasPic ? CachedNetworkImageProvider(pic) : null,
+                          child: hasPic
+                              ? null
+                              : Text(
+                                  name.isNotEmpty ? name[0] : "?",
+                                  style: const TextStyle(
+                                    color: Colors.black,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                name,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
                                 style: const TextStyle(
-                                  color: Colors.black,
                                   fontWeight: FontWeight.w600,
+                                  fontSize: 15,
                                 ),
                               ),
-                      ),
-                      const SizedBox(width: 10),
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            name,
-                            style: const TextStyle(
-                              fontWeight: FontWeight.w600,
-                              fontSize: 15,
-                            ),
+                              Text(
+                                time,
+                                style: const TextStyle(color: Colors.grey),
+                              ),
+                            ],
                           ),
-                          Text(
-                            time,
-                            style: const TextStyle(color: Colors.grey),
-                          ),
-                        ],
-                      ),
-                    ],
+                        ),
+                      ],
+                    ),
                   ),
                 ),
                 if (post.authorId == currentUserId)

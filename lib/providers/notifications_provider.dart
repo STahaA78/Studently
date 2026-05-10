@@ -218,6 +218,13 @@ class NotificationController extends Notifier<NotificationState> {
         return;
       }
 
+      // Check if it's a feed-related event that should trigger a reload
+      if (messageType == 'NEW_POST' ||
+          messageType == 'NEW_COMMENT' ||
+          messageType == 'POST_LIKE') {
+        ref.read(feedProvider.notifier).refresh();
+      }
+
       await refreshFromServer();
     });
 
@@ -225,12 +232,27 @@ class NotificationController extends Notifier<NotificationState> {
       message,
     ) async {
       if (!_isSessionCompatible(uid)) return;
+
+      final messageType = message.data['type']?.toString();
+      if (messageType == 'NEW_POST' ||
+          messageType == 'NEW_COMMENT' ||
+          messageType == 'POST_LIKE') {
+        ref.read(feedProvider.notifier).refresh();
+      }
+
       await refreshFromServer();
       await _routeByPayloadOrQueue(message.data);
     });
 
     final initialMessage = await _messaging.getInitialMessage();
     if (initialMessage != null && _isSessionCompatible(uid)) {
+      final messageType = initialMessage.data['type']?.toString();
+      if (messageType == 'NEW_POST' ||
+          messageType == 'NEW_COMMENT' ||
+          messageType == 'POST_LIKE') {
+        Future.microtask(() => ref.read(feedProvider.notifier).refresh());
+      }
+
       await refreshFromServer();
       await _routeByPayloadOrQueue(initialMessage.data);
     }

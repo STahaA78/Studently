@@ -14,7 +14,7 @@ class PostRepository {
   Future<List<Post>> getFeed({int skip = 0, int limit = 10}) async {
     logger.i("[$runtimeType] Get Feed Initiated (skip: $skip, limit: $limit)");
     try {
-      final response = await _apiService.get('/feed?limit=$limit&skip=$skip');
+      final response = await _apiService.get('/feed/?limit=$limit&skip=$skip');
 
       final List<dynamic> jsonData = jsonDecode(response.body);
 

@@ -5,7 +5,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:http/http.dart' as http;
 import 'package:file_picker/file_picker.dart';
-import 'package:record/record.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:audioplayers/audioplayers.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -39,15 +38,8 @@ class _ChatPageState extends ConsumerState<ChatPage> {
   final ScrollController _scrollController = ScrollController();
   final Color blue = AppStyle.primaryBlue;
 
-  bool _isTyping = false;
-  bool _isRecording = false;
   bool _isUploading = false;
   bool _isInitialLoad = true; // true until first scroll-to-bottom completes
-
-  final AudioRecorder _audioRecorder = AudioRecorder();
-
-  Timer? _recordTimer;
-  int _recordDuration = 0;
 
   final Set<String> _downloadingUrls = {};
 
@@ -74,11 +66,8 @@ class _ChatPageState extends ConsumerState<ChatPage> {
       Future.delayed(const Duration(milliseconds: 300), _scrollToBottom);
     });
 
-    _messageController.addListener(() {
-      setState(() {
-        _isTyping = _messageController.text.trim().isNotEmpty;
-      });
-    });
+    // We removed the setState here to prevent rebuilding the whole list on every keystroke!
+    // The send button now uses ValueListenableBuilder to update itself.
   }
 
   @override
@@ -87,8 +76,6 @@ class _ChatPageState extends ConsumerState<ChatPage> {
 
     _messageController.dispose();
     _scrollController.dispose();
-    _recordTimer?.cancel();
-    _audioRecorder.dispose();
     super.dispose();
   }
 
@@ -96,7 +83,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (_scrollController.hasClients) {
         _scrollController.animateTo(
-          _scrollController.position.maxScrollExtent,
+          0.0, // With reverse: true, bottom is 0.0
           duration: const Duration(milliseconds: 300),
           curve: Curves.easeOut,
         );
@@ -109,7 +96,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
         if (!mounted || !_isInitialLoad) return;
         if (_scrollController.hasClients) {
           _scrollController.animateTo(
-            _scrollController.position.maxScrollExtent,
+            0.0, // With reverse: true, bottom is 0.0
             duration: const Duration(milliseconds: 200),
             curve: Curves.easeOut,
           );
@@ -158,70 +145,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
     }
   }
 
-  String _formatRecordDuration() {
-    final minutes = (_recordDuration ~/ 60).toString().padLeft(2, '0');
-    final seconds = (_recordDuration % 60).toString().padLeft(2, '0');
-    return "$minutes:$seconds";
-  }
 
-  Future<void> _startRecording() async {
-    if (await _audioRecorder.hasPermission()) {
-      final Directory tempDir = await getTemporaryDirectory();
-      final String path =
-          '${tempDir.path}/audio_${DateTime.now().millisecondsSinceEpoch}.m4a';
-
-      logger.i('ChatPage: Started recording to $path');
-      await _audioRecorder.start(const RecordConfig(), path: path);
-
-      setState(() {
-        _isRecording = true;
-        _recordDuration = 0;
-      });
-
-      _recordTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
-        setState(() => _recordDuration++);
-      });
-    } else {
-      logger.e('ChatPage: Mic permission denied.');
-    }
-  }
-
-  Future<void> _stopAndUploadRecording() async {
-    logger.i('ChatPage: Stopped recording.');
-    _recordTimer?.cancel();
-    final String? path = await _audioRecorder.stop();
-
-    setState(() {
-      _isRecording = false;
-      _recordDuration = 0;
-    });
-
-    if (path != null) {
-      setState(() => _isUploading = true);
-
-      List<int> audioBytes;
-      if (kIsWeb) {
-        final response = await http.get(Uri.parse(path));
-        audioBytes = response.bodyBytes;
-      } else {
-        audioBytes = await File(path).readAsBytes();
-      }
-
-      // Delegated to Provider
-      String? url = await ref
-          .read(chatProvider.notifier)
-          .uploadAttachment(audioBytes, 'voice_message.m4a');
-
-      if (url != null) {
-        // Send via Provider!
-        await ref
-            .read(chatProvider.notifier)
-            .sendMessage("🎤 Voice Message", attachments: [url]);
-        _scrollToBottom();
-      }
-      setState(() => _isUploading = false);
-    }
-  }
 
   Future<void> _sendMessage() async {
     final text = _messageController.text.trim();
@@ -363,20 +287,24 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                   )
                 : messages.isEmpty
                 ? const Center(child: Text("No messages yet. Say Hi!"))
-                : ListView.builder(
-                    controller: _scrollController,
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 10,
-                    ),
-                    itemCount: messages.length,
-                    itemBuilder: (context, index) {
-                      final msg = messages[index];
-                      final bool isMe =
-                          msg.senderId == authService.value.currentUser?.uid;
-                      return _buildMessageBubble(msg, isMe);
-                    },
-                  ),
+                : (() {
+                      final reversedMessages = messages.reversed.toList();
+                      return ListView.builder(
+                        controller: _scrollController,
+                        reverse: true, // Anchors the list to the bottom
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 10,
+                        ),
+                        itemCount: reversedMessages.length,
+                        itemBuilder: (context, index) {
+                          final msg = reversedMessages[index];
+                          final bool isMe =
+                              msg.senderId == authService.value.currentUser?.uid;
+                          return _buildMessageBubble(msg, isMe);
+                        },
+                      );
+                  })(),
           ),
           _buildInputArea(),
         ],
@@ -583,58 +511,30 @@ class _ChatPageState extends ConsumerState<ChatPage> {
       child: SafeArea(
         child: Row(
           children: [
-            if (!_isRecording)
-              IconButton(
-                icon: const Icon(Icons.attach_file, color: Colors.grey),
-                onPressed: _isUploading ? null : _pickAndUploadFile,
-              ),
-
+            IconButton(
+              icon: const Icon(Icons.attach_file, color: Colors.grey),
+              onPressed: _isUploading ? null : _pickAndUploadFile,
+            ),
             Expanded(
               child: Container(
                 padding: const EdgeInsets.symmetric(horizontal: 16),
                 decoration: BoxDecoration(
-                  color: _isRecording
-                      ? Colors.red.shade50
-                      : Colors.grey.shade100,
+                  color: Colors.grey.shade100,
                   borderRadius: BorderRadius.circular(24),
-                  border: Border.all(
-                    color: _isRecording
-                        ? Colors.red.shade200
-                        : Colors.grey.shade300,
-                  ),
+                  border: Border.all(color: Colors.grey.shade300),
                 ),
-                child: _isRecording
-                    ? Padding(
-                        padding: const EdgeInsets.symmetric(vertical: 12.0),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            const Icon(Icons.mic, color: Colors.red, size: 20),
-                            const SizedBox(width: 8),
-                            Text(
-                              "Recording... ${_formatRecordDuration()}",
-                              style: const TextStyle(
-                                color: Colors.red,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                          ],
-                        ),
-                      )
-                    : TextField(
-                        controller: _messageController,
-                        decoration: const InputDecoration(
-                          border: InputBorder.none,
-                          hintText: "Type a message...",
-                        ),
-                        enabled: !_isUploading,
-                        onSubmitted: (_) => _sendMessage(),
-                      ),
+                child: TextField(
+                  controller: _messageController,
+                  decoration: const InputDecoration(
+                    border: InputBorder.none,
+                    hintText: "Type a message...",
+                  ),
+                  enabled: !_isUploading,
+                  onSubmitted: (_) => _sendMessage(),
+                ),
               ),
             ),
-
             const SizedBox(width: 8),
-
             _isUploading
                 ? const Padding(
                     padding: EdgeInsets.all(12.0),
@@ -644,18 +544,16 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                       child: CircularProgressIndicator(strokeWidth: 2),
                     ),
                   )
-                : GestureDetector(
-                    onLongPressStart: (_) =>
-                        _isTyping ? null : _startRecording(),
-                    onLongPressEnd: (_) =>
-                        _isTyping ? null : _stopAndUploadRecording(),
-                    child: IconButton(
-                      icon: Icon(
-                        _isTyping ? Icons.send_rounded : Icons.mic,
-                        color: _isRecording ? Colors.red : blue,
-                      ),
-                      onPressed: _isTyping ? _sendMessage : null,
-                    ),
+                : ValueListenableBuilder<TextEditingValue>(
+                    valueListenable: _messageController,
+                    builder: (context, value, child) {
+                      final isTyping = value.text.trim().isNotEmpty;
+                      return IconButton(
+                        icon: const Icon(Icons.send_rounded),
+                        color: isTyping ? blue : Colors.grey,
+                        onPressed: isTyping ? _sendMessage : null,
+                      );
+                    },
                   ),
           ],
         ),
