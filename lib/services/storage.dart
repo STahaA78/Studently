@@ -147,28 +147,46 @@ class StorageService {
       logger.i('[StorageService] Clearing user storage');
 
       if (_isAppStorageInitialized) {
+        // Clear all boxes that contain user-specific data
+        await _authBox.clear(); // Clear auth box (user profile, friends, etc.)
         await _feedBox.clear();
         await _profileFeedBox.clear();
         await _discoverBox.clear();
         await _conversationsBox.clear();
         await _messagesBox.clear();
+        await _notificationsBox.clear();
+
+        logger.i('[StorageService] All core storage boxes cleared');
       }
 
       if (_isUserStorageInitialized) {
         await _knowledgeHubStorage.clearStorage();
         _isUserStorageInitialized = false;
-        logger.i(
-          '[StorageService] User storage data cleared from KnowledgeHubStorage',
-        );
-      } else {
-        logger.i(
-          '[StorageService] User storage not initialized, nothing to clear',
-        );
+        logger.i('[StorageService] Knowledge Hub storage cleared');
       }
 
-      logger.i('[StorageService] User storage cleared');
+      logger.i('[StorageService] User storage cleanup complete');
     } catch (e) {
-      logger.e('[StorageService] Error clearing user storage: $e');
+      logger.e('[StorageService] Error during user storage cleanup: $e');
+      rethrow;
+    }
+  }
+
+  /// Clears EVERYTHING including app-wide configurations
+  Future<void> clearAllStorage() async {
+    try {
+      logger.i('[StorageService] Clearing ALL storage');
+
+      await clearUserStorage();
+
+      if (_isAppStorageInitialized) {
+        await _backendConfigStorage.clearConfig();
+        logger.i('[StorageService] Backend config cleared');
+      }
+
+      logger.i('[StorageService] Full storage cleanup complete');
+    } catch (e) {
+      logger.e('[StorageService] Error during full storage cleanup: $e');
       rethrow;
     }
   }

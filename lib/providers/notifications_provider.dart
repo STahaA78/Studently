@@ -224,9 +224,11 @@ class NotificationController extends Notifier<NotificationState> {
     }
 
     // 2. SUBSCRIBE TO TOPIC ASYNCHRONOUSLY (Don't await, so it doesn't block listeners if it fails)
-    _messaging.subscribeToTopic("global_feed").catchError((e) {
-      logger.w('[NotificationController] Failed to subscribe to global_feed: $e');
-    });
+    if (!kIsWeb) {
+      _messaging.subscribeToTopic("global_feed").catchError((e) {
+        logger.w('[NotificationController] Failed to subscribe to global_feed: $e');
+      });
+    }
 
     // 3. SETUP LISTENERS
     _tokenRefreshSub = _messaging.onTokenRefresh.listen((token) async {

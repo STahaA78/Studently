@@ -12,6 +12,7 @@ import 'package:studently/providers/auth_provider.dart';
 import 'package:studently/providers/feed_provider.dart';
 import 'package:studently/models/post.dart';
 import 'package:studently/screens/post_details_page.dart';
+import 'package:studently/screens/settings_page.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:studently/utils/web_utils.dart' as web_utils;
 
@@ -285,15 +286,24 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                 onPressed: () => Navigator.pop(context),
               )
             : null,
-        actions: kIsWeb && !web_utils.isStandalonePwa()
-            ? [
-                IconButton(
-                  icon: const Icon(Icons.refresh, color: Colors.black),
-                  onPressed: _refreshProfile,
-                  tooltip: 'Refresh',
-                ),
-              ]
-            : null,
+        actions: [
+          if (isMyProfile)
+            IconButton(
+              icon: const Icon(Icons.settings_outlined, color: Colors.black),
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (context) => const SettingsPage()),
+                );
+              },
+            ),
+          if (kIsWeb && !web_utils.isStandalonePwa())
+            IconButton(
+              icon: const Icon(Icons.refresh, color: Colors.black),
+              onPressed: _refreshProfile,
+              tooltip: 'Refresh',
+            ),
+        ],
       ),
       body: isScreenLoading
           ? const Center(child: CircularProgressIndicator())

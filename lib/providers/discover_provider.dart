@@ -12,10 +12,10 @@ final discoverRepositoryProvider = Provider<DiscoverRepository>((ref) {
 });
 
 final discoverConnectProvider =
-    NotifierProvider<DiscoverConnectNotifier, DiscoverConnectState>(DiscoverConnectNotifier.new,);
+    NotifierProvider.autoDispose<DiscoverConnectNotifier, DiscoverConnectState>(DiscoverConnectNotifier.new,);
 
 final discoverRequestsProvider =
-    NotifierProvider<DiscoverRequestsNotifier, DiscoverRequestsState>(DiscoverRequestsNotifier.new,);
+    NotifierProvider.autoDispose<DiscoverRequestsNotifier, DiscoverRequestsState>(DiscoverRequestsNotifier.new,);
 
 // ── DiscoverConnectState ───────────────────────────────────────────────────
 
@@ -110,10 +110,11 @@ class DiscoverConnectState {
 // ── DiscoverConnectNotifier ────────────────────────────────────────────────
 
 class DiscoverConnectNotifier extends Notifier<DiscoverConnectState> {
-  late final DiscoverRepository _repository;
-  late final DiscoverStorage _storage;
+  late DiscoverRepository _repository;
+  late DiscoverStorage _storage;
   Timer? _searchDebounceTimer;
   bool _hasInitialized = false;
+  bool _buildInitialized = false;
 
   static const int _cacheDurationMs = 300000;
 
@@ -130,6 +131,13 @@ class DiscoverConnectNotifier extends Notifier<DiscoverConnectState> {
   DiscoverConnectState build() {
     _repository = ref.read(discoverRepositoryProvider);
     _storage = StorageService().discoverStorage;
+
+    // Use microtask to ensure repository/storage are used after build
+    Future.microtask(() {
+      _hydrateFromCache();
+      init();
+    });
+
     return DiscoverConnectState.initial();
   }
 
@@ -333,11 +341,13 @@ class DiscoverConnectNotifier extends Notifier<DiscoverConnectState> {
   }
 
   void clearRecentSearches() {
+    _storage.clearRecentSearches();
     state = state.copyWith(recentSearches: []);
   }
 
   void removeRecentSearch(String query) {
     final updated = List<String>.from(state.recentSearches)..remove(query);
+    _storage.saveRecentSearches(updated);
     state = state.copyWith(recentSearches: updated);
   }
 
@@ -455,8 +465,9 @@ class DiscoverRequestsState {
 // ── DiscoverRequestsNotifier ───────────────────────────────────────────────
 
 class DiscoverRequestsNotifier extends Notifier<DiscoverRequestsState> {
-  late final DiscoverRepository _repository;
-  late final DiscoverStorage _storage;
+  late DiscoverRepository _repository;
+  late DiscoverStorage _storage;
+  bool _initialized = false;
 
   @override
   DiscoverRequestsState build() {
@@ -558,4 +569,4 @@ class DiscoverRequestsNotifier extends Notifier<DiscoverRequestsState> {
       state = state.copyWith(didChangeRequests: true);
     }
   }
-}
+  }

@@ -235,4 +235,30 @@ class UserRepository {
             })
         .toList();
   }
+
+  Future<bool> submitErrorReport({
+    required String userId,
+    required String subject,
+    required String description,
+  }) async {
+    logger.i("[$runtimeType] Submit Error Report Initiated");
+    final payload = {
+      "user_id": userId,
+      "subject": subject,
+      "description": description,
+    };
+    try {
+      final response = await _apiService.post('/users/report-error', body: payload);
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        logger.i("[$runtimeType] Submit Error Report Completed Successfully");
+        return true;
+      } else {
+        logger.e("[$runtimeType] Submit Error Report Failed: ${response.body}");
+        return false;
+      }
+    } catch (e) {
+      logger.e("[$runtimeType] Submit Error Report Exception: $e");
+      return false;
+    }
+  }
 }

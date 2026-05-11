@@ -54,6 +54,7 @@ class User {
   List<Interest> interests;
   String? university;
   String? picture; // Cloudflare R2 URL
+  bool isPrivate;
 
   User({
     required this.id,
@@ -68,6 +69,7 @@ class User {
     List<Interest>? interests,
     this.university,
     this.picture,
+    this.isPrivate = false,
   }) : interests = interests ?? [];
 
   factory User.fromJson(Map<String, dynamic> json) {
@@ -92,6 +94,7 @@ class User {
           [],
       university: json['university'],
       picture: json['picture'] ?? '',
+      isPrivate: json['is_private'] ?? false,
     );
   }
 
@@ -109,6 +112,7 @@ class User {
       'university': university,
       'picture': picture,
       'interests': interests.map((i) => i.toJson()).toList(),
+      'is_private': isPrivate,
     };
   }
 }

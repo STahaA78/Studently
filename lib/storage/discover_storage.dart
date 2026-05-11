@@ -11,8 +11,23 @@ class DiscoverStorage {
   static const _pendingRequestsKey = 'discover_pending_requests';
   static const _pendingLastFetchKey = 'discover_pending_last_fetch';
   static const _swipedLeftKey = 'discover_swiped_left_ids';
+  static const _recentSearchesKey = 'discover_recent_searches';
 
   DiscoverStorage(this._box);
+
+  List<String> getRecentSearches() {
+    final List<dynamic>? cached = _box.get(_recentSearchesKey);
+    if (cached == null) return [];
+    return cached.map((e) => e.toString()).toList();
+  }
+
+  void saveRecentSearches(List<String> searches) {
+    _box.put(_recentSearchesKey, searches);
+  }
+
+  void clearRecentSearches() {
+    _box.delete(_recentSearchesKey);
+  }
 
   List<User> getCachedDiscoverUsers() {
     final String? cachedJson = _box.get(_discoverUsersKey);

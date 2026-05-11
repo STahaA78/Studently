@@ -10,6 +10,7 @@ import 'package:studently/providers/cache_freshness_provider.dart';
 import 'package:studently/providers/chat_provider.dart';
 import 'package:studently/services/storage.dart';
 import 'dart:typed_data';
+import 'package:flutter_cache_manager/flutter_cache_manager.dart';
 
 final userRepositoryProvider = Provider<UserRepository>((ref) {
   return UserRepository();
@@ -326,22 +327,27 @@ class AuthNotifier extends AsyncNotifier<User?> {
   Future<void> logout() async {
     logger.i("[$runtimeType] Logging out...");
 
-    // Clear user-specific storage before signing out
+    // 1. Clear ALL local storage first (including user data and app config)
     try {
       final storageService = StorageService();
-      await storageService.clearUserStorage();
-      logger.i("[$runtimeType] User storage cleared");
+      await storageService.clearAllStorage();
+      logger.i("[$runtimeType] All local storage cleared");
     } catch (e) {
-      logger.w("[$runtimeType] Error clearing user storage: $e");
-      // Continue even if clearing fails
+      logger.w("[$runtimeType] Error clearing storage: $e");
     }
 
-    await authService.value.signOut();
+    // 2. Clear image cache to prevent the next user from seeing old profile pictures/posts
+    try {
+      await DefaultCacheManager().emptyCache();
+      logger.i("[$runtimeType] Image cache cleared");
+    } catch (e) {
+      logger.w("[$runtimeType] Error clearing image cache: $e");
+    }
 
-    // 5. Delete from Hive
+    // 3. Clear all local RAM state and flags
     _authStorage.clearUser();
-    _authStorage.clearFriendsList(); // Also wipe friends list on logout
-    _authStorage.clearInSignupFlow(); // Clear signup flag on logout
+    _authStorage.clearFriendsList(); 
+    _authStorage.clearInSignupFlow(); 
     friendsList.clear();
     final cache = ref.read(cacheCoordinatorProvider);
     cache.invalidateMany([
@@ -350,6 +356,10 @@ class AuthNotifier extends AsyncNotifier<User?> {
       (CacheDomain.chatUserProfiles, null),
     ]);
 
+    // 4. Sign out of Firebase COMPLETELY before updating state
+    await authService.value.signOut();
+
+    // 5. Finally, set state to null to trigger UI refresh
     state = const AsyncValue.data(null);
   }
 
@@ -399,6 +409,7 @@ class AuthNotifier extends AsyncNotifier<User?> {
             : currentUser.interests,
         friendsCount: currentUser.friendsCount,
         university: currentUser.university,
+        isPrivate: updatedData['is_private'] ?? currentUser.isPrivate,
       );
 
       // 3. Update RAM and Disk instantly
@@ -510,6 +521,7 @@ class AuthNotifier extends AsyncNotifier<User?> {
         picture: '', // Wipe the photo locally
         friendsCount: currentUser.friendsCount,
         university: currentUser.university,
+        isPrivate: currentUser.isPrivate,
       );
 
       // 3. Update RAM and Disk
@@ -568,6 +580,7 @@ class AuthNotifier extends AsyncNotifier<User?> {
         picture: currentUser.picture,
         friendsCount: (currentUser.friendsCount ?? 0) + 1, // Instantly +1
         university: currentUser.university,
+        isPrivate: currentUser.isPrivate,
       );
 
       // Apply to UI and Cache immediately

@@ -13,7 +13,11 @@ import 'package:studently/services/storage.dart';
 
 // Import the Auth and Config Providers
 import 'package:studently/providers/auth_provider.dart';
+import 'package:studently/providers/discover_provider.dart';
 import 'package:studently/providers/backend_config_provider.dart';
+import 'package:studently/providers/feed_provider.dart';
+import 'package:studently/providers/chat_provider.dart';
+import 'package:studently/providers/knowledge_hub_provider.dart';
 import 'screens/community_feed_page.dart';
 import 'screens/signup_basic_page.dart';
 
@@ -37,6 +41,20 @@ class MyApp extends ConsumerWidget {
       next.whenData((user) async {
         if (user == null) {
           await ref.read(notificationProvider.notifier).clearForLogout();
+          
+          // Reset all core providers to clear in-memory cache
+          ref.invalidate(discoverConnectProvider);
+          ref.invalidate(discoverRequestsProvider);
+          ref.invalidate(feedProvider);
+          ref.invalidate(chatProvider);
+          ref.invalidate(allCoursesProvider);
+          ref.invalidate(allResourceGroupsProvider);
+          ref.invalidate(backendConfigProvider);
+          
+          // Reset navigation stack to root on logout and ensure we are on the base route
+          if (appNavigatorKey.currentState != null) {
+            appNavigatorKey.currentState!.pushNamedAndRemoveUntil('/', (route) => false);
+          }
           return;
         }
         await ref.read(notificationProvider.notifier).initializeForCurrentUser();

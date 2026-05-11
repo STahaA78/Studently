@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:studently/models/knowledge_hub.dart';
@@ -284,14 +285,32 @@ class KnowledgeHubStorage {
     }
   }
 
-  /// Clear knowledge hub storage
+  /// Clear knowledge hub storage and delete downloaded files
   Future<void> clearStorage() async {
     _ensureInitialized(throwOnFailure: true);
     try {
+      // 1. Clear Hive boxes
       await _coursesBox.clear();
       await _resourcesBox.clear();
       await _downloadedFilesBox.clear();
-      logger.i('[KnowledgeHubStorage] Cleared all storage');
+
+      // 2. Delete the physical files on disk
+      if (!kIsWeb) {
+        try {
+          final tempDir = await getTemporaryDirectory();
+          final downloadsDir = Directory('${tempDir.path}/studently_downloads');
+          if (await downloadsDir.exists()) {
+            await downloadsDir.delete(recursive: true);
+            logger.i('[KnowledgeHubStorage] Deleted downloads directory');
+          }
+        } catch (fileError) {
+          logger.w(
+            '[KnowledgeHubStorage] Error deleting downloads directory (ignored if OS issue): $fileError',
+          );
+        }
+      }
+
+      logger.i('[KnowledgeHubStorage] Cleared all storage and files');
     } catch (e) {
       logger.e('[KnowledgeHubStorage] Error clearing storage: $e');
       rethrow;
