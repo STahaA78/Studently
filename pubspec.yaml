@@ -77,14 +77,14 @@ dependency_overrides:
 
 flutter_native_splash:
   color: "#FFFFFF" 
-  image: "assets/images/logo_gpt.png" 
-  branding: "assets/images/Studently_wordmark_cropped.png"
+  image: "assets/images/logo.png" 
+  branding: "assets/images/branding.png"
   branding_mode: "bottom"
   
   android_12:
     color: "#FFFFFF"
-    image: "assets/images/logo_gpt.png"
-    branding: "assets/images/Studently_wordmark_cropped.png"
+    image: "assets/images/logo.png"
+    branding: "assets/images/branding.png"
     
   android: true
   ios: true
