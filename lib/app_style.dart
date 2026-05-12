@@ -26,7 +26,7 @@ class AppStyle {
   static const Color white = pureWhite;
 
   // --- 2. Dimensions ---
-  static const double logoSize = 50.0;
+  static const double logoSize = 55.0;
   static const double titleFontSize = 36.0; // Studently Title Size
   static const double signUpPageTitleLeftPadding = 30.0;
   static const double backButtonLeftPadding = 20.0;

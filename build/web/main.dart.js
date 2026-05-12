@@ -150034,7 +150034,7 @@ A.bfo.prototype={
 $1(a){return a.gabd()},
 $S:815}
 A.bfn.prototype={
-$1(a){var s=this,r=null,q=s.b,p=A.mY(q).Fx(!1),o=s.a,n=t.p,m=A.cj(A.b([A.YC("assets/images/logo.svg",B.yr,50,r),new A.oD(1,B.fe,A.aq("Studently",r,r,r,r,A.a5y().$5$color$fontSize$fontStyle$fontWeight$letterSpacing(B.a_,32.4,B.cQ,B.au,0.5),r,r),r)],n),B.p,r,B.t,B.aS,0),l=A.b([],n)
+$1(a){var s=this,r=null,q=s.b,p=A.mY(q).Fx(!1),o=s.a,n=t.p,m=A.cj(A.b([A.YC("assets/images/logo.svg",B.yr,49.5,r),new A.oD(1,B.fe,A.aq("Studently",r,r,r,r,A.a5y().$5$color$fontSize$fontStyle$fontWeight$letterSpacing(B.a_,32.4,B.cQ,B.au,0.5),r,r),r)],n),B.p,r,B.t,B.aS,0),l=A.b([],n)
 l.push(A.dv(r,r,r,r,r,B.jW,25,r,new A.bfi(o),r,r,r,r,"Refresh feed"))
 l.push(new A.adB(s.c,B.a1F,new A.bfj(q),B.l,24,r))
 l.push(A.dv(r,r,r,r,r,B.a2e,24,r,new A.bfk(q),r,r,r,r,r))
@@ -152042,7 +152042,7 @@ r=t.ux
 q=k.eZ(s,r).gm7()!=null
 k.C4(s,new A.bmJ(n),r)
 r=t.p
-s=A.cj(A.b([A.YC("assets/images/logo.svg",B.yr,50,m),A.aq("Studently",m,m,m,m,A.a5y().$5$color$fontSize$fontStyle$fontWeight$letterSpacing(B.a_,36,B.cQ,B.au,0.5),m,m)],r),B.p,m,B.b5,B.n,0)
+s=A.cj(A.b([A.YC("assets/images/logo.svg",B.yr,55,m),A.aq("Studently",m,m,m,m,A.a5y().$5$color$fontSize$fontStyle$fontWeight$letterSpacing(B.a_,36,B.cQ,B.au,0.5),m,m)],r),B.p,m,B.b5,B.n,0)
 k=A.aq("Hi there! Login with Google to continue.",m,m,m,m,A.cZ(m,m,B.dY,m,m,m,m,m,m,m,m,15,m,m,B.T,m,m,!0,m,m,m,m,m,m,m,m),B.bv,m)
 p=q?m:n.gb02()
 o=A.adQ(m,m,B.h,m,m,m,m,m,m,m,m,m,B.jP,m,new A.cH(A.bj(4),B.q),B.QR,m,m,m,m)
@@ -153549,7 +153549,7 @@ q.b4()
 p.aO("[Signup Basic] Disposing Controllers Ended")},
 V(a){var s,r,q,p,o,n,m=this,l=null,k=A.bT(a,l,t.w).w.a,j=k.a,i=j>k.b?j*0.6:j*0.85
 j=t.p
-s=A.bH(A.b([A.cj(A.b([new A.ax(B.yj,A.dv(l,l,l,l,l,B.zI,l,l,new A.bu0(m,a),B.F,l,l,l,l),l)],j),B.p,l,B.t,B.n,0),new A.ax(B.a_U,new A.fQ(B.R5,A.bH(A.b([new A.dr(B.bH,l,l,A.aq("Welcome to",l,l,l,l,A.a5y().$4$color$fontSize$fontWeight$letterSpacing(B.l,35,B.i9,0.5),l,l),l),A.cj(A.b([A.YC("assets/images/logo.svg",l,50,l),A.aq("Studently",l,l,l,l,A.a5y().$5$color$fontSize$fontStyle$fontWeight$letterSpacing(B.a_,36,B.cQ,B.au,0.5),l,l)],j),B.p,l,B.hc,B.n,0)],j),B.p,l,B.t,B.n),l),l)],j),B.p,l,B.t,B.n)
+s=A.bH(A.b([A.cj(A.b([new A.ax(B.yj,A.dv(l,l,l,l,l,B.zI,l,l,new A.bu0(m,a),B.F,l,l,l,l),l)],j),B.p,l,B.t,B.n,0),new A.ax(B.a_U,new A.fQ(B.R5,A.bH(A.b([new A.dr(B.bH,l,l,A.aq("Welcome to",l,l,l,l,A.a5y().$4$color$fontSize$fontWeight$letterSpacing(B.l,35,B.i9,0.5),l,l),l),A.cj(A.b([A.YC("assets/images/logo.svg",l,55,l),A.aq("Studently",l,l,l,l,A.a5y().$5$color$fontSize$fontStyle$fontWeight$letterSpacing(B.a_,36,B.cQ,B.au,0.5),l,l)],j),B.p,l,B.hc,B.n,0)],j),B.p,l,B.t,B.n),l),l)],j),B.p,l,B.t,B.n)
 r=m.ch
 q=A.bj(16)
 p=A.bj(16)

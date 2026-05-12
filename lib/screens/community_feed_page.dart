@@ -123,7 +123,7 @@ class _CommunityFeedPageState extends ConsumerState<CommunityFeedPage> {
                       children: [
                         SvgPicture.asset(
                           'assets/images/logo.svg',
-                          height: AppStyle.logoSize,
+                          height: AppStyle.logoSize*0.9,
                           colorFilter: const ColorFilter.mode(
                             AppStyle.primaryBlue,
                             BlendMode.srcIn,
