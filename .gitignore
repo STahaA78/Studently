@@ -1,7 +1,8 @@
 # ==========================
 # Flutter / Dart
 # ==========================
-**/build/
+**/build/*
+!build/web/
 **/.dart_tool/
 **/.flutter-plugins
 **/.flutter-plugins-dependencies
