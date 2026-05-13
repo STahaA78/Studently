@@ -6,6 +6,7 @@ import 'package:studently/models/user.dart';
 import 'package:studently/models/backend_config.dart';
 import 'package:studently/logger.dart';
 import 'package:studently/providers/backend_config_provider.dart';
+import 'package:studently/providers/cache_freshness_provider.dart';
 import 'package:studently/providers/chat_provider.dart';
 import 'package:studently/services/storage.dart';
 import 'dart:typed_data';
@@ -60,13 +61,20 @@ class AuthNotifier extends AsyncNotifier<User?> {
         await _ensureUserStorageInitialized();
 
         // INSTANT UI: Return cached data but trigger a refresh in the background
-        _refreshProfileInBackground(firebaseUser.uid);
+        final cache = ref.read(cacheCoordinatorProvider);
+        if (cache.isStale(CacheDomain.userProfile)) {
+          _refreshProfileInBackground(firebaseUser.uid);
+        }
+        if (cache.isStale(CacheDomain.friendsList)) {
+          fetchFriendsList();
+        }
 
         return cachedUser;
       }
 
       // No cache found, but logged into Firebase: Fetch fresh from FastAPI
       final freshUser = await _fetchAndSaveFreshProfile(firebaseUser.uid);
+      ref.read(cacheCoordinatorProvider).markFresh(CacheDomain.userProfile);
 
       await _ensureUserStorageInitialized();
 
@@ -102,28 +110,36 @@ class AuthNotifier extends AsyncNotifier<User?> {
   }
 
   Future<void> _refreshProfileInBackground(String uid) async {
+    final cache = ref.read(cacheCoordinatorProvider);
+    if (!cache.tryBeginRefresh(CacheDomain.userProfile)) return;
     try {
       final freshUser = await _fetchAndSaveFreshProfile(uid);
       state = AsyncValue.data(freshUser); // Update the state silently
+      cache.endRefresh(CacheDomain.userProfile, success: true);
 
       // Fetch and cache friends in the background
       await fetchFriendsList();
 
       logger.d("[$runtimeType] Background profile refresh complete");
     } catch (e) {
+      cache.endRefresh(CacheDomain.userProfile, success: false);
       logger.w("[$runtimeType] Background refresh failed: $e");
     }
   }
 
   // Dedicated method to fetch friends from UserRepository
   Future<void> fetchFriendsList() async {
+    final cache = ref.read(cacheCoordinatorProvider);
+    if (!cache.tryBeginRefresh(CacheDomain.friendsList)) return;
     try {
       final userRepo = ref.read(userRepositoryProvider);
       final rawFriends = await userRepo.getFriendsList();
 
       friendsList = rawFriends;
       _authStorage.saveFriendsList(friendsList);
+      cache.endRefresh(CacheDomain.friendsList, success: true);
     } catch (e) {
+      cache.endRefresh(CacheDomain.friendsList, success: false);
       logger.e("[$runtimeType] Error fetching friends list: $e");
     }
   }
@@ -289,6 +305,7 @@ class AuthNotifier extends AsyncNotifier<User?> {
 
       if (success) {
         final user = await _fetchAndSaveFreshProfile(firebaseUser.uid);
+        ref.read(cacheCoordinatorProvider).markFresh(CacheDomain.userProfile);
         // Clear signup flag after successful signup
         setSignupInProgress(false);
 
@@ -324,6 +341,12 @@ class AuthNotifier extends AsyncNotifier<User?> {
     _authStorage.clearFriendsList(); // Also wipe friends list on logout
     _authStorage.clearInSignupFlow(); // Clear signup flag on logout
     friendsList.clear();
+    final cache = ref.read(cacheCoordinatorProvider);
+    cache.invalidateMany([
+      (CacheDomain.userProfile, null),
+      (CacheDomain.friendsList, null),
+      (CacheDomain.chatUserProfiles, null),
+    ]);
 
     state = const AsyncValue.data(null);
   }
@@ -379,6 +402,11 @@ class AuthNotifier extends AsyncNotifier<User?> {
       // 3. Update RAM and Disk instantly
       state = AsyncValue.data(updatedUser);
       _authStorage.saveUser(updatedUser);
+      final cache = ref.read(cacheCoordinatorProvider);
+      cache.markFresh(CacheDomain.userProfile);
+      ref.read(cacheInvalidationBusProvider.notifier).publish(
+        CacheInvalidationEvent(type: 'profile_updated', userId: updatedUser.id),
+      );
     }
   }
 
@@ -418,6 +446,13 @@ class AuthNotifier extends AsyncNotifier<User?> {
         if (updatedUser.picture != null && updatedUser.picture!.isNotEmpty) {
           await _notifyProfilePhotoUpdated(firebaseUser.uid, updatedUser.picture!);
         }
+        ref.read(cacheCoordinatorProvider).markFresh(CacheDomain.userProfile);
+        ref.read(cacheInvalidationBusProvider.notifier).publish(
+          CacheInvalidationEvent(
+            type: 'profile_photo_updated',
+            userId: firebaseUser.uid,
+          ),
+        );
 
         // 6. Update state to trigger UI refresh with new profile photo
         state = AsyncValue.data(updatedUser);
@@ -491,6 +526,12 @@ class AuthNotifier extends AsyncNotifier<User?> {
         final chatNotifier = ref.read(chatProvider.notifier);
         chatNotifier.refreshUserPicture(firebaseUser.uid, '');
         await chatNotifier.refreshUserPictureFromServer(firebaseUser.uid);
+        ref.read(cacheInvalidationBusProvider.notifier).publish(
+          CacheInvalidationEvent(
+            type: 'profile_photo_removed',
+            userId: firebaseUser.uid,
+          ),
+        );
       }
     }
   }
@@ -544,6 +585,12 @@ class AuthNotifier extends AsyncNotifier<User?> {
       // NEW: If accepted, background refresh the friends list to ensure the chat modal gets updated!
       if (action == 'accept') {
         fetchFriendsList(); // Note: No await needed, let it update the cache silently!
+        ref.read(cacheInvalidationBusProvider.notifier).publish(
+          CacheInvalidationEvent(
+            type: 'friendship_changed',
+            userId: requesterId,
+          ),
+        );
       }
     } catch (e) {
       // 4. ROLLBACK: If API fails, revert state if we changed it

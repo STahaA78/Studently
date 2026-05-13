@@ -6,6 +6,7 @@ import 'package:studently/repositories/post.dart';
 import 'package:studently/services/firebase_auth.dart';
 import 'package:studently/logger.dart';
 import 'package:studently/providers/auth_provider.dart';
+import 'package:studently/providers/cache_freshness_provider.dart';
 import 'package:studently/services/storage.dart';
 
 final postRepositoryProvider = Provider<PostRepository>((ref) {
@@ -41,13 +42,23 @@ class FeedNotifier extends AsyncNotifier<List<Post>> {
       );
     }
 
-    final lastFetch = _feedStorage.getLastFetchTime();
-    final now = DateTime.now().millisecondsSinceEpoch;
+    final cache = ref.read(cacheCoordinatorProvider);
 
     // Setup periodic background refresh to keep cache fresh (Task 4)
     _refreshTimer?.cancel();
     _refreshTimer = Timer.periodic(const Duration(seconds: 30), (_) {
       silentRefresh();
+    });
+    ref.listen<int>(cacheInvalidationBusProvider, (_, __) {
+      final event = ref.read(cacheInvalidationBusProvider.notifier).latest();
+      if (event == null) return;
+      if (event.type == 'post_state_changed' ||
+          event.type == 'profile_updated' ||
+          event.type == 'profile_photo_updated' ||
+          event.type == 'profile_photo_removed') {
+        ref.read(cacheCoordinatorProvider).invalidate(CacheDomain.feedPosts);
+        silentRefresh();
+      }
     });
 
     ref.onDispose(() {
@@ -60,7 +71,7 @@ class FeedNotifier extends AsyncNotifier<List<Post>> {
       return state.value ?? [];
     }
 
-    if (lastFetch == null || (now - lastFetch) > 30000) {
+    if (cache.isStale(CacheDomain.feedPosts)) {
       // If cache is older than 30s, fetch silently in background
       _fetchFreshFeed(showError: false);
     }
@@ -83,7 +94,8 @@ class FeedNotifier extends AsyncNotifier<List<Post>> {
   }
 
   Future<void> _fetchFreshFeed({required bool showError}) async {
-    if (_isFetchingMore) return;
+    final cache = ref.read(cacheCoordinatorProvider);
+    if (_isFetchingMore || !cache.tryBeginRefresh(CacheDomain.feedPosts)) return;
     _isFetchingMore = true;
     try {
       _skip = 0;
@@ -102,8 +114,10 @@ class FeedNotifier extends AsyncNotifier<List<Post>> {
       state = AsyncValue.data(hydratedPosts);
       _feedStorage.saveFeed(hydratedPosts);
       _feedStorage.setLastFetchTime(DateTime.now().millisecondsSinceEpoch);
+      cache.endRefresh(CacheDomain.feedPosts, success: true);
     } catch (e, stack) {
       logger.e("Feed fetch failed", error: e, stackTrace: stack);
+      cache.endRefresh(CacheDomain.feedPosts, success: false);
       if (showError || (state.value?.isEmpty ?? true)) {
         state = AsyncValue.error(e, stack);
       }
@@ -113,12 +127,16 @@ class FeedNotifier extends AsyncNotifier<List<Post>> {
   }
 
   Future<void> refresh() async {
+    ref.read(cacheCoordinatorProvider).invalidate(CacheDomain.feedPosts);
     state = const AsyncLoading();
     await _fetchFreshFeed(showError: true);
   }
 
   /// Fetches new posts in the background without showing a loading spinner
   Future<void> silentRefresh() async {
+    if (!ref.read(cacheCoordinatorProvider).isStale(CacheDomain.feedPosts)) {
+      return;
+    }
     await _fetchFreshFeed(showError: false);
   }
 
@@ -195,6 +213,9 @@ class FeedNotifier extends AsyncNotifier<List<Post>> {
       final repo = ref.read(postRepositoryProvider);
       await repo.likePost(postId);
       _feedStorage.saveFeed(updatedList);
+      ref.read(cacheInvalidationBusProvider.notifier).publish(
+        const CacheInvalidationEvent(type: 'post_state_changed'),
+      );
     } catch (e) {
       state = AsyncValue.data(currentPosts);
     }
@@ -216,6 +237,9 @@ class FeedNotifier extends AsyncNotifier<List<Post>> {
       final repo = ref.read(postRepositoryProvider);
       await repo.deletePost(postId);
       _feedStorage.saveFeed(updatedList);
+      ref.read(cacheInvalidationBusProvider.notifier).publish(
+        const CacheInvalidationEvent(type: 'post_state_changed'),
+      );
     } catch (e) {
       state = AsyncValue.data(originalPosts);
     }
@@ -230,6 +254,9 @@ class FeedNotifier extends AsyncNotifier<List<Post>> {
     newList[index] = updatedPost;
     state = AsyncValue.data(newList);
     _feedStorage.saveFeed(newList);
+    ref.read(cacheInvalidationBusProvider.notifier).publish(
+      const CacheInvalidationEvent(type: 'post_state_changed'),
+    );
   }
 
   void updateAuthorNameLocally(String userId, String newName) {

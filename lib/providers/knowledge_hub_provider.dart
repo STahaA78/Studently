@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:studently/models/knowledge_hub.dart';
+import 'package:studently/providers/cache_freshness_provider.dart';
 import 'package:studently/repositories/knowledge_hub.dart';
 import 'dart:typed_data';
 
@@ -15,18 +16,30 @@ final knowledgeHubRepositoryProvider = Provider<KnowledgeHubRepository>((ref) {
 /// - First load: Checks cache, returns if available, otherwise fetches from API
 /// - Pull-to-refresh: Use ref.read(allCoursesFreshProvider.future) to force API fetch
 final allCoursesProvider = FutureProvider<List<Course>>((ref) async {
+  ref.watch(cacheInvalidationBusProvider);
   final repository = ref.watch(knowledgeHubRepositoryProvider);
-  return repository
-      .fetchAllCourses(); // Uses default forceRefresh: false (checks cache first)
+  final cache = ref.read(cacheCoordinatorProvider);
+  final courses = await repository.fetchAllCourses();
+  if (cache.isStale(CacheDomain.knowledgeCourses)) {
+    // fire-and-forget refresh while returning cached-first result
+    repository.fetchAllCourses(forceRefresh: true).then((_) {
+      cache.markFresh(CacheDomain.knowledgeCourses);
+      ref.invalidateSelf();
+    }).catchError((_) {});
+  }
+  return courses;
 });
 
 /// Provider to get fresh courses from API (bypasses cache)
 /// Use only for pull-to-refresh scenarios
 final allCoursesFreshProvider = FutureProvider<List<Course>>((ref) async {
   final repository = ref.watch(knowledgeHubRepositoryProvider);
-  return repository.fetchAllCourses(
+  final cache = ref.read(cacheCoordinatorProvider);
+  final courses = await repository.fetchAllCourses(
     forceRefresh: true,
   ); // Bypass cache, fetch fresh
+  cache.markFresh(CacheDomain.knowledgeCourses);
+  return courses;
 });
 
 // ==================== RESOURCES PROVIDERS ====================
@@ -38,10 +51,19 @@ final resourcesByCourseProvider = FutureProvider.family<ResourceGroup, String>((
   ref,
   courseId,
 ) async {
+  ref.watch(cacheInvalidationBusProvider);
   final repository = ref.watch(knowledgeHubRepositoryProvider);
-  return repository.fetchResourcesByCourse(
+  final cache = ref.read(cacheCoordinatorProvider);
+  final resources = await repository.fetchResourcesByCourse(
     courseId,
   ); // Uses default forceRefresh: false
+  if (cache.isStale(CacheDomain.knowledgeCourseResources, scopeId: courseId)) {
+    repository.fetchResourcesByCourse(courseId, forceRefresh: true).then((_) {
+      cache.markFresh(CacheDomain.knowledgeCourseResources, scopeId: courseId);
+      ref.invalidateSelf();
+    }).catchError((_) {});
+  }
+  return resources;
 });
 
 /// Provider to get fresh resources from API for a course (bypasses cache)
@@ -50,10 +72,13 @@ final resourcesByCourseProvider = FutureProvider.family<ResourceGroup, String>((
 final resourcesCourseFreshProvider =
     FutureProvider.family<ResourceGroup, String>((ref, courseId) async {
       final repository = ref.watch(knowledgeHubRepositoryProvider);
-      return repository.fetchResourcesByCourse(
+      final cache = ref.read(cacheCoordinatorProvider);
+      final resources = await repository.fetchResourcesByCourse(
         courseId,
         forceRefresh: true,
       ); // Bypass cache
+      cache.markFresh(CacheDomain.knowledgeCourseResources, scopeId: courseId);
+      return resources;
     });
 
 /// Provider for fetching all resource groups
@@ -61,7 +86,9 @@ final allResourceGroupsProvider = FutureProvider<List<ResourceGroup>>((
   ref,
 ) async {
   final repository = ref.watch(knowledgeHubRepositoryProvider);
-  return repository.fetchResourceGroups(forceRefresh: false);
+  final groups = await repository.fetchResourceGroups(forceRefresh: false);
+  ref.read(cacheCoordinatorProvider).markFresh(CacheDomain.knowledgeCourseResources);
+  return groups;
 });
 
 // ==================== DOWNLOAD PROVIDERS ====================
@@ -136,6 +163,16 @@ final resourceUploadFunctionProvider =
             'Either filePath or (fileBytes + filename) must be provided',
           );
         }
+        ref.read(cacheCoordinatorProvider).invalidate(
+          CacheDomain.knowledgeCourseResources,
+          scopeId: resourceItemRequest.course.code,
+        );
+        ref.read(cacheInvalidationBusProvider.notifier).publish(
+          CacheInvalidationEvent(
+            type: 'knowledge_resource_uploaded',
+            courseId: resourceItemRequest.course.code,
+          ),
+        );
       };
     });
 
@@ -144,6 +181,7 @@ final resourceUploadFunctionProvider =
 /// Custom refresh function for courses - fetches fresh from API then updates cache
 final refreshAllCoursesProvider = Provider<Future<void> Function()>((ref) {
   return () async {
+    ref.read(cacheCoordinatorProvider).invalidate(CacheDomain.knowledgeCourses);
     // ignore: unused_result
     ref.refresh(allCoursesFreshProvider);
     // Wait for fresh data to be fetched and cached
@@ -158,6 +196,10 @@ final refreshAllCoursesProvider = Provider<Future<void> Function()>((ref) {
 final refreshResourcesForCourseProvider =
     Provider.family<Future<void> Function(), String>((ref, courseId) {
       return () async {
+        ref.read(cacheCoordinatorProvider).invalidate(
+          CacheDomain.knowledgeCourseResources,
+          scopeId: courseId,
+        );
         // ignore: unused_result
         ref.refresh(resourcesCourseFreshProvider(courseId));
         // Wait for fresh data to be fetched and cached

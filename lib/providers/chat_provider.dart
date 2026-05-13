@@ -7,6 +7,7 @@ import 'package:studently/services/socket.dart';
 import 'package:studently/services/firebase_auth.dart';
 import 'package:studently/services/chat_presence.dart';
 import 'package:studently/logger.dart';
+import 'package:studently/providers/cache_freshness_provider.dart';
 import 'package:studently/services/storage.dart';
 import 'dart:async';
 
@@ -104,6 +105,8 @@ class ChatNotifier extends Notifier<ChatState> {
       socketService.disconnect();
     });
 
+    _listenToCacheEvents();
+
     // 4. Initialize API and Socket connection
     Future.microtask(() => _init());
 
@@ -122,6 +125,23 @@ class ChatNotifier extends Notifier<ChatState> {
     _startUserPicsRefreshTimer();
   }
 
+  void _listenToCacheEvents() {
+    ref.listen<int>(cacheInvalidationBusProvider, (_, __) {
+      final event = ref.read(cacheInvalidationBusProvider.notifier).latest();
+      if (event == null) return;
+      if (event.type == 'profile_photo_updated' ||
+          event.type == 'profile_photo_removed' ||
+          event.type == 'profile_updated' ||
+          event.type == 'friendship_changed') {
+        ref.read(cacheCoordinatorProvider).invalidate(CacheDomain.chatUserProfiles);
+        _refreshAllUserPicturesFromServer(force: true);
+      } else if (event.type == 'chat_state_changed') {
+        ref.read(cacheCoordinatorProvider).invalidate(CacheDomain.chatConversations);
+        fetchConversations();
+      }
+    });
+  }
+
   /// Start a timer that periodically refreshes user pictures
   /// This mirrors the feed provider's silentRefresh pattern
   void _startUserPicsRefreshTimer() {
@@ -133,9 +153,15 @@ class ChatNotifier extends Notifier<ChatState> {
 
   /// Refresh all user pictures from the server without blocking UI
   /// This is called periodically to ensure profile picture updates are shown
-  Future<void> _refreshAllUserPicturesFromServer() async {
+  Future<void> _refreshAllUserPicturesFromServer({bool force = false}) async {
+    final cache = ref.read(cacheCoordinatorProvider);
+    if (!force && !cache.isStale(CacheDomain.chatUserProfiles)) return;
+    if (!cache.tryBeginRefresh(CacheDomain.chatUserProfiles)) return;
     final convos = state.conversations;
-    if (convos.isEmpty) return;
+    if (convos.isEmpty) {
+      cache.endRefresh(CacheDomain.chatUserProfiles, success: true);
+      return;
+    }
 
     final myUid = authService.value.currentUser?.uid;
     final userIdsToFetch = <String>{};
@@ -151,7 +177,10 @@ class ChatNotifier extends Notifier<ChatState> {
       }
     }
 
-    if (userIdsToFetch.isEmpty) return;
+    if (userIdsToFetch.isEmpty) {
+      cache.endRefresh(CacheDomain.chatUserProfiles, success: true);
+      return;
+    }
 
     final updatedPics = Map<String, String>.from(state.userPics);
     final updatedNames = Map<String, String>.from(state.userNames);
@@ -180,6 +209,7 @@ class ChatNotifier extends Notifier<ChatState> {
       _chatStorage.saveUserPics(updatedPics);
       logger.i("[ChatProvider] Periodic refresh updated user pictures");
     }
+    cache.endRefresh(CacheDomain.chatUserProfiles, success: true);
   }
 
   Future<String?> createOrGetConversation(String friendId) async {
@@ -297,6 +327,7 @@ class ChatNotifier extends Notifier<ChatState> {
 
       state = state.copyWith(conversations: mergedConvos);
       _chatStorage.saveConversations(mergedConvos);
+      ref.read(cacheCoordinatorProvider).markFresh(CacheDomain.chatConversations);
 
       _fetchMissingNames(mergedConvos);
     } catch (e) {
@@ -476,6 +507,7 @@ class ChatNotifier extends Notifier<ChatState> {
     updatedPics[userId] = newPhotoUrl;
     state = state.copyWith(userPics: updatedPics);
     _chatStorage.saveUserPics(updatedPics);
+    ref.read(cacheCoordinatorProvider).invalidate(CacheDomain.chatUserProfiles);
     logger.i("[ChatProvider] Updated cached picture for user $userId");
   }
 
@@ -519,6 +551,8 @@ class ChatNotifier extends Notifier<ChatState> {
   /// Called when a user's profile picture has been updated
   /// This ensures the change is reflected in both active chats and the friends list
   Future<void> refreshUserPictureFromServer(String userId) async {
+    final cache = ref.read(cacheCoordinatorProvider);
+    if (!cache.tryBeginRefresh(CacheDomain.chatUserProfiles, scopeId: userId)) return;
     try {
       final profile = await _chatRepo.getUserProfileBasic(userId);
       final newPic = profile['picture'] ?? "";
@@ -533,9 +567,11 @@ class ChatNotifier extends Notifier<ChatState> {
       state = state.copyWith(userNames: updatedNames, userPics: updatedPics);
       _chatStorage.saveUserNames(updatedNames);
       _chatStorage.saveUserPics(updatedPics);
+      cache.endRefresh(CacheDomain.chatUserProfiles, scopeId: userId, success: true);
       
       logger.i("[ChatProvider] Refreshed picture for user $userId from server");
     } catch (e) {
+      cache.endRefresh(CacheDomain.chatUserProfiles, scopeId: userId, success: false);
       logger.w("[ChatProvider] Failed to refresh picture for $userId: $e");
     }
   }

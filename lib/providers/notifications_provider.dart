@@ -9,6 +9,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:studently/logger.dart';
 import 'package:studently/models/notifications.dart';
 import 'package:studently/models/post.dart';
+import 'package:studently/providers/cache_freshness_provider.dart';
 import 'package:studently/providers/feed_provider.dart';
 import 'package:studently/repositories/notifications.dart';
 import 'package:studently/repositories/chat.dart';
@@ -96,21 +97,36 @@ class NotificationController extends Notifier<NotificationState> {
       isLoading: true,
       notifications: _storage.getCachedNotifications(),
     );
+    ref.listen<int>(cacheInvalidationBusProvider, (_, __) {
+      final event = ref.read(cacheInvalidationBusProvider.notifier).latest();
+      if (event == null) return;
+      if (event.type == 'notification_state_changed') {
+        ref.read(cacheCoordinatorProvider).invalidate(CacheDomain.notifications);
+        refreshFromServer();
+      }
+    });
 
     await _configureMessaging(uid);
-    await refreshFromServer();
+    final cache = ref.read(cacheCoordinatorProvider);
+    if (cache.isStale(CacheDomain.notifications)) {
+      await refreshFromServer();
+    }
     await processPendingTapIfAny();
 
     state = state.copyWith(isLoading: false, initialized: true);
   }
 
   Future<void> refreshFromServer() async {
+    final cache = ref.read(cacheCoordinatorProvider);
+    if (!cache.tryBeginRefresh(CacheDomain.notifications)) return;
     try {
       final fresh = await _repository.fetchNotifications(skip: 0, limit: 100);
       final visible = _filterVisibleNotifications(fresh);
       state = state.copyWith(notifications: visible);
       await _storage.saveNotifications(visible);
+      cache.endRefresh(CacheDomain.notifications, success: true);
     } catch (e) {
+      cache.endRefresh(CacheDomain.notifications, success: false);
       logger.e('[NotificationController] refresh failed: $e');
     }
   }
@@ -133,6 +149,9 @@ class NotificationController extends Notifier<NotificationState> {
     await _storage.markAsReadLocally(id);
     await _repository.markAsRead(id);
     await _clearSystemNotificationsIfSupported();
+    ref.read(cacheInvalidationBusProvider.notifier).publish(
+      const CacheInvalidationEvent(type: 'notification_state_changed'),
+    );
   }
 
   Future<void> clearForLogout() async {
@@ -151,6 +170,7 @@ class NotificationController extends Notifier<NotificationState> {
     _lastHandledTapSignature = null;
     state = const NotificationState(notifications: []);
     await _storage.clearStorage();
+    ref.read(cacheCoordinatorProvider).invalidate(CacheDomain.notifications);
   }
 
   Future<void> markAllAsRead() async {
@@ -170,6 +190,9 @@ class NotificationController extends Notifier<NotificationState> {
       return;
     }
     await _clearSystemNotificationsIfSupported();
+    ref.read(cacheInvalidationBusProvider.notifier).publish(
+      const CacheInvalidationEvent(type: 'notification_state_changed'),
+    );
   }
 
   Future<void> _configureMessaging(String uid) async {
@@ -219,6 +242,7 @@ class NotificationController extends Notifier<NotificationState> {
       final isActiveChatMessage =
           messageType == 'NEW_MESSAGE' &&
           entityId == ChatPresence.activeConversationId;
+      _publishCacheEventsFromPayload(message.data);
 
       await _handleForegroundMessage(message);
 
@@ -243,6 +267,7 @@ class NotificationController extends Notifier<NotificationState> {
       message,
     ) async {
       if (!_isSessionCompatible(uid)) return;
+      _publishCacheEventsFromPayload(message.data);
 
       final messageType = message.data['type']?.toString();
       if (messageType == 'NEW_POST' ||
@@ -256,6 +281,7 @@ class NotificationController extends Notifier<NotificationState> {
 
     final initialMessage = await _messaging.getInitialMessage();
     if (initialMessage != null && _isSessionCompatible(uid)) {
+      _publishCacheEventsFromPayload(initialMessage.data);
       final messageType = initialMessage.data['type']?.toString();
       if (messageType == 'NEW_POST' ||
           messageType == 'NEW_COMMENT' ||
@@ -420,8 +446,88 @@ class NotificationController extends Notifier<NotificationState> {
   }
 
   Future<void> _routeByPayloadOrQueue(Map<String, dynamic> payload) async {
+    _publishCacheEventsFromPayload(payload);
     _pendingTapPayload = payload;
     await processPendingTapIfAny();
+  }
+
+  void _publishCacheEventsFromPayload(Map<String, dynamic> payload) {
+    final type = payload['type']?.toString() ?? '';
+    final normalizedType = type.toUpperCase();
+    final entityId = payload['entity_id']?.toString();
+    final actorId = payload['actor_id']?.toString();
+    final bus = ref.read(cacheInvalidationBusProvider.notifier);
+    final cache = ref.read(cacheCoordinatorProvider);
+
+    switch (normalizedType) {
+      case 'NEW_POST':
+      case 'NEW_COMMENT':
+      case 'POST_LIKE':
+      case 'POST_UNLIKE':
+      case 'POST_LIKE_REMOVED':
+      case 'COMMENT_DELETED':
+      case 'COMMENT_REMOVED':
+      case 'POST_DELETED':
+      case 'POST_REMOVED':
+        cache.invalidate(CacheDomain.feedPosts);
+        bus.publish(const CacheInvalidationEvent(type: 'post_state_changed'));
+        break;
+      case 'NEW_MESSAGE':
+        cache.invalidate(CacheDomain.chatConversations);
+        bus.publish(const CacheInvalidationEvent(type: 'chat_state_changed'));
+        break;
+      case 'FRIEND_REQUEST':
+      case 'FRIEND_REQUEST_ACCEPTED':
+      case 'FRIEND_REQUEST_REJECTED':
+      case 'FRIEND_REQUEST_DECLINED':
+        cache.invalidate(CacheDomain.friendsList);
+        cache.invalidate(CacheDomain.chatConversations);
+        bus.publish(
+          CacheInvalidationEvent(
+            type: 'friendship_changed',
+            userId: actorId ?? entityId,
+          ),
+        );
+        break;
+      case 'PROFILE_UPDATED':
+      case 'PROFILE_PHOTO_UPDATED':
+      case 'PROFILE_PHOTO_REMOVED':
+        cache.invalidate(CacheDomain.userProfile);
+        cache.invalidate(CacheDomain.friendsList);
+        cache.invalidate(CacheDomain.chatUserProfiles);
+        bus.publish(
+          CacheInvalidationEvent(
+            type: type == 'PROFILE_PHOTO_REMOVED'
+                ? 'profile_photo_removed'
+                : 'profile_photo_updated',
+            userId: actorId ?? entityId,
+          ),
+        );
+        break;
+      case 'KNOWLEDGE_RESOURCE_UPLOADED':
+      case 'KNOWLEDGE_RESOURCE_DELETED':
+      case 'KNOWLEDGE_COURSE_UPDATED':
+        final courseId = entityId;
+        cache.invalidate(CacheDomain.knowledgeCourses);
+        if (courseId != null && courseId.isNotEmpty) {
+          cache.invalidate(
+            CacheDomain.knowledgeCourseResources,
+            scopeId: courseId,
+          );
+        } else {
+          cache.invalidate(CacheDomain.knowledgeCourseResources);
+        }
+        bus.publish(
+          CacheInvalidationEvent(
+            type: type.toLowerCase(),
+            courseId: courseId,
+          ),
+        );
+        break;
+      default:
+        // Unknown push type: keep no-op to avoid accidental broad invalidation.
+        break;
+    }
   }
 
   bool _isSessionCompatible(String uid) {
