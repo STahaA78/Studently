@@ -2,8 +2,10 @@ import 'package:studently/app_style.dart';
 import 'package:flutter/material.dart';
 import 'package:studently/models/chat.dart';
 import 'package:studently/screens/chat_page.dart';
-import 'package:studently/services/firebase_auth.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:cached_network_image/cached_network_image.dart';
+import 'package:studently/services/firebase_auth.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:studently/providers/chat_provider.dart';
 import 'package:studently/providers/auth_provider.dart'; // NEW: Added AuthProvider
 
@@ -39,7 +41,8 @@ class _DirectMessagesPageState extends ConsumerState<DirectMessagesPage> {
   String _formatTimestamp(String? isoString) {
     if (isoString == null || isoString.isEmpty) return "";
     try {
-      final date = DateTime.parse(isoString).toLocal();
+      final String safeTimestamp = isoString.endsWith('Z') ? isoString : '${isoString}Z';
+      final date = DateTime.parse(safeTimestamp).toLocal();
       final now = DateTime.now();
       if (date.year == now.year &&
           date.month == now.month &&
@@ -64,7 +67,7 @@ class _DirectMessagesPageState extends ConsumerState<DirectMessagesPage> {
     List<ChatConversation> allConversations,
     Map<String, String> userNames,
   ) {
-    final String? myId = authService.value.currentUser?.uid;
+    final String? myId = FirebaseAuth.instance.currentUser?.uid;
     final query = _searchController.text.toLowerCase();
 
     List<ChatConversation> filtered = allConversations.where((chat) {
@@ -164,7 +167,7 @@ class _DirectMessagesPageState extends ConsumerState<DirectMessagesPage> {
     // Apply filters passing the conversations AND the fast name cache
     _applyFilter(chatState.conversations, chatState.userNames);
 
-    final String? myId = authService.value.currentUser?.uid;
+    final String? myId = FirebaseAuth.instance.currentUser?.uid;
 
     return Scaffold(
       backgroundColor: Colors.white,
@@ -234,10 +237,13 @@ class _DirectMessagesPageState extends ConsumerState<DirectMessagesPage> {
                               orElse: () => "Unknown",
                             );
 
-                      // Instant name lookup from the Provider cache!
+                      // Instant name and pic lookup from the Provider cache!
                       final String displayName = isGroup
                           ? (chat.title ?? "Group Chat")
                           : (chatState.userNames[otherUserId] ?? "Loading...");
+                      final String userPic = isGroup
+                          ? ""
+                          : (chatState.userPics[otherUserId] ?? "");
 
                       final int unreadCount = chat.unreadCounts[myId] ?? 0;
                       final String lastMsgTime = _formatTimestamp(
@@ -251,6 +257,7 @@ class _DirectMessagesPageState extends ConsumerState<DirectMessagesPage> {
                         unreadCount,
                         lastMsgTime,
                         isGroup,
+                        userPic,
                       );
                     },
                   ),
@@ -318,6 +325,7 @@ class _DirectMessagesPageState extends ConsumerState<DirectMessagesPage> {
     int unreadCount,
     String lastMsgTime,
     bool isGroup,
+    String userPic,
   ) {
     return InkWell(
       onTap: () {
@@ -345,18 +353,21 @@ class _DirectMessagesPageState extends ConsumerState<DirectMessagesPage> {
               backgroundColor: isGroup
                   ? Colors.orange.shade400
                   : AppStyle.primaryBlue,
+              backgroundImage: userPic.isNotEmpty ? CachedNetworkImageProvider(userPic) : null,
               child: isGroup
                   ? const Icon(Icons.groups, color: Colors.white, size: 26)
-                  : Text(
-                      displayName != "Loading..." && displayName.isNotEmpty
-                          ? displayName[0].toUpperCase()
-                          : "?",
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontWeight: FontWeight.bold,
-                        fontSize: 18,
-                      ),
-                    ),
+                  : (userPic.isEmpty
+                      ? Text(
+                          displayName != "Loading..." && displayName.isNotEmpty
+                              ? displayName[0].toUpperCase()
+                              : "?",
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 18,
+                          ),
+                        )
+                      : null),
             ),
             const SizedBox(width: 13),
             Expanded(
@@ -537,19 +548,21 @@ class _DirectMessagesPageState extends ConsumerState<DirectMessagesPage> {
                             itemCount: displayList.length,
                             itemBuilder: (context, index) {
                               final friend = displayList[index];
+                              final friendPic = friend['picture'] ?? "";
                               return ListTile(
                                 contentPadding: const EdgeInsets.symmetric(
                                   vertical: 5,
                                 ),
                                 leading: CircleAvatar(
                                   backgroundColor: const Color(0xFFE8F0FE),
-                                  child: Text(
+                                  backgroundImage: friendPic.isNotEmpty ? CachedNetworkImageProvider(friendPic) : null,
+                                  child: friendPic.isEmpty ? Text(
                                     friend['Name']![0].toUpperCase(),
                                     style: const TextStyle(
                                       color: AppStyle.primaryBlue,
                                       fontWeight: FontWeight.bold,
                                     ),
-                                  ),
+                                  ) : null,
                                 ),
                                 title: Text(
                                   friend['Name']!,

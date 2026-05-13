@@ -17,6 +17,7 @@ class ChatState {
   final String? activeConversationId;
   final bool isLoading;
   final Map<String, String> userNames;
+  final Map<String, String> userPics;
 
   ChatState({
     this.conversations = const [],
@@ -24,6 +25,7 @@ class ChatState {
     this.activeConversationId,
     this.isLoading = false,
     this.userNames = const {},
+    this.userPics = const {},
   });
 
   ChatState copyWith({
@@ -32,6 +34,7 @@ class ChatState {
     String? activeConversationId,
     bool? isLoading,
     Map<String, String>? userNames,
+    Map<String, String>? userPics,
   }) {
     return ChatState(
       conversations: conversations ?? this.conversations,
@@ -39,6 +42,7 @@ class ChatState {
       activeConversationId: activeConversationId ?? this.activeConversationId,
       isLoading: isLoading ?? this.isLoading,
       userNames: userNames ?? this.userNames,
+      userPics: userPics ?? this.userPics,
     );
   }
 }
@@ -63,6 +67,7 @@ class ChatNotifier extends Notifier<ChatState> {
       activeConversationId: null,
       isLoading: false,
       userNames: state.userNames,
+      userPics: state.userPics,
     );
   }
 
@@ -139,8 +144,9 @@ class ChatNotifier extends Notifier<ChatState> {
 
   void _loadNamesFromHive() {
     final namesMap = _chatStorage.getCachedUserNames();
-    if (namesMap.isNotEmpty) {
-      state = state.copyWith(userNames: namesMap);
+    final picsMap = _chatStorage.getCachedUserPics();
+    if (namesMap.isNotEmpty || picsMap.isNotEmpty) {
+      state = state.copyWith(userNames: namesMap, userPics: picsMap);
     }
   }
 
@@ -161,17 +167,21 @@ class ChatNotifier extends Notifier<ChatState> {
     if (missingIds.isEmpty) return;
 
     final updatedNames = Map<String, String>.from(state.userNames);
+    final updatedPics = Map<String, String>.from(state.userPics);
     for (final id in missingIds) {
       try {
-        final name = await _chatRepo.getUserName(id);
-        updatedNames[id] = name;
+        final profile = await _chatRepo.getUserProfileBasic(id);
+        updatedNames[id] = profile['name'] ?? "Unknown User";
+        updatedPics[id] = profile['picture'] ?? "";
       } catch (e) {
         updatedNames[id] = "Unknown User";
+        updatedPics[id] = "";
       }
     }
 
-    state = state.copyWith(userNames: updatedNames);
+    state = state.copyWith(userNames: updatedNames, userPics: updatedPics);
     _chatStorage.saveUserNames(updatedNames);
+    _chatStorage.saveUserPics(updatedPics);
   }
 
   // --- API & CACHING FOR CONVERSATIONS ---

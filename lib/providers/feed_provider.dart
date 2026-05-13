@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:studently/models/post.dart';
 import 'package:studently/repositories/post.dart';
@@ -18,6 +19,7 @@ class FeedNotifier extends AsyncNotifier<List<Post>> {
   final int _limit = 20;
   bool _hasMore = true;
   bool _isFetchingMore = false;
+  Timer? _refreshTimer;
 
   @override
   Future<List<Post>> build() async {
@@ -42,9 +44,24 @@ class FeedNotifier extends AsyncNotifier<List<Post>> {
     final lastFetch = _feedStorage.getLastFetchTime();
     final now = DateTime.now().millisecondsSinceEpoch;
 
-    if (cachedPosts.isEmpty ||
-        lastFetch == null ||
-        (now - lastFetch) > 300000) {
+    // Setup periodic background refresh to keep cache fresh (Task 4)
+    _refreshTimer?.cancel();
+    _refreshTimer = Timer.periodic(const Duration(seconds: 30), (_) {
+      silentRefresh();
+    });
+
+    ref.onDispose(() {
+      _refreshTimer?.cancel();
+    });
+
+    if (cachedPosts.isEmpty) {
+      // Task 3: If cache is empty (first load), await the fetch so we show loading state
+      await _fetchFreshFeed(showError: false);
+      return state.value ?? [];
+    }
+
+    if (lastFetch == null || (now - lastFetch) > 30000) {
+      // If cache is older than 30s, fetch silently in background
       _fetchFreshFeed(showError: false);
     }
 
@@ -240,6 +257,7 @@ class ProfileFeedNotifier extends AsyncNotifier<List<Post>> {
   int _skip = 0;
   final int _limit = 50;
   bool _hasMore = true;
+  Timer? _refreshTimer;
 
   @override
   Future<List<Post>> build() async {
@@ -259,6 +277,20 @@ class ProfileFeedNotifier extends AsyncNotifier<List<Post>> {
       cachedPosts = cachedPosts
           .map((p) => p.copyWith(authorName: currentUser.name))
           .toList();
+    }
+
+    _refreshTimer?.cancel();
+    _refreshTimer = Timer.periodic(const Duration(seconds: 30), (_) {
+      silentRefresh();
+    });
+
+    ref.onDispose(() {
+      _refreshTimer?.cancel();
+    });
+
+    if (cachedPosts.isEmpty) {
+      await _fetchProfilePosts(reset: true);
+      return state.value ?? [];
     }
 
     _fetchProfilePosts(reset: true);

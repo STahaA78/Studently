@@ -60,6 +60,7 @@ class NotificationController extends Notifier<NotificationState> {
   Timer? _fallbackSyncTimer;
   Map<String, dynamic>? _pendingTapPayload;
   bool _isTapRoutingInProgress = false;
+  String? _lastHandledTapSignature;
 
   String? _registeredToken;
   String? _initializedUid;
@@ -147,6 +148,7 @@ class NotificationController extends Notifier<NotificationState> {
 
     _initializedUid = null;
     _pendingTapPayload = null;
+    _lastHandledTapSignature = null;
     state = const NotificationState(notifications: []);
     await _storage.clearStorage();
   }
@@ -248,9 +250,8 @@ class NotificationController extends Notifier<NotificationState> {
           messageType == 'POST_LIKE') {
         ref.read(feedProvider.notifier).silentRefresh();
       }
-
-      await refreshFromServer();
       await _routeByPayloadOrQueue(message.data);
+      unawaited(refreshFromServer());
     });
 
     final initialMessage = await _messaging.getInitialMessage();
@@ -262,8 +263,8 @@ class NotificationController extends Notifier<NotificationState> {
         Future.microtask(() => ref.read(feedProvider.notifier).silentRefresh());
       }
 
-      await refreshFromServer();
       await _routeByPayloadOrQueue(initialMessage.data);
+      unawaited(refreshFromServer());
     }
 
     _fallbackSyncTimer = Timer.periodic(const Duration(seconds: 30), (_) async {
@@ -291,8 +292,8 @@ class NotificationController extends Notifier<NotificationState> {
           if (payload == null || payload.isEmpty) return;
           try {
             final data = jsonDecode(payload) as Map<String, dynamic>;
-            await refreshFromServer();
             await _routeByPayloadOrQueue(data);
+            unawaited(refreshFromServer());
           } catch (e) {
             logger.w(
               '[NotificationController] Invalid local notification payload: $e',
@@ -312,6 +313,7 @@ class NotificationController extends Notifier<NotificationState> {
           try {
             final data = jsonDecode(launchPayload) as Map<String, dynamic>;
             await _routeByPayloadOrQueue(data);
+            unawaited(refreshFromServer());
           } catch (e) {
             logger.w('[NotificationController] Invalid launch payload: $e');
           }
@@ -447,15 +449,21 @@ class NotificationController extends Notifier<NotificationState> {
     final payloadNotificationId = payload['notification_id']?.toString() ?? '';
     var entityId = payload['entity_id']?.toString() ?? '';
     var actorId = payload['actor_id']?.toString() ?? '';
+    final signature = '$type|$payloadNotificationId|$entityId|$actorId';
+    if (_lastHandledTapSignature == signature) {
+      return true;
+    }
 
     AppNotification? appNotification;
     if (payloadNotificationId.isNotEmpty) {
       appNotification = _findById(payloadNotificationId);
-      if (appNotification == null) {
-        await refreshFromServer();
-        appNotification = _findById(payloadNotificationId);
+      if (appNotification != null) {
+        unawaited(markAsRead(payloadNotificationId));
+      } else {
+        unawaited(refreshFromServer().then((_) async {
+          await markAsRead(payloadNotificationId);
+        }));
       }
-      await markAsRead(payloadNotificationId);
     }
 
     if (entityId.isEmpty) {
@@ -482,14 +490,15 @@ class NotificationController extends Notifier<NotificationState> {
         case 'NEW_MESSAGE':
           if (entityId.isEmpty) {
             await openNotificationsFallback();
+            _lastHandledTapSignature = signature;
             return true;
           }
-          var otherUserName = 'Chat';
-          if (actorId.isNotEmpty) {
-            try {
-              otherUserName = await ChatRepository().getUserName(actorId);
-            } catch (_) {}
-          }
+          var otherUserName = 'Chat'; // 
+          // if (actorId.isNotEmpty) {
+            // try {
+              // otherUserName = await ChatRepository().getUserName(actorId);
+            // } catch (_) {}
+          // }
           await navigator.push(
             MaterialPageRoute(
               builder: (_) => ChatPage(
@@ -499,26 +508,39 @@ class NotificationController extends Notifier<NotificationState> {
               ),
             ),
           );
+          _lastHandledTapSignature = signature;
           return true;
 
         case 'POST_LIKE':
         case 'NEW_COMMENT':
           if (entityId.isEmpty) {
             await openNotificationsFallback();
+            _lastHandledTapSignature = signature;
             return true;
           }
           try {
-            // Check cache first to bypass potential 500 error on api call
-            final currentFeed = ref.read(feedProvider).value ?? [];
+            final repo = ref.read(postRepositoryProvider);
             Post? targetPost;
-            try {
-              targetPost = currentFeed.firstWhere((p) => p.id == entityId);
-            } catch (_) {}
 
-            // Fallback to network if not in local feed
+            // Prefer latest single-post fetch for deep links so comments/likes
+            // are current even if feed cache is slightly behind.
+            try {
+              targetPost = await repo
+                  .getPostById(entityId)
+                  .timeout(const Duration(milliseconds: 1500));
+              ref.read(feedProvider.notifier).updatePostLocally(targetPost);
+            } catch (_) {
+              // If details fetch fails/timeout, fall back to current feed cache.
+              final currentFeed = ref.read(feedProvider).value ?? [];
+              try {
+                targetPost = currentFeed.firstWhere((p) => p.id == entityId);
+              } catch (_) {}
+            }
+
             if (targetPost == null) {
-              final repo = ref.read(postRepositoryProvider);
-              targetPost = await repo.getPostById(entityId);
+              await openNotificationsFallback();
+              _lastHandledTapSignature = signature;
+              return true;
             }
 
             await navigator.push(
@@ -526,8 +548,10 @@ class NotificationController extends Notifier<NotificationState> {
                 builder: (_) => PostDetailsPage(postData: targetPost!),
               ),
             );
+            _lastHandledTapSignature = signature;
           } catch (_) {
             await openNotificationsFallback();
+            _lastHandledTapSignature = signature;
           }
           return true;
 
@@ -535,6 +559,7 @@ class NotificationController extends Notifier<NotificationState> {
           final targetUserId = actorId.isNotEmpty ? actorId : entityId;
           if (targetUserId.isEmpty) {
             await openNotificationsFallback();
+            _lastHandledTapSignature = signature;
             return true;
           }
           await navigator.push(
@@ -542,12 +567,14 @@ class NotificationController extends Notifier<NotificationState> {
               builder: (_) => ProfilePage(userId: targetUserId),
             ),
           );
+          _lastHandledTapSignature = signature;
           return true;
 
         case 'FRIEND_REQUEST_ACCEPTED':
           final targetUserId = actorId.isNotEmpty ? actorId : entityId;
           if (targetUserId.isEmpty) {
             await openNotificationsFallback();
+            _lastHandledTapSignature = signature;
             return true;
           }
           await navigator.push(
@@ -555,14 +582,27 @@ class NotificationController extends Notifier<NotificationState> {
               builder: (_) => ProfilePage(userId: targetUserId),
             ),
           );
+          _lastHandledTapSignature = signature;
           return true;
 
         default:
           await openNotificationsFallback();
+          _lastHandledTapSignature = signature;
           return true;
       }
     } finally {
       _isTapRoutingInProgress = false;
+    }
+  }
+
+  Future<void> _refreshFeedForPostTap() async {
+    try {
+      await ref
+          .read(feedProvider.notifier)
+          .silentRefresh()
+          .timeout(const Duration(milliseconds: 1200));
+    } catch (_) {
+      // Timeout/failure should not block routing.
     }
   }
 }

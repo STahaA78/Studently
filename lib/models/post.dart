@@ -15,7 +15,10 @@ class Comment {
     return Comment(
       userId: json["user_id"] ?? "",
       username: json["username"] ?? "",
-      text: json["content"] ?? "",
+      // Support both payload shapes:
+      // - backend/API: "content"
+      // - legacy local cache: "text"
+      text: (json["content"] ?? json["text"] ?? "").toString(),
       timestamp: DateTime.parse(json["timestamp"].toString()).toLocal(),
     );
   }
@@ -24,7 +27,8 @@ class Comment {
     return {
       "user_id": userId,
       "username": username,
-      "text": text,
+      // Keep cache shape aligned with backend/API contract.
+      "content": text,
       "timestamp": timestamp.toIso8601String(),
     };
   }

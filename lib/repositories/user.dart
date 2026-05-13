@@ -226,7 +226,11 @@ class UserRepository {
     final response = await _apiService.get('/users/0/friends_list');
     final List<dynamic> data = jsonDecode(response.body);
     return data
-        .map((f) => {"id": f['_id'].toString(), "Name": f['name'].toString()})
+        .map((f) => {
+              "id": f['_id']?.toString() ?? f['id']?.toString() ?? "",
+              "Name": f['name']?.toString() ?? "",
+              "picture": f['picture']?.toString() ?? ""
+            })
         .toList();
   }
 }

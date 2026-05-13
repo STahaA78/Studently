@@ -45,10 +45,13 @@ class ChatRepository {
     await _apiService.post('/chat/$conversationId/read');
   }
 
-  Future<String> getUserName(String userId) async {
+  Future<Map<String, String>> getUserProfileBasic(String userId) async {
     final response = await _apiService.get('/users/$userId/profile');
     final data = jsonDecode(response.body);
-    return data['name'] ?? "Student User";
+    return {
+      'name': data['name']?.toString() ?? "Student User",
+      'picture': data['picture']?.toString() ?? "",
+    };
   }
 
   Future<String?> createOrGetConversation(String receiverId) async {

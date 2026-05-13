@@ -8,6 +8,7 @@ class ChatStorage {
   final Box _msgBox;
 
   static const _userNamesKey = 'user_names';
+  static const _userPicsKey = 'user_pics';
   static const _allConversationsKey = 'all_conversations';
 
   String _msgKey(String conversationId) => 'conv_$conversationId';
@@ -30,6 +31,24 @@ class ChatStorage {
 
   void saveUserNames(Map<String, String> names) {
     _convBox.put(_userNamesKey, jsonEncode(names));
+  }
+
+  // --- User Pics ---
+  Map<String, String> getCachedUserPics() {
+    final cachedPics = _convBox.get(_userPicsKey);
+    if (cachedPics != null) {
+      try {
+        final Map<String, dynamic> decoded = jsonDecode(cachedPics);
+        return decoded.map((key, value) => MapEntry(key, value.toString()));
+      } catch (e) {
+        logger.e('[ChatStorage] Error decoding user pics: $e');
+      }
+    }
+    return {};
+  }
+
+  void saveUserPics(Map<String, String> pics) {
+    _convBox.put(_userPicsKey, jsonEncode(pics));
   }
 
   // --- Conversations ---
