@@ -122,14 +122,14 @@ class _CommunityFeedPageState extends ConsumerState<CommunityFeedPage> {
                     title: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        SvgPicture.asset(
-                          'assets/images/logo.svg',
-                          height: AppStyle.logoSize*0.9,
-                          colorFilter: const ColorFilter.mode(
-                            AppStyle.primaryBlue,
-                            BlendMode.srcIn,
-                          ),
-                        ),
+                        // SvgPicture.asset(
+                        //   'assets/images/logo.svg',
+                        //   height: AppStyle.logoSize*0.9,
+                        //   colorFilter: const ColorFilter.mode(
+                        //     AppStyle.primaryBlue,
+                        //     BlendMode.srcIn,
+                        //   ),
+                        // ),
                         Flexible(
                           child: Text(
                             'Studently',

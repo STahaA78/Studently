@@ -376,7 +376,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                     // Edit Profile / Connect buttons
                     if (isMyProfile)
                       SizedBox(
-                        height: 48,
+                        height: 46,
                         width: double.infinity,
                         child: OutlinedButton(
                           onPressed: () {
