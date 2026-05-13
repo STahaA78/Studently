@@ -16,6 +16,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:studently/providers/feed_provider.dart';
 import 'package:studently/providers/notifications_provider.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:studently/utils/web_utils.dart' as web_utils;
 
 class CommunityFeedPage extends ConsumerStatefulWidget {
   const CommunityFeedPage({super.key});
@@ -144,7 +145,7 @@ class _CommunityFeedPageState extends ConsumerState<CommunityFeedPage> {
                       ],
                     ),
                     actions: [
-                      if (kIsWeb)
+                      if (kIsWeb & !web_utils.isStandalonePwa())
                         IconButton(
                           icon: const Icon(
                             Icons.refresh,

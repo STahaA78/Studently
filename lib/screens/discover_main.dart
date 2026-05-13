@@ -11,6 +11,7 @@ import 'package:studently/widgets/custom_nav_bar.dart';
 import 'package:studently/screens/discover_requests.dart';
 import 'package:studently/app_style.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:studently/utils/web_utils.dart' as web_utils;
 
 class ConnectDiscoverPage extends ConsumerStatefulWidget {
   const ConnectDiscoverPage({super.key});
@@ -243,7 +244,7 @@ class _ConnectDiscoverPageState extends ConsumerState<ConnectDiscoverPage> with 
         ),
         actions: [
           // Refresh button (web only)
-          if (kIsWeb)
+          if (kIsWeb && !web_utils.isStandalonePwa())
             IconButton(
               icon: const Icon(Icons.refresh, color: Colors.black),
               tooltip: 'Refresh profiles',
