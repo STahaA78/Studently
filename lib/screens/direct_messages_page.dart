@@ -4,7 +4,6 @@ import 'package:studently/models/chat.dart';
 import 'package:studently/screens/chat_page.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:cached_network_image/cached_network_image.dart';
-import 'package:studently/services/firebase_auth.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:studently/providers/chat_provider.dart';
 import 'package:studently/providers/auth_provider.dart'; // NEW: Added AuthProvider
@@ -353,7 +352,9 @@ class _DirectMessagesPageState extends ConsumerState<DirectMessagesPage> {
               backgroundColor: isGroup
                   ? Colors.orange.shade400
                   : AppStyle.primaryBlue,
-              backgroundImage: userPic.isNotEmpty ? CachedNetworkImageProvider(userPic) : null,
+              backgroundImage: userPic.isNotEmpty
+                  ? CachedNetworkImageProvider(userPic)
+                  : null,
               child: isGroup
                   ? const Icon(Icons.groups, color: Colors.white, size: 26)
                   : (userPic.isEmpty
@@ -555,14 +556,18 @@ class _DirectMessagesPageState extends ConsumerState<DirectMessagesPage> {
                                 ),
                                 leading: CircleAvatar(
                                   backgroundColor: const Color(0xFFE8F0FE),
-                                  backgroundImage: friendPic.isNotEmpty ? CachedNetworkImageProvider(friendPic) : null,
-                                  child: friendPic.isEmpty ? Text(
-                                    friend['Name']![0].toUpperCase(),
-                                    style: const TextStyle(
-                                      color: AppStyle.primaryBlue,
-                                      fontWeight: FontWeight.bold,
-                                    ),
-                                  ) : null,
+                                  backgroundImage: friendPic.isNotEmpty
+                                      ? CachedNetworkImageProvider(friendPic)
+                                      : null,
+                                  child: friendPic.isEmpty
+                                      ? Text(
+                                          friend['Name']![0].toUpperCase(),
+                                          style: const TextStyle(
+                                            color: AppStyle.primaryBlue,
+                                            fontWeight: FontWeight.bold,
+                                          ),
+                                        )
+                                      : null,
                                 ),
                                 title: Text(
                                   friend['Name']!,
