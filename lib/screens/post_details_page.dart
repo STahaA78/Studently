@@ -1,5 +1,6 @@
+import 'package:studently/app_style.dart';
 import 'package:flutter/material.dart';
-import 'package:studently/services/firebase_auth.dart'; 
+import 'package:studently/services/firebase_auth.dart';
 import '../models/post.dart';
 import 'profile_main.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -8,17 +9,13 @@ import '../providers/feed_provider.dart';
 class PostDetailsPage extends ConsumerStatefulWidget {
   final Post postData;
 
-  const PostDetailsPage({
-    super.key,
-    required this.postData,
-  });
+  const PostDetailsPage({super.key, required this.postData});
 
   @override
   ConsumerState<PostDetailsPage> createState() => _PostDetailsPageState();
 }
 
 class _PostDetailsPageState extends ConsumerState<PostDetailsPage> {
-
   late Post post;
   String? currentUserId;
 
@@ -41,7 +38,6 @@ class _PostDetailsPageState extends ConsumerState<PostDetailsPage> {
 
   /// ---------------- COMMENT SUBMIT ----------------
   Future<void> submitComment() async {
-
     final text = commentController.text.trim();
 
     if (text.isEmpty) return;
@@ -53,24 +49,23 @@ class _PostDetailsPageState extends ConsumerState<PostDetailsPage> {
       await repository.addComment(post.id, text);
 
       setState(() {
-
         final uid = authService.value.currentUser?.uid ?? "";
 
         final newComment = Comment(
-            userId: uid,
-            username: "You",
-            text: text,
-            timestamp: DateTime.now().toUtc(),
-          );
-        
-        final updatedComments = List<Comment>.from(post.comments)..add(newComment);
+          userId: uid,
+          username: "You",
+          text: text,
+          timestamp: DateTime.now().toUtc(),
+        );
+
+        final updatedComments = List<Comment>.from(post.comments)
+          ..add(newComment);
         post = post.copyWith(comments: updatedComments);
 
         commentController.clear();
       });
-      
-      _syncPostGlobally();
 
+      _syncPostGlobally();
     } catch (e) {
       debugPrint("Comment error: $e");
     }
@@ -80,7 +75,6 @@ class _PostDetailsPageState extends ConsumerState<PostDetailsPage> {
 
   /// ---------------- DELETE COMMENT ----------------
   Future<void> deleteComment(Comment comment) async {
-
     final index = post.comments.indexOf(comment);
 
     try {
@@ -88,12 +82,12 @@ class _PostDetailsPageState extends ConsumerState<PostDetailsPage> {
       await repository.deleteComment(post.id, index);
 
       setState(() {
-        final updatedComments = List<Comment>.from(post.comments)..removeAt(index);
+        final updatedComments = List<Comment>.from(post.comments)
+          ..removeAt(index);
         post = post.copyWith(comments: updatedComments);
       });
-      
-      _syncPostGlobally();
 
+      _syncPostGlobally();
     } catch (e) {
       debugPrint("Delete comment error: $e");
     }
@@ -119,7 +113,7 @@ class _PostDetailsPageState extends ConsumerState<PostDetailsPage> {
     setState(() {
       post = post.copyWith(likes: newLikes);
     });
-    
+
     _syncPostGlobally();
 
     try {
@@ -133,7 +127,6 @@ class _PostDetailsPageState extends ConsumerState<PostDetailsPage> {
 
   /// ---------------- TIME FORMAT ----------------
   String formatTime(DateTime time) {
-
     final now = DateTime.now();
     final diff = now.difference(time);
 
@@ -145,46 +138,31 @@ class _PostDetailsPageState extends ConsumerState<PostDetailsPage> {
 
   /// ---------------- PROFILE NAVIGATION ----------------
   void openProfile(String userId) {
-
     final currentUid = authService.value.currentUser?.uid;
 
     if (userId == currentUid) {
-
       Navigator.push(
         context,
-        MaterialPageRoute(
-          builder: (_) => const ProfilePage(),
-        ),
+        MaterialPageRoute(builder: (_) => const ProfilePage()),
       );
-
     } else {
-
       Navigator.push(
         context,
-        MaterialPageRoute(
-          builder: (_) => ProfilePage(
-            userId: userId,
-          ),
-        ),
+        MaterialPageRoute(builder: (_) => ProfilePage(userId: userId)),
       );
-
     }
   }
 
   /// ---------------- UI ----------------
   @override
   Widget build(BuildContext context) {
-
     return Scaffold(
       backgroundColor: Colors.white,
 
       appBar: AppBar(
         title: const Text(
           "Comments",
-          style: TextStyle(
-            color: Colors.black,
-            fontWeight: FontWeight.w600,
-          ),
+          style: TextStyle(color: Colors.black, fontWeight: FontWeight.w600),
         ),
         elevation: 0,
         backgroundColor: Colors.white,
@@ -198,30 +176,26 @@ class _PostDetailsPageState extends ConsumerState<PostDetailsPage> {
 
       body: Column(
         children: [
-
           Expanded(
             child: ListView(
               children: [
                 _buildPostCard(),
                 const SizedBox(height: 16),
                 ...post.comments.map(_buildCommentTile),
-
               ],
             ),
           ),
+
           /// COMMENT INPUT
           SafeArea(
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
               decoration: BoxDecoration(
                 color: Colors.white,
-                border: Border(
-                  top: BorderSide(color: Colors.grey.shade300),
-                ),
+                border: Border(top: BorderSide(color: Colors.grey.shade300)),
               ),
               child: Row(
                 children: [
-
                   Expanded(
                     child: TextField(
                       controller: commentController,
@@ -245,10 +219,7 @@ class _PostDetailsPageState extends ConsumerState<PostDetailsPage> {
                             width: 20,
                             child: CircularProgressIndicator(strokeWidth: 2),
                           )
-                        : const Icon(
-                            Icons.send,
-                            color: Color(0xFF1976D2),
-                          ),
+                        : const Icon(Icons.send, color: AppStyle.primaryBlue),
                     onPressed: isSending ? null : submitComment,
                   ),
                 ],
@@ -262,7 +233,6 @@ class _PostDetailsPageState extends ConsumerState<PostDetailsPage> {
 
   /// ---------------- POST CARD ----------------
   Widget _buildPostCard() {
-
     return Container(
       width: double.infinity,
       decoration: const BoxDecoration(color: Colors.white),
@@ -270,17 +240,14 @@ class _PostDetailsPageState extends ConsumerState<PostDetailsPage> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-
           /// AUTHOR (CLICKABLE)
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16),
             child: GestureDetector(
-
               onTap: () => openProfile(post.authorId),
 
               child: Row(
                 children: [
-
                   CircleAvatar(
                     backgroundColor: Colors.grey.shade300,
                     child: Text(
@@ -297,7 +264,6 @@ class _PostDetailsPageState extends ConsumerState<PostDetailsPage> {
                   Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-
                       Text(
                         post.authorName,
                         style: const TextStyle(
@@ -322,20 +288,62 @@ class _PostDetailsPageState extends ConsumerState<PostDetailsPage> {
           /// POST CONTENT
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 19),
-            child: Text(
-              post.content,
-              style: const TextStyle(fontSize: 15),
-            ),
+            child: Text(post.content, style: const TextStyle(fontSize: 15)),
           ),
 
           const SizedBox(height: 8),
 
+          if (post.mediaUrl != null && post.mediaUrl!.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.only(top: 10),
+              child: AspectRatio(
+                aspectRatio: post.mediaAspectRatio ?? 4 / 5,
+                child: Image.network(
+                  post.mediaUrl!,
+                  fit: BoxFit.cover,
+                  errorBuilder: (context, error, stackTrace) {
+                    return Container(
+                      color: Colors.grey[200],
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(
+                            Icons.image_not_supported_outlined,
+                            color: Colors.grey[600],
+                            size: 48,
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            'Image failed to load',
+                            style: TextStyle(
+                              color: Colors.grey[600],
+                              fontSize: 14,
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          IconButton(
+                            icon: Icon(
+                              Icons.refresh,
+                              color: Colors.grey[600],
+                            ),
+                            onPressed: () {
+                              setState(() {});
+                            },
+                          ),
+                        ],
+                      ),
+                    );
+                  },
+                ),
+              ),
+            ),
+
           /// LIKE + COMMENT
+          const SizedBox(height: 12),
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 19),
             child: Row(
               children: [
-
                 GestureDetector(
                   onTap: toggleLike,
                   child: Icon(
@@ -344,8 +352,8 @@ class _PostDetailsPageState extends ConsumerState<PostDetailsPage> {
                         : Icons.favorite_border,
                     color: post.likes.contains(currentUserId)
                         ? Colors.red
-                        : Colors.grey,
-                    size: 22,
+                        : Colors.black,
+                    size: 23,
                   ),
                 ),
 
@@ -357,7 +365,7 @@ class _PostDetailsPageState extends ConsumerState<PostDetailsPage> {
                 const Icon(
                   Icons.chat_bubble_outline,
                   size: 22,
-                  color: Colors.grey,
+                  color: Colors.black,
                 ),
 
                 const SizedBox(width: 6),
@@ -374,18 +382,16 @@ class _PostDetailsPageState extends ConsumerState<PostDetailsPage> {
 
   /// ---------------- COMMENT TILE ----------------
   Widget _buildCommentTile(Comment comment) {
-
     final currentUid = authService.value.currentUser?.uid;
     final bool isOwner = comment.userId == currentUid;
     final displayName = isOwner
-      ? "You"
-      : (comment.username.trim().isNotEmpty &&
-        comment.username.toLowerCase() != "unknown"
-          ? comment.username
-          : "User");
+        ? "You"
+        : (comment.username.trim().isNotEmpty &&
+                  comment.username.toLowerCase() != "unknown"
+              ? comment.username
+              : "User");
 
     return ListTile(
-
       leading: GestureDetector(
         onTap: () => openProfile(comment.userId),
         child: CircleAvatar(
@@ -413,28 +419,19 @@ class _PostDetailsPageState extends ConsumerState<PostDetailsPage> {
       trailing: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-
           Text(
             formatTime(comment.timestamp),
-            style: const TextStyle(
-              color: Colors.grey,
-              fontSize: 12,
-            ),
+            style: const TextStyle(color: Colors.grey, fontSize: 12),
           ),
 
           if (isOwner)
             PopupMenuButton(
               icon: const Icon(Icons.more_vert, size: 20),
               itemBuilder: (context) => const [
-                PopupMenuItem(
-                  value: "delete",
-                  child: Text("Delete"),
-                ),
+                PopupMenuItem(value: "delete", child: Text("Delete")),
               ],
               onSelected: (value) async {
-
                 if (value == "delete") {
-
                   final confirm = await showDialog(
                     context: context,
                     builder: (context) => AlertDialog(
@@ -446,7 +443,6 @@ class _PostDetailsPageState extends ConsumerState<PostDetailsPage> {
                         "Are you sure you want to delete this comment?",
                       ),
                       actions: [
-
                         TextButton(
                           onPressed: () => Navigator.pop(context, false),
                           child: const Text("Cancel"),
@@ -459,7 +455,6 @@ class _PostDetailsPageState extends ConsumerState<PostDetailsPage> {
                             style: TextStyle(color: Colors.red),
                           ),
                         ),
-
                       ],
                     ),
                   );
@@ -467,9 +462,7 @@ class _PostDetailsPageState extends ConsumerState<PostDetailsPage> {
                   if (confirm == true) {
                     deleteComment(comment);
                   }
-
                 }
-
               },
             ),
         ],

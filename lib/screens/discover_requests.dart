@@ -1,9 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:studently/logger.dart';
 import 'package:studently/models/user.dart';
-import 'package:studently/providers/auth_provider.dart';
-import 'package:studently/repositories/user.dart';
+import 'package:studently/providers/discover_provider.dart';
 import 'package:studently/screens/profile_main.dart';
 import 'package:studently/widgets/custom_nav_bar.dart';
 
@@ -17,93 +15,15 @@ class RequestsPage extends ConsumerStatefulWidget {
 class _RequestsPageState extends ConsumerState<RequestsPage> {
   final Color primaryBlue = const Color(0xFF0F74C5);
 
-  Future<List<User>>? _requestsFuture;
-  List<User> _currentRequests = [];
-  bool _hasLoadedRequests = false;
-  bool _didChangeRequests = false;
-  final Set<String> _inFlightRequestIds = <String>{};
+  Future<void> _handleRespond(User user, String action) async {
+    final success = await ref
+        .read(discoverRequestsProvider.notifier)
+        .respondRequest(user.id, action);
 
-  @override
-  void initState() {
-    super.initState();
-    _requestsFuture = _loadAndCacheRequests();
-
-    // Fetch fresh data after first frame so cached UI appears quickly.
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _refreshRequestsInBackground();
-    });
-  }
-
-  Future<List<User>> _loadAndCacheRequests() async {
-    final requests = await UserRepository().fetchPendingRequests();
-    _currentRequests = requests;
-    _hasLoadedRequests = true;
-    return requests;
-  }
-
-  Future<void> _refreshRequestsInBackground() async {
-    try {
-      final freshRequests = await UserRepository().fetchPendingRequests();
-      if (!mounted) return;
-      setState(() {
-        _currentRequests = freshRequests;
-        _hasLoadedRequests = true;
-      });
-      logger.i("[RequestsPage] Background refresh completed");
-    } catch (e) {
-      logger.e("[RequestsPage] Background refresh failed: $e");
-    }
-  }
-
-  Future<void> _reloadRequests() async {
-    if (!mounted) return;
-    setState(() {
-      _requestsFuture = _loadAndCacheRequests();
-    });
-  }
-
-  Future<void> respondRequest(String requesterId, String action) async {
-    if (_inFlightRequestIds.contains(requesterId)) return;
-
-    User? removedUser;
-    try {
-      setState(() {
-        _inFlightRequestIds.add(requesterId);
-        final index = _currentRequests.indexWhere((u) => u.id == requesterId);
-        if (index != -1) {
-          removedUser = _currentRequests[index];
-          _currentRequests.removeAt(index);
-          _didChangeRequests = true;
-        }
-      });
-
-      await ref
-          .read(authProvider.notifier)
-          .respondToFriendRequest(requesterId, action);
-
-      if (!mounted) return;
-      setState(() {
-        _inFlightRequestIds.remove(requesterId);
-      });
-      logger.i("[RequestsPage] respondRequest successful for $requesterId");
-    } catch (e) {
-      logger.e("[RequestsPage] respondRequest failed: $e");
-      if (!mounted) return;
-
-      setState(() {
-        _inFlightRequestIds.remove(requesterId);
-        if (removedUser != null &&
-            !_currentRequests.any((u) => u.id == removedUser!.id)) {
-          _currentRequests.insert(0, removedUser!);
-        }
-      });
-
-      await _reloadRequests();
-      if (!mounted) return;
-
+    if (!success && mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text("Failed to respond to request."),
+          content: Text('Failed to respond to request.'),
           backgroundColor: Colors.red,
         ),
       );
@@ -112,11 +32,13 @@ class _RequestsPageState extends ConsumerState<RequestsPage> {
 
   @override
   Widget build(BuildContext context) {
+    final requestsState = ref.watch(discoverRequestsProvider);
+
     return PopScope(
       canPop: false,
       onPopInvokedWithResult: (didPop, result) {
         if (didPop) return;
-        Navigator.pop(context, _didChangeRequests);
+        Navigator.pop(context, requestsState.didChangeRequests);
       },
       child: Scaffold(
         backgroundColor: Colors.white,
@@ -125,26 +47,24 @@ class _RequestsPageState extends ConsumerState<RequestsPage> {
           elevation: 0,
           leading: IconButton(
             icon: const Icon(Icons.chevron_left, color: Colors.black),
-            onPressed: () => Navigator.pop(context, _didChangeRequests),
+            onPressed: () =>
+                Navigator.pop(context, requestsState.didChangeRequests),
           ),
           centerTitle: true,
           title: const Text(
-            "Pending Requests",
-            style: TextStyle(
-              color: Colors.black,
-              fontWeight: FontWeight.w600,
-            ),
+            'Pending Requests',
+            style: TextStyle(color: Colors.black, fontWeight: FontWeight.w600),
           ),
         ),
-        body: FutureBuilder<List<User>>(
-          future: _requestsFuture,
-          builder: (context, snapshot) {
-            if (snapshot.connectionState == ConnectionState.waiting &&
-                !_hasLoadedRequests) {
+        body: Builder(
+          builder: (context) {
+            if (requestsState.isLoading &&
+                !requestsState.hasLoadedRequests) {
               return const Center(child: CircularProgressIndicator());
             }
 
-            if (snapshot.hasError && !_hasLoadedRequests) {
+            if (requestsState.errorMessage != null &&
+                !requestsState.hasLoadedRequests) {
               return Center(
                 child: Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 32),
@@ -158,7 +78,7 @@ class _RequestsPageState extends ConsumerState<RequestsPage> {
                       ),
                       const SizedBox(height: 24),
                       const Text(
-                        "Connection Issue",
+                        'Connection Issue',
                         style: TextStyle(
                           fontSize: 20,
                           fontWeight: FontWeight.bold,
@@ -174,7 +94,9 @@ class _RequestsPageState extends ConsumerState<RequestsPage> {
                       SizedBox(
                         width: double.infinity,
                         child: ElevatedButton(
-                          onPressed: _reloadRequests,
+                          onPressed: () => ref
+                              .read(discoverRequestsProvider.notifier)
+                              .refreshRequests(),
                           style: ElevatedButton.styleFrom(
                             backgroundColor: primaryBlue,
                             foregroundColor: Colors.white,
@@ -184,7 +106,7 @@ class _RequestsPageState extends ConsumerState<RequestsPage> {
                             ),
                           ),
                           child: const Text(
-                            "Try Again",
+                            'Try Again',
                             style: TextStyle(fontSize: 18, color: Colors.white),
                           ),
                         ),
@@ -195,11 +117,11 @@ class _RequestsPageState extends ConsumerState<RequestsPage> {
               );
             }
 
-            final requests = _currentRequests;
+            final requests = requestsState.requests;
             if (requests.isEmpty) {
               return const Center(
                 child: Text(
-                  "No pending requests",
+                  'No pending requests',
                   style: TextStyle(color: Colors.grey),
                 ),
               );
@@ -209,7 +131,7 @@ class _RequestsPageState extends ConsumerState<RequestsPage> {
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
               itemCount: requests.length,
               itemBuilder: (context, index) {
-                return _buildRequestCard(requests[index]);
+                return _buildRequestCard(requests[index], requestsState);
               },
             );
           },
@@ -219,8 +141,8 @@ class _RequestsPageState extends ConsumerState<RequestsPage> {
     );
   }
 
-  Widget _buildRequestCard(User user) {
-    final isProcessing = _inFlightRequestIds.contains(user.id);
+  Widget _buildRequestCard(User user, DiscoverRequestsState state) {
+    final isProcessing = state.inFlightRequestIds.contains(user.id);
 
     return GestureDetector(
       onTap: isProcessing
@@ -228,16 +150,14 @@ class _RequestsPageState extends ConsumerState<RequestsPage> {
           : () async {
               final bool? changed = await Navigator.push(
                 context,
-                MaterialPageRoute(
-                  builder: (_) => ProfilePage(userId: user.id),
-                ),
+                MaterialPageRoute(builder: (_) => ProfilePage(userId: user.id)),
               );
 
               if (changed == true && mounted) {
-                setState(() {
-                  _didChangeRequests = true;
-                  _requestsFuture = _loadAndCacheRequests();
-                });
+                ref.read(discoverRequestsProvider.notifier).markChanged();
+                await ref
+                    .read(discoverRequestsProvider.notifier)
+                    .refreshRequests(showLoading: false);
               }
             },
       child: Opacity(
@@ -274,10 +194,7 @@ class _RequestsPageState extends ConsumerState<RequestsPage> {
                     const SizedBox(height: 4),
                     Text(
                       "${user.department?.name ?? 'N/A'} • Batch ${user.batch}",
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: Colors.grey[600],
-                      ),
+                      style: TextStyle(fontSize: 12, color: Colors.grey[600]),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                     ),
@@ -286,8 +203,9 @@ class _RequestsPageState extends ConsumerState<RequestsPage> {
               ),
               const SizedBox(width: 8),
               GestureDetector(
-                onTap:
-                    isProcessing ? null : () => respondRequest(user.id, "reject"),
+                onTap: isProcessing
+                    ? null
+                    : () => _handleRespond(user, 'reject'),
                 child: Container(
                   padding: const EdgeInsets.all(8),
                   decoration: BoxDecoration(
@@ -299,8 +217,9 @@ class _RequestsPageState extends ConsumerState<RequestsPage> {
               ),
               const SizedBox(width: 8),
               GestureDetector(
-                onTap:
-                    isProcessing ? null : () => respondRequest(user.id, "accept"),
+                onTap: isProcessing
+                    ? null
+                    : () => _handleRespond(user, 'accept'),
                 child: Container(
                   padding: const EdgeInsets.all(8),
                   decoration: BoxDecoration(

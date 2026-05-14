@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:studently/models/knowledge_hub.dart';
 import 'package:studently/providers/knowledge_hub_provider.dart';
-import 'package:studently/storage/storage_manager.dart';
+import 'package:studently/services/storage.dart';
 import 'package:syncfusion_flutter_pdfviewer/pdfviewer.dart';
 import 'package:studently/logger.dart';
 import 'dart:typed_data';
@@ -49,8 +49,10 @@ class _PdfGalleryScreenState extends ConsumerState<PdfGalleryScreen> {
         elevation: 0,
         toolbarHeight: 140,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new_rounded,
-              color: Colors.black87),
+          icon: const Icon(
+            Icons.arrow_back_ios_new_rounded,
+            color: Colors.black87,
+          ),
           onPressed: () => Navigator.pop(context),
         ),
         title: Column(
@@ -116,18 +118,14 @@ class _PdfGalleryScreenState extends ConsumerState<PdfGalleryScreen> {
         },
         itemBuilder: (context, index) {
           final item = widget.resources[index];
-          final localFilePath =
-              ref.watch(resourceLocalFilePathProvider((widget.courseCode, item.id)));
+          final localFilePath = ref.watch(
+            resourceLocalFilePathProvider((widget.courseCode, item.id)),
+          );
 
           return Column(
             children: [
               Expanded(
-                child: _buildPdfViewer(
-                  context,
-                  ref,
-                  item,
-                  localFilePath,
-                ),
+                child: _buildPdfViewer(context, ref, item, localFilePath),
               ),
             ],
           );
@@ -152,7 +150,9 @@ class _PdfGalleryScreenState extends ConsumerState<PdfGalleryScreen> {
           file,
           key: ValueKey(item.id),
           onDocumentLoadFailed: (details) {
-            logger.e("Error loading local file: ${details.error} - ${details.description}");
+            logger.e(
+              "Error loading local file: ${details.error} - ${details.description}",
+            );
           },
         );
       }
@@ -165,7 +165,9 @@ class _PdfGalleryScreenState extends ConsumerState<PdfGalleryScreen> {
         item.fileUrl,
         key: ValueKey(item.id),
         onDocumentLoadFailed: (details) {
-          logger.e("Error loading network PDF: ${details.error} - ${details.description}");
+          logger.e(
+            "Error loading network PDF: ${details.error} - ${details.description}",
+          );
         },
       );
     }
@@ -181,15 +183,15 @@ class _PdfGalleryScreenState extends ConsumerState<PdfGalleryScreen> {
   ) async {
     try {
       if (item.fileUrl.isEmpty) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('No file URL available')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('No file URL available')));
         return;
       }
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Downloading file...')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Downloading file...')));
 
       // Download from Cloudflare URL
       final fileBytes = await ref.read(
@@ -202,16 +204,18 @@ class _PdfGalleryScreenState extends ConsumerState<PdfGalleryScreen> {
       if (context.mounted) {
         ScaffoldMessenger.of(context).clearSnackBars();
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('File downloaded and cached successfully')),
+          const SnackBar(
+            content: Text('File downloaded and cached successfully'),
+          ),
         );
       }
     } catch (e) {
       logger.e('Error downloading file: $e');
       if (context.mounted) {
         ScaffoldMessenger.of(context).clearSnackBars();
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error downloading file: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Error downloading file: $e')));
       }
     }
   }
@@ -223,9 +227,9 @@ class _PdfGalleryScreenState extends ConsumerState<PdfGalleryScreen> {
     Uint8List fileBytes,
   ) async {
     try {
-      final storage = StorageManager().knowledgeHubStorage;
+      final storage = StorageService().knowledgeHubStorage;
       final cacheDir = await storage.getDownloadsCacheDir();
-      
+
       // Create file path
       final fileName = '${item.id}.pdf';
       final filePath = '$cacheDir/$fileName';
@@ -242,7 +246,7 @@ class _PdfGalleryScreenState extends ConsumerState<PdfGalleryScreen> {
         filePath,
       );
       logger.i('Resource updated with local path');
-      
+
       // Refresh provider to reflect new local path
       ref.invalidate(saveResourceLocalPathProvider);
     } catch (e) {
@@ -254,28 +258,28 @@ class _PdfGalleryScreenState extends ConsumerState<PdfGalleryScreen> {
   /// Build a descriptive label for the resource (Type, Year, Semester, Mid number, Status)
   String _buildResourceLabel(ResourceItem item) {
     final parts = <String>[];
-    
+
     // Add type (Mid/Final)
     parts.add(item.type);
-    
+
     // Add year if not 0 (misc)
     if (item.year != 0) {
       parts.add('${item.year}');
     }
-    
+
     // Add semester if not 'Unknown'
     if (item.semester != 'Unknown') {
       parts.add(item.semester);
     }
-    
+
     // Add mid number if available
     if (item.midNumber != null && item.midNumber! > 0) {
       parts.add('Mid ${item.midNumber}');
     }
-    
+
     // Add status
     parts.add(item.isSolved == true ? 'Solved' : 'Unsolved');
-    
+
     return parts.join(' • ');
   }
 }

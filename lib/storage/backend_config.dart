@@ -33,14 +33,20 @@ class BackendConfigStorage {
       logger.i('[BackendConfigStorage] Initialized successfully');
     } catch (e) {
       if (e.toString().contains('is not a subtype of type')) {
-        logger.w('[BackendConfigStorage] Schema mismatch detected, clearing boxes for migration');
+        logger.w(
+          '[BackendConfigStorage] Schema mismatch detected, clearing boxes for migration',
+        );
         try {
           await Hive.deleteBoxFromDisk(_boxName);
           _configBox = await Hive.openBox<String>(_boxName);
           _isInitialized = true;
-          logger.i('[BackendConfigStorage] Box cleared and reinitialized after schema migration');
+          logger.i(
+            '[BackendConfigStorage] Box cleared and reinitialized after schema migration',
+          );
         } catch (clearError) {
-          logger.e('[BackendConfigStorage] Error during schema migration: $clearError');
+          logger.e(
+            '[BackendConfigStorage] Error during schema migration: $clearError',
+          );
           rethrow;
         }
       } else {
@@ -62,24 +68,26 @@ class BackendConfigStorage {
             .map((d) => {'name': d.name, 'code': d.code})
             .toList(),
         'interests': config.interests
-            .map((i) => {
-          'category': i.category,
-          'data': i.data
-              .map((d) => {'name': d.name, 'emoji': d.emoji})
-              .toList(),
-        })
+            .map(
+              (i) => {
+                'category': i.category,
+                'data': i.data
+                    .map((d) => {'name': d.name, 'emoji': d.emoji})
+                    .toList(),
+              },
+            )
             .toList(),
         'batch_range': {
           'start': config.batchRange.start,
-          'end': config.batchRange.end
+          'end': config.batchRange.end,
         },
         'current_term': {
           'semester': config.currentTerm.term,
-          'year': config.currentTerm.year
+          'year': config.currentTerm.year,
         },
         'allowed_email_domains': config.allowedEmailDomains,
       });
-      
+
       await _configBox.put(_configKey, configJson);
       logger.i('[BackendConfigStorage] Config cached successfully');
     } catch (e) {
@@ -91,7 +99,9 @@ class BackendConfigStorage {
   /// Get cached backend config
   BackendConfig? getCachedConfig() {
     if (!_isInitialized) {
-      logger.w('[BackendConfigStorage] Accessed before initialization. Returning null config.');
+      logger.w(
+        '[BackendConfigStorage] Accessed before initialization. Returning null config.',
+      );
       return null;
     }
 
@@ -111,7 +121,9 @@ class BackendConfigStorage {
   /// Check if config is cached
   bool hasCachedConfig() {
     if (!_isInitialized) {
-      logger.w('[BackendConfigStorage] Accessed before initialization. No cached config available.');
+      logger.w(
+        '[BackendConfigStorage] Accessed before initialization. No cached config available.',
+      );
       return false;
     }
 
@@ -126,7 +138,9 @@ class BackendConfigStorage {
   /// Clear cached config
   Future<void> clearConfig() async {
     if (!_isInitialized) {
-      logger.w('[BackendConfigStorage] Clear requested before initialization. Nothing to clear.');
+      logger.w(
+        '[BackendConfigStorage] Clear requested before initialization. Nothing to clear.',
+      );
       return;
     }
 

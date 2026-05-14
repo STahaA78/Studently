@@ -1,3 +1,4 @@
+import 'package:studently/app_style.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/scheduler.dart';
@@ -6,11 +7,14 @@ import 'package:studently/models/user.dart';
 import 'package:studently/repositories/user.dart';
 import 'package:studently/screens/profile_edit.dart';
 import 'package:studently/services/api.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart'; 
-import 'package:studently/providers/auth_provider.dart'; 
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:studently/providers/auth_provider.dart';
 import 'package:studently/providers/feed_provider.dart';
 import 'package:studently/models/post.dart';
 import 'package:studently/screens/post_details_page.dart';
+import 'package:studently/screens/settings_page.dart';
+import 'package:cached_network_image/cached_network_image.dart';
+import 'package:studently/utils/web_utils.dart' as web_utils;
 
 class ProfilePage extends ConsumerStatefulWidget {
   final String? userId;
@@ -22,7 +26,7 @@ class ProfilePage extends ConsumerStatefulWidget {
 }
 
 class _ProfilePageState extends ConsumerState<ProfilePage> {
-  final Color blue = const Color(0xFF1976D2);
+  final Color blue = AppStyle.primaryBlue;
   final apiService = ApiService();
   final ScrollController scrollController = ScrollController();
 
@@ -57,17 +61,19 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
         final displayUser = ref.read(authProvider).value;
         final targetUserId = widget.userId ?? displayUser?.id ?? "";
         if (targetUserId.isNotEmpty) {
-          ref.read(profileScrollProvider(targetUserId).notifier).set(scrollController.offset);
+          ref
+              .read(profileScrollProvider(targetUserId).notifier)
+              .set(scrollController.offset);
         }
       }
 
       // Add pagination check
       if (scrollController.position.pixels >=
-              scrollController.position.maxScrollExtent - 200) {
+          scrollController.position.maxScrollExtent - 200) {
         final displayUser = ref.read(authProvider).value;
         final targetUserId = widget.userId ?? displayUser?.id ?? "";
         if (targetUserId.isNotEmpty) {
-           ref.read(profileFeedProvider(targetUserId).notifier).loadMore();
+          ref.read(profileFeedProvider(targetUserId).notifier).loadMore();
         }
       }
     });
@@ -87,7 +93,9 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
   Future<void> _loadOtherUserProfile() async {
     setState(() => isLoadingOtherUser = true);
     try {
-      final fetchedUser = await userRepository.fetchUserProfile(userId: widget.userId!);
+      final fetchedUser = await userRepository.fetchUserProfile(
+        userId: widget.userId!,
+      );
       setState(() {
         otherUser = fetchedUser;
         isLoadingOtherUser = false;
@@ -235,25 +243,29 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
   Widget build(BuildContext context) {
     final bool isMyProfile = widget.userId == null;
     User? displayUser;
-    
+
     if (isMyProfile) {
       // For own profile: prefer refreshedOwnUser (from refresh), fall back to authProvider
       displayUser = refreshedOwnUser ?? ref.watch(authProvider).value;
     } else {
       displayUser = otherUser;
     }
-    
+
     final String targetUserId = widget.userId ?? displayUser?.id ?? "";
     // Only fetch feed for display purposes (post count), not on every profile refresh
     // Use select to only watch the feed when NOT on own profile or when refreshedOwnUser is null
     final profileFeedAsync = (isMyProfile && refreshedOwnUser != null)
-        ? const AsyncValue<List<Post>>.data([])  // Skip feed watch during own profile refresh
-        : (targetUserId.isNotEmpty 
-            ? ref.watch(profileFeedProvider(targetUserId))
-            : const AsyncValue<List<Post>>.data([]));
+        ? const AsyncValue<List<Post>>.data(
+            [],
+          ) // Skip feed watch during own profile refresh
+        : (targetUserId.isNotEmpty
+              ? ref.watch(profileFeedProvider(targetUserId))
+              : const AsyncValue<List<Post>>.data([]));
 
-    final bool isScreenLoading = isMyProfile ? displayUser == null : isLoadingOtherUser;
-    
+    final bool isScreenLoading = isMyProfile
+        ? displayUser == null
+        : isLoadingOtherUser;
+
     return Scaffold(
       backgroundColor: Colors.white,
       appBar: AppBar(
@@ -274,261 +286,313 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                 onPressed: () => Navigator.pop(context),
               )
             : null,
-        actions: kIsWeb
-            ? [
-                IconButton(
-                  icon: const Icon(Icons.refresh, color: Colors.black),
-                  onPressed: _refreshProfile,
-                  tooltip: 'Refresh',
-                )
-              ]
-            : null,
+        actions: [
+          if (isMyProfile)
+            IconButton(
+              icon: const Icon(Icons.settings_outlined, color: Colors.black),
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (context) => const SettingsPage()),
+                );
+              },
+            ),
+          if (kIsWeb && !web_utils.isStandalonePwa())
+            IconButton(
+              icon: const Icon(Icons.refresh, color: Colors.black),
+              onPressed: _refreshProfile,
+              tooltip: 'Refresh',
+            ),
+        ],
       ),
       body: isScreenLoading
           ? const Center(child: CircularProgressIndicator())
           : displayUser == null
-              ? const Center(child: Text("Error Loading Profile"))
-              : RefreshIndicator(
-                  onRefresh: _refreshProfile,
-                  child: SingleChildScrollView(
-                    controller: scrollController,
-                    physics: const AlwaysScrollableScrollPhysics(),
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-                    child: Column(
+          ? const Center(child: Text("Error Loading Profile"))
+          : RefreshIndicator(
+              onRefresh: _refreshProfile,
+              child: SingleChildScrollView(
+                controller: scrollController,
+                physics: const AlwaysScrollableScrollPhysics(),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 10,
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const SizedBox(height: 12),
+                    // Instagram-style profile header
+                    Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const SizedBox(height: 12),
-                        // Instagram-style profile header
-                        Row(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            _buildProfilePhoto(displayUser),
-                            const SizedBox(width: 16),
-                            Expanded(
-                              child: Padding(
-                                padding: const EdgeInsets.only(left: 10.0),
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
+                        _buildProfilePhoto(displayUser),
+                        const SizedBox(width: 16),
+                        Expanded(
+                          child: Padding(
+                            padding: const EdgeInsets.only(left: 10.0),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              mainAxisAlignment: MainAxisAlignment.start,
+                              children: [
+                                Text(
+                                  displayUser.name,
+                                  style: const TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                                const SizedBox(height: 12),
+                                // Stats row
+                                Row(
                                   mainAxisAlignment: MainAxisAlignment.start,
                                   children: [
-                                    Text(
-                                      displayUser.name,
-                                      style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
+                                    _buildStatColumn(
+                                      "Friends",
+                                      displayUser.friendsCount.toString(),
                                     ),
-                                    const SizedBox(height: 12),
-                                    // Stats row
-                                    Row(
-                                      mainAxisAlignment: MainAxisAlignment.start,
-                                      children: [
-                                        _buildStatColumn("Friends", displayUser.friendsCount.toString()),
-                                        const SizedBox(width: 35),
-                                        profileFeedAsync.when(
-                                          data: (posts) => _buildStatColumn("Posts", posts.length.toString()),
-                                          loading: () => _buildStatColumn("Posts", "..."),
-                                          error: (_, _) => _buildStatColumn("Posts", "0"),
-                                        ),
-                                        const SizedBox(width: 35),
-                                        _buildStatColumn("Resources", "0"),
-                                      ],
+                                    const SizedBox(width: 35),
+                                    profileFeedAsync.when(
+                                      data: (posts) => _buildStatColumn(
+                                        "Posts",
+                                        posts.length.toString(),
+                                      ),
+                                      loading: () =>
+                                          _buildStatColumn("Posts", "..."),
+                                      error: (_, _) =>
+                                          _buildStatColumn("Posts", "0"),
                                     ),
+                                    const SizedBox(width: 35),
+                                    _buildStatColumn("Resources", "0"),
                                   ],
                                 ),
-                              ),
+                              ],
                             ),
-                          ],
+                          ),
                         ),
-                        const SizedBox(height: 16),
-                        Text(
-                          "${displayUser.department?.name ?? 'N/A'}, Batch ${displayUser.batch}",
-                          style: const TextStyle(color: Colors.grey, fontSize: 12),
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+                    Text(
+                      "${displayUser.department?.name ?? 'N/A'}, Batch ${displayUser.batch}",
+                      style: const TextStyle(color: Colors.grey, fontSize: 12),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    const SizedBox(height: 12),
+
+                    // Edit Profile / Connect buttons
+                    if (isMyProfile)
+                      SizedBox(
+                        height: 46,
+                        width: double.infinity,
+                        child: OutlinedButton(
+                          onPressed: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) =>
+                                    EditProfilePage(user: displayUser!),
+                              ),
+                            );
+                          },
+                          child: Text(
+                            "Edit Profile",
+                            style: TextStyle(color: AppStyle.primaryBlue, fontSize: 14),
+                          ),
                         ),
-                        const SizedBox(height: 12),
-                        
-                        // Edit Profile / Connect buttons
-                        if (isMyProfile)
-                          SizedBox(
-                            height: 40,
-                            width: double.infinity,
+                      )
+                    else if (connectionStatus == "friends")
+                      SizedBox(
+                        height: 40,
+                        width: double.infinity,
+                        child: ElevatedButton(
+                          onPressed: !isMyProfile
+                              ? _showDisconnectDialog
+                              : null,
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.red,
+                          ),
+                          child: const Text(
+                            "Unfriend",
+                            style: TextStyle(color: Colors.white, fontSize: 13),
+                          ),
+                        ),
+                      )
+                    else if (connectionStatus == "outgoing_request")
+                      SizedBox(
+                        width: double.infinity,
+                        child: OutlinedButton(
+                          onPressed: _cancelConnectionRequest,
+                          style: OutlinedButton.styleFrom(
+                            side: BorderSide(color: blue),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            padding: const EdgeInsets.symmetric(vertical: 10),
+                          ),
+                          child: Text(
+                            "Pending",
+                            style: TextStyle(
+                              color: blue,
+                              fontWeight: FontWeight.w600,
+                              fontSize: 13,
+                            ),
+                          ),
+                        ),
+                      )
+                    else if (!isMyProfile &&
+                        connectionStatus != "incoming_request")
+                      SizedBox(
+                        width: double.infinity,
+                        child: ElevatedButton(
+                          onPressed: _sendConnectionRequest,
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: blue,
+                            padding: const EdgeInsets.symmetric(vertical: 10),
+                          ),
+                          child: const Text(
+                            "Add Friend",
+                            style: TextStyle(color: Colors.white, fontSize: 13),
+                          ),
+                        ),
+                      ),
+                    const SizedBox(height: 16),
+
+                    // Reject/Accept buttons for incoming requests
+                    if (!isMyProfile && connectionStatus == "incoming_request")
+                      Row(
+                        children: [
+                          Expanded(
                             child: OutlinedButton(
-                              onPressed: () {
-                                Navigator.push(
-                                  context,
-                                  MaterialPageRoute(
-                                    builder: (context) => EditProfilePage(user: displayUser!)
-                                  ),
-                                );
-                              },
-                              child: Text(
-                                "Edit Profile",
-                                style: TextStyle(color: blue, fontSize: 14),
-                              ),
+                              onPressed: _rejectRequest,
+                              child: const Text("Decline"),
                             ),
-                          )
-                        else if (connectionStatus == "friends")
-                          SizedBox(
-                            height: 40,
-                            width: double.infinity,
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
                             child: ElevatedButton(
-                              onPressed: !isMyProfile ? _showDisconnectDialog : null,
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: Colors.red,
-                              ),
-                              child: const Text("Unfriend", style: TextStyle(color: Colors.white, fontSize: 13)),
-                            ),
-                          )
-                        else if (connectionStatus == "outgoing_request")
-                          SizedBox(
-                            width: double.infinity,
-                            child: OutlinedButton(
-                              onPressed: _cancelConnectionRequest,
-                              style: OutlinedButton.styleFrom(
-                                side: BorderSide(color: blue),
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(8),
-                                ),
-                                padding: const EdgeInsets.symmetric(vertical: 10),
-                              ),
-                              child: Text(
-                                "Pending",
-                                style: TextStyle(color: blue, fontWeight: FontWeight.w600, fontSize: 13),
-                              ),
-                            ),
-                          )
-                        else if (!isMyProfile && connectionStatus != "incoming_request")
-                          SizedBox(
-                            width: double.infinity,
-                            child: ElevatedButton(
-                              onPressed: _sendConnectionRequest,
+                              onPressed: _acceptRequest,
                               style: ElevatedButton.styleFrom(
                                 backgroundColor: blue,
-                                padding: const EdgeInsets.symmetric(vertical: 10),
                               ),
-                              child: const Text("Add Friend", style: TextStyle(color: Colors.white, fontSize: 13)),
+                              child: const Text("Accept"),
                             ),
                           ),
-                        const SizedBox(height: 16),
-                        
-                        // Reject/Accept buttons for incoming requests
-                        if (!isMyProfile && connectionStatus == "incoming_request")
-                          Row(
-                            children: [
-                              Expanded(
-                                child: OutlinedButton(
-                                  onPressed: _rejectRequest,
-                                  child: const Text("Decline"),
-                                ),
-                              ),
-                              const SizedBox(width: 12),
-                              Expanded(
-                                child: ElevatedButton(
-                                  onPressed: _acceptRequest,
-                                  style: ElevatedButton.styleFrom(
-                                    backgroundColor: blue,
-                                  ),
-                                  child: const Text("Accept"),
-                                ),
-                              ),
-                            ],
-                          ),
+                        ],
+                      ),
 
-                        const SizedBox(height: 12),
-                        Wrap(
-                          spacing: 8,
-                          runSpacing: 8,
-                          children: (displayUser.interests)
-                              .map((interest) => Container(
-                                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                                    decoration: BoxDecoration(
-                                      color: Colors.grey.shade100,
-                                      borderRadius: BorderRadius.circular(20),
-                                      border: Border.all(color: const Color(0xFFE0E6ED)),
-                                    ),
-                                    child: Row(
-                                      mainAxisSize: MainAxisSize.min,
-                                      children: [
-                                        Text(interest.emoji, style: const TextStyle(fontSize: 14)),
-                                        const SizedBox(width: 6),
-                                        Text(
-                                          interest.name,
-                                          style: const TextStyle(
-                                            color: Color(0xFF334155),
-                                            fontSize: 12,
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ))
-                              .toList(),
-                        ),
-                        const SizedBox(height: 20),
-                        const Align(
-                          alignment: Alignment.centerLeft,
-                          child: Text(
-                            "Posts",
-                            style: TextStyle(
-                              fontSize: 18,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                        ),
-                        const SizedBox(height: 12),
-                        
-                        // Posts Grid rendering using Riverpod AsyncValue
-                        profileFeedAsync.when(
-                          data: (posts) {
-                            if (posts.isEmpty) {
-                              return Padding(
-                                padding: const EdgeInsets.all(20.0),
-                                child: Center(
-                                  child: Column(
-                                    mainAxisAlignment: MainAxisAlignment.center,
-                                    children: [
-                                      Icon(
-                                        Icons.image_not_supported_outlined,
-                                        size: 48,
-                                        color: Colors.grey.shade400,
-                                      ),
-                                      const SizedBox(height: 12),
-                                      Text(
-                                        "No posts yet",
-                                        style: TextStyle(
-                                          fontSize: 14,
-                                          color: Colors.grey.shade600,
-                                          fontWeight: FontWeight.w500,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
+                    const SizedBox(height: 12),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: (displayUser.interests)
+                          .map(
+                            (interest) => Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 12,
+                                vertical: 8,
+                              ),
+                              decoration: BoxDecoration(
+                                color: Colors.grey.shade100,
+                                borderRadius: BorderRadius.circular(20),
+                                border: Border.all(
+                                  color: const Color(0xFFE0E6ED),
                                 ),
-                              );
-                            }
-                            return GridView.builder(
-                              shrinkWrap: true,
-                              physics: const NeverScrollableScrollPhysics(),
-                              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Text(
+                                    interest.emoji,
+                                    style: const TextStyle(fontSize: 14),
+                                  ),
+                                  const SizedBox(width: 6),
+                                  Text(
+                                    interest.name,
+                                    style: const TextStyle(
+                                      color: Color(0xFF334155),
+                                      fontSize: 12,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          )
+                          .toList(),
+                    ),
+                    const SizedBox(height: 20),
+                    const Align(
+                      alignment: Alignment.centerLeft,
+                      child: Text(
+                        "Posts",
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+
+                    // Posts Grid rendering using Riverpod AsyncValue
+                    profileFeedAsync.when(
+                      data: (posts) {
+                        if (posts.isEmpty) {
+                          return Padding(
+                            padding: const EdgeInsets.all(20.0),
+                            child: Center(
+                              child: Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Icon(
+                                    Icons.image_not_supported_outlined,
+                                    size: 48,
+                                    color: Colors.grey.shade400,
+                                  ),
+                                  const SizedBox(height: 12),
+                                  Text(
+                                    "No posts yet",
+                                    style: TextStyle(
+                                      fontSize: 14,
+                                      color: Colors.grey.shade600,
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          );
+                        }
+                        return GridView.builder(
+                          shrinkWrap: true,
+                          physics: const NeverScrollableScrollPhysics(),
+                          gridDelegate:
+                              const SliverGridDelegateWithFixedCrossAxisCount(
                                 crossAxisCount: 2,
                                 crossAxisSpacing: 8,
                                 mainAxisSpacing: 8,
                                 childAspectRatio: 1,
                               ),
-                              itemCount: posts.length,
-                              itemBuilder: (context, index) {
-                                return _buildPostCard(context, posts[index]);
-                              },
-                            );
+                          itemCount: posts.length,
+                          itemBuilder: (context, index) {
+                            return _buildPostCard(context, posts[index]);
                           },
-                          loading: () => const Center(child: CircularProgressIndicator()),
-                          error: (err, _) => Center(child: Text("Error loading posts: $err")),
-                        ),
-                      ],
+                        );
+                      },
+                      loading: () =>
+                          const Center(child: CircularProgressIndicator()),
+                      error: (err, _) =>
+                          Center(child: Text("Error loading posts: $err")),
                     ),
-                  ),
+                  ],
                 ),
-      bottomNavigationBar: isMyProfile ? const CustomNavBar(currentIndex: 4) : null,
+              ),
+            ),
+      bottomNavigationBar: isMyProfile
+          ? const CustomNavBar(currentIndex: 4)
+          : null,
     );
   }
 
@@ -554,33 +618,40 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
       );
     }
     final bool imageFailed = failedProfileImages.contains(user.picture);
+
     return CircleAvatar(
       key: ValueKey<String>(user.picture!),
       radius: 45,
       backgroundColor: Colors.grey.shade400,
-      backgroundImage: NetworkImage(user.picture!),
-      onBackgroundImageError: (exception, stackTrace) {
-        // Defer setState to avoid calling it during paint phase
-        SchedulerBinding.instance.addPostFrameCallback((_) {
-          if (mounted) {
-            setState(() => failedProfileImages.add(user.picture!));
-          }
-        });
-      },
+      // We leave backgroundImage null and handle the image as a child for offset control
       child: imageFailed
           ? const Icon(Icons.person, size: 40, color: Colors.white)
-          : null,
+          : ClipOval(
+              child: Transform.translate(
+                // x: positive moves right, negative moves left
+                // y: positive moves down, negative moves up
+                offset: const Offset(1.0, 0.0), 
+                child: Image(
+                  image: CachedNetworkImageProvider(user.picture!),
+                  fit: BoxFit.cover,
+                  errorBuilder: (context, error, stackTrace) {
+                    // Keep your existing error logic
+                    SchedulerBinding.instance.addPostFrameCallback((_) {
+                      if (mounted) {
+                        setState(() => failedProfileImages.add(user.picture!));
+                      }
+                    });
+                    return const Icon(Icons.person, size: 40, color: Colors.white);
+                  },
+                ),
+              ),
+            ),
     );
   }
 
   Widget _buildPostCard(BuildContext context, Post post) {
-    final mediaUrls = post.mediaUrls;
-    String imageUrl = "";
-    if (mediaUrls.isNotEmpty) {
-      imageUrl = mediaUrls[0];
-    }
-
     final String caption = post.content;
+    String imageUrl = post.mediaUrl ?? "";
     final bool hasImage = imageUrl.isNotEmpty;
 
     // HYBRID FIX: Wrapped the beautiful development UI inside the necessary community Navigation logic
@@ -588,13 +659,13 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
       onTap: () async {
         final updatedPost = await Navigator.push(
           context,
-          MaterialPageRoute(
-            builder: (_) => PostDetailsPage(postData: post),
-          ),
+          MaterialPageRoute(builder: (_) => PostDetailsPage(postData: post)),
         );
         if (updatedPost != null && updatedPost is Post) {
-           ref.read(feedProvider.notifier).updatePostLocally(updatedPost);
-           ref.read(profileFeedProvider(post.authorId).notifier).syncPostUpdate(updatedPost);
+          ref.read(feedProvider.notifier).updatePostLocally(updatedPost);
+          ref
+              .read(profileFeedProvider(post.authorId).notifier)
+              .syncPostUpdate(updatedPost);
         }
       },
       child: ClipRRect(
@@ -605,7 +676,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                 children: [
                   Positioned.fill(
                     child: Image.network(
-                      apiService.getCompleteUrl(imageUrl),
+                      imageUrl,
                       fit: BoxFit.cover,
                       errorBuilder: (context, error, stackTrace) {
                         return Container(
@@ -626,7 +697,10 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                       left: 6,
                       right: 6,
                       child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 6,
+                          vertical: 3,
+                        ),
                         decoration: BoxDecoration(
                           color: Colors.black.withValues(alpha: 0.5),
                           borderRadius: BorderRadius.circular(6),

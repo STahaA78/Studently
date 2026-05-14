@@ -6,7 +6,7 @@ part 'knowledge_hub.g.dart';
 class Course {
   @HiveField(0)
   final String code;
-  
+
   @HiveField(1)
   final String name;
 
@@ -14,18 +14,12 @@ class Course {
 
   // Factory to convert JSON Map into a Course Object
   factory Course.fromJson(Map<String, dynamic> json) {
-    return Course(
-      code: json['code'] ?? '', 
-      name: json['name'] ?? '',
-    );
+    return Course(code: json['code'] ?? '', name: json['name'] ?? '');
   }
 
   // Method to convert Course Object into JSON Map
   Map<String, dynamic> toJson() {
-    return {
-      'code': code,
-      'name': name,
-    };
+    return {'code': code, 'name': name};
   }
 }
 
@@ -112,17 +106,22 @@ class ResourceItem {
   });
 
   factory ResourceItem.fromJson(Map<String, dynamic> json) {
+    // Handle both camelCase (from some endpoints) and snake_case (from others)
+    final fileUrl = json['fileUrl'] ?? json['file_url'] ?? '';
+    final uploadedAt = json['uploadedAt'] ?? json['uploaded_at'];
+    final uploadedBy = json['uploadedBy'] ?? json['uploaded_by'] ?? '';
+    
     return ResourceItem(
-      id: json['id'],
-      course: Course.fromJson(json['course']),
-      type: json['type'],
-      year: json['year'],
-      semester: json['semester'],
-      isSolved: json['is_solved'],
-      midNumber: json['mid_number'],
-      fileUrl: (json['file_url'] as String).replaceAll(' ', '%20'),
-      uploadedAt: DateTime.parse(json['uploaded_at']),
-      uploadedBy: json['uploaded_by'],
+      id: json['id'] ?? '',
+      course: Course.fromJson(json['course'] ?? {}),
+      type: json['type'] ?? '',
+      year: json['year'] ?? 0,
+      semester: json['semester'] ?? '',
+      isSolved: json['isSolved'] ?? json['is_solved'],
+      midNumber: json['midNumber'] ?? json['mid_number'],
+      fileUrl: (fileUrl as String).replaceAll(' ', '%20'),
+      uploadedAt: uploadedAt != null ? DateTime.parse(uploadedAt) : DateTime.now(),
+      uploadedBy: uploadedBy,
       approved: json['approved'] ?? false,
     );
   }
@@ -154,7 +153,7 @@ class ResourceGroup {
 
   factory ResourceGroup.fromJson(Map<String, dynamic> json) {
     final resMap = json['resources'] as Map<String, dynamic>;
-    
+
     // Map each key in the JSON to a List of ResourceItem
     Map<String, List<ResourceItem>> mappedRes = {};
     resMap.forEach((key, value) {

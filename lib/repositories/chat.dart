@@ -7,14 +7,18 @@ class ChatRepository {
   final ApiService _apiService = ApiService();
 
   Future<List<ChatConversation>> getUserConversations() async {
-    logger.d("[$runtimeType] Fetching conversations for current authenticated user");
+    logger.d(
+      "[$runtimeType] Fetching conversations for current authenticated user",
+    );
     final response = await _apiService.get('/chat/conversations');
     final List<dynamic> data = jsonDecode(response.body);
     return data.map((json) => ChatConversation.fromJson(json)).toList();
   }
 
   Future<List<ChatMessage>> getMessages(String conversationId) async {
-    logger.d("[$runtimeType] Fetching messages for conversation: $conversationId");
+    logger.d(
+      "[$runtimeType] Fetching messages for conversation: $conversationId",
+    );
     final response = await _apiService.get('/chat/$conversationId/messages');
     final List<dynamic> data = jsonDecode(response.body);
     return data.map((json) => ChatMessage.fromJson(json)).toList();
@@ -41,13 +45,14 @@ class ChatRepository {
     await _apiService.post('/chat/$conversationId/read');
   }
 
-  Future<String> getUserName(String userId) async {
+  Future<Map<String, String>> getUserProfileBasic(String userId) async {
     final response = await _apiService.get('/users/$userId/profile');
     final data = jsonDecode(response.body);
-    return data['name'] ?? "Student User";
+    return {
+      'name': data['name']?.toString() ?? "Student User",
+      'picture': data['picture']?.toString() ?? "",
+    };
   }
-
-  
 
   Future<String?> createOrGetConversation(String receiverId) async {
     final response = await _apiService.post('/chat/$receiverId/create_chat');
@@ -72,14 +77,17 @@ class ChatRepository {
     logger.i("ChatRepository: Initiating attachment upload...");
     try {
       // Pass bytes and filename to the API Gateway
-      final response = await ApiService().uploadFile('/chat/upload', bytes, filename);
-      
+      final response = await ApiService().uploadFile(
+        '/chat/upload',
+        bytes,
+        filename,
+      );
+
       final data = jsonDecode(response.body);
       final url = data['url'];
-      
+
       logger.i("ChatRepository: Upload successful. URL: $url");
       return url;
-      
     } catch (e) {
       logger.e("ChatRepository: Attachment upload failed: $e");
       return null;

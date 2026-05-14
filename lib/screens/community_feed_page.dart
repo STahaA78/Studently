@@ -1,19 +1,21 @@
-import '../models/post.dart';
+import 'package:studently/models/post.dart';
 import 'package:studently/services/firebase_auth.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
-import 'direct_messages_page.dart';
-import '../widgets/custom_nav_bar.dart';
-import '../widgets/notification_badge_icon.dart';
-import 'post_details_page.dart';
-import 'notifications_page.dart';
-import 'package:flutter_svg/flutter_svg.dart';
+import 'package:studently/screens/direct_messages_page.dart';
+import 'package:studently/widgets/custom_nav_bar.dart';
+import 'package:studently/widgets/notification_badge_icon.dart';
+import 'package:studently/screens/post_details_page.dart';
+import 'package:studently/screens/notifications_page.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:studently/utils/constants.dart';
-import '../screens/profile_main.dart';
-import '../services/api.dart';
+import 'package:studently/app_style.dart';
+import 'package:studently/screens/profile_main.dart';
+import 'package:studently/services/api.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../providers/feed_provider.dart';
-import '../providers/notifications_provider.dart';
+import 'package:studently/providers/feed_provider.dart';
+import 'package:studently/providers/notifications_provider.dart';
+import 'package:cached_network_image/cached_network_image.dart';
+import 'package:studently/utils/web_utils.dart' as web_utils;
 
 class CommunityFeedPage extends ConsumerStatefulWidget {
   const CommunityFeedPage({super.key});
@@ -23,7 +25,7 @@ class CommunityFeedPage extends ConsumerStatefulWidget {
 }
 
 class _CommunityFeedPageState extends ConsumerState<CommunityFeedPage> {
-  final Color blue = const Color(0xFF1976D2);
+  final Color blue = AppStyle.primaryBlue;
   final ApiService api = ApiService();
   final ScrollController scrollController = ScrollController();
 
@@ -119,15 +121,19 @@ class _CommunityFeedPageState extends ConsumerState<CommunityFeedPage> {
                     title: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        SvgPicture.asset(
-                          'assets/images/logo.svg',
-                          height: AppStyle.logoSize * 0.9,
-                        ),
+                        // SvgPicture.asset(
+                        //   'assets/images/logo.svg',
+                        //   height: AppStyle.logoSize*0.9,
+                        //   colorFilter: const ColorFilter.mode(
+                        //     AppStyle.primaryBlue,
+                        //     BlendMode.srcIn,
+                        //   ),
+                        // ),
                         Flexible(
                           child: Text(
                             'Studently',
                             style: GoogleFonts.poppins(
-                              color: blue,
+                              color: AppStyle.primaryBlue,
                               fontSize: AppStyle.titleFontSize * 0.9,
                               fontWeight: FontWeight.w700,
                               fontStyle: FontStyle.italic,
@@ -138,8 +144,23 @@ class _CommunityFeedPageState extends ConsumerState<CommunityFeedPage> {
                       ],
                     ),
                     actions: [
+                      if (kIsWeb & !web_utils.isStandalonePwa())
+                        IconButton(
+                          icon: const Icon(
+                            Icons.refresh,
+                            color: Colors.black,
+                          ),
+                          iconSize: 25,
+                          tooltip: 'Refresh feed',
+                          onPressed: () => ref
+                              .read(feedProvider.notifier)
+                              .refresh(),
+                        ),
                       NotificationBadgeIcon(
                         unreadCount: unreadCount,
+                        icon: Icons.notifications_none_outlined,
+                        iconColor: Colors.black,
+                        iconSize: 24,
                         onPressed: () {
                           Navigator.push(
                             context,
@@ -151,10 +172,10 @@ class _CommunityFeedPageState extends ConsumerState<CommunityFeedPage> {
                       ),
                       IconButton(
                         icon: const Icon(
-                          Icons.mail_outline_rounded,
+                          Icons.inbox,
                           color: Colors.black,
-                          size: 26,
                         ),
+                        iconSize: 24,
                         onPressed: () {
                           Navigator.push(
                             context,
@@ -167,27 +188,40 @@ class _CommunityFeedPageState extends ConsumerState<CommunityFeedPage> {
                       const SizedBox(width: 8),
                     ],
                   ),
-                  SliverList(
-                    delegate: SliverChildBuilderDelegate((context, index) {
-                      final post = posts[index];
-                      final currentUser = authService.value.currentUser?.uid;
-                      final bool isLiked = post.likes.contains(currentUser);
-                      final int likes = post.likes.length;
-                      final int comments = post.comments.length;
+                  if (posts.isEmpty)
+                    SliverFillRemaining(
+                      child: Center(
+                        child: Text(
+                          'No Posts Found',
+                          style: const TextStyle(
+                            color: Colors.grey,
+                          fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ),
+                    )
+                  else
+                    SliverList(
+                      delegate: SliverChildBuilderDelegate((context, index) {
+                        final post = posts[index];
+                        final currentUser = authService.value.currentUser?.uid;
+                        final bool isLiked = post.likes.contains(currentUser);
+                        final int likes = post.likes.length;
+                        final int comments = post.comments.length;
 
-                      return _buildPostCard(
-                        post: post,
-                        index: index,
-                        name: post.authorName,
-                        time: formatTime(post.timestamp),
-                        isLiked: isLiked,
-                        likes: likes,
-                        comments: comments,
-                        onCommentTap: () => openPostDetails(index, posts),
-                        allPosts: posts,
-                      );
-                    }, childCount: posts.length),
-                  ),
+                        return _buildPostCard(
+                          post: post,
+                          index: index,
+                          name: post.authorName,
+                          time: formatTime(post.timestamp),
+                          isLiked: isLiked,
+                          likes: likes,
+                          comments: comments,
+                          onCommentTap: () => openPostDetails(index, posts),
+                          allPosts: posts,
+                        );
+                      }, childCount: posts.length),
+                    ),
                   if (feedAsync.isLoading && posts.isNotEmpty)
                     const SliverToBoxAdapter(
                       child: Padding(
@@ -200,7 +234,52 @@ class _CommunityFeedPageState extends ConsumerState<CommunityFeedPage> {
             ),
           ),
           loading: () => const Center(child: CircularProgressIndicator()),
-          error: (err, stack) => Center(child: Text("Error: $err")),
+          error: (err, stack) => Center(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 32),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(
+                    Icons.cloud_off_rounded,
+                    size: 80,
+                    color: Colors.grey[400],
+                  ),
+                  const SizedBox(height: 24),
+                  const Text(
+                    "Error retrieving feed",
+                    style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    "We couldn't reach our backend. Refresh to try again.",
+                    textAlign: TextAlign.center,
+                    style: TextStyle(color: Colors.grey[600], fontSize: 14),
+                  ),
+                  const SizedBox(height: 24),
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton.icon(
+                      onPressed: () => ref.read(feedProvider.notifier).refresh(),
+                      icon: const Icon(Icons.refresh, color: Colors.white),
+                      label: const Text(
+                        "Refresh",
+                        style: TextStyle(color: Colors.white, fontSize: 16),
+                      ),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppStyle.primaryBlue,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(24),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
         ),
       ),
       bottomNavigationBar: const CustomNavBar(currentIndex: 0),
@@ -233,7 +312,8 @@ class _CommunityFeedPageState extends ConsumerState<CommunityFeedPage> {
         );
       }
     }
-
+    final String? pic = post.authorPic;
+    final bool hasPic = pic != null && pic.isNotEmpty;
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.only(top: 12, bottom: 12),
@@ -246,38 +326,47 @@ class _CommunityFeedPageState extends ConsumerState<CommunityFeedPage> {
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                GestureDetector(
-                  onTap: openProfile,
-                  child: Row(
-                    children: [
-                      CircleAvatar(
-                        backgroundColor: Colors.grey.shade300,
-                        child: Text(
-                          name.isNotEmpty ? name[0] : "?",
-                          style: const TextStyle(
-                            color: Colors.black,
-                            fontWeight: FontWeight.w600,
+                Expanded(
+                  child: GestureDetector(
+                    onTap: openProfile,
+                    child: Row(
+                      children: [
+                        CircleAvatar(
+                          backgroundColor: Colors.grey.shade300,
+                          backgroundImage: hasPic ? CachedNetworkImageProvider(pic) : null,
+                          child: hasPic
+                              ? null
+                              : Text(
+                                  name.isNotEmpty ? name[0] : "?",
+                                  style: const TextStyle(
+                                    color: Colors.black,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                name,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.w600,
+                                  fontSize: 15,
+                                ),
+                              ),
+                              Text(
+                                time,
+                                style: const TextStyle(color: Colors.grey),
+                              ),
+                            ],
                           ),
                         ),
-                      ),
-                      const SizedBox(width: 10),
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            name,
-                            style: const TextStyle(
-                              fontWeight: FontWeight.w600,
-                              fontSize: 15,
-                            ),
-                          ),
-                          Text(
-                            time,
-                            style: const TextStyle(color: Colors.grey),
-                          ),
-                        ],
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
                 ),
                 if (post.authorId == currentUserId)
@@ -393,15 +482,49 @@ class _CommunityFeedPageState extends ConsumerState<CommunityFeedPage> {
               style: const TextStyle(fontSize: 15, color: Colors.black87),
             ),
           ),
-          if (post.mediaUrls.isNotEmpty)
+          if (post.mediaUrl != null && post.mediaUrl!.isNotEmpty)
             Padding(
               padding: const EdgeInsets.only(top: 10),
-              child: Image.network(
-                api.getCompleteUrl(post.mediaUrls.first),
-                fit: BoxFit.cover,
-                errorBuilder: (context, error, stackTrace) {
-                  return const SizedBox();
-                },
+              child: AspectRatio(
+                aspectRatio: post.mediaAspectRatio ?? 4 / 5,
+                child: Image.network(
+                  post.mediaUrl!,
+                  fit: BoxFit.cover,
+                  errorBuilder: (context, error, stackTrace) {
+                    return Container(
+                      color: Colors.grey[200],
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        crossAxisAlignment: CrossAxisAlignment.center,
+                        children: [
+                          Icon(
+                            Icons.image_not_supported_outlined,
+                            color: Colors.grey[600],
+                            size: 48,
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            'Image failed to load',
+                            style: TextStyle(
+                              color: Colors.grey[600],
+                              fontSize: 14,
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          IconButton(
+                            icon: Icon(
+                              Icons.refresh,
+                              color: Colors.grey[600],
+                            ),
+                            onPressed: () {
+                              setState(() {});
+                            },
+                          ),
+                        ],
+                      ),
+                    );
+                  },
+                ),
               ),
             ),
           const SizedBox(height: 12),
@@ -427,8 +550,8 @@ class _CommunityFeedPageState extends ConsumerState<CommunityFeedPage> {
                   },
                   child: Icon(
                     isLiked ? Icons.favorite : Icons.favorite_border,
-                    color: isLiked ? Colors.red : Colors.grey,
-                    size: 22,
+                    color: isLiked ? Colors.red : Colors.black,
+                    size: 23,
                   ),
                 ),
                 const SizedBox(width: 6),
@@ -442,7 +565,7 @@ class _CommunityFeedPageState extends ConsumerState<CommunityFeedPage> {
                   child: const Icon(
                     Icons.chat_bubble_outline,
                     size: 22,
-                    color: Colors.grey,
+                    color: Colors.black,
                   ),
                 ),
                 const SizedBox(width: 6),

@@ -1,3 +1,4 @@
+import 'package:studently/app_style.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -7,15 +8,12 @@ import '../widgets/custom_nav_bar.dart';
 import 'package:studently/models/knowledge_hub.dart';
 import 'package:studently/logger.dart';
 import 'package:studently/providers/knowledge_hub_provider.dart';
-import 'package:js/js_util.dart' as js_util;
+import 'package:studently/utils/web_utils.dart' as web_utils;
 
 class RepositoryUserPage extends ConsumerStatefulWidget {
   final Course course;
 
-  const RepositoryUserPage({
-    super.key,
-    required this.course,
-  });
+  const RepositoryUserPage({super.key, required this.course});
 
   @override
   ConsumerState<RepositoryUserPage> createState() => _RepositoryUserPageState();
@@ -33,29 +31,12 @@ class _RepositoryUserPageState extends ConsumerState<RepositoryUserPage>
     _tabController = TabController(length: 2, vsync: this);
   }
 
-  /// Check if the app is running as a PWA (Progressive Web App)
-  bool _isPWA() {
-    if (!kIsWeb) return false;
-    try {
-      // Check if running in standalone mode (installed as PWA)
-      final dynamic window = js_util.getProperty(js_util.globalThis, 'window');
-      final dynamic navigator = js_util.getProperty(window, 'navigator');
-      
-      // Check for standalone mode
-      final dynamic standalone = js_util.getProperty(navigator, 'standalone');
-      if (standalone == true) return true;
-      
-      return false;
-    } catch (e) {
-      logger.w('Error checking PWA status: $e');
-      return false;
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
-    final Color blue = const Color(0xFF1976D2);
-    final resourcesAsyncValue = ref.watch(resourcesByCourseProvider(widget.course.code)); // Uses cache first
+    final Color blue = AppStyle.primaryBlue;
+    final resourcesAsyncValue = ref.watch(
+      resourcesByCourseProvider(widget.course.code),
+    ); // Uses cache first
 
     return DefaultTabController(
       length: 2, // number of tabs
@@ -92,11 +73,13 @@ class _RepositoryUserPageState extends ConsumerState<RepositoryUserPage>
                   ],
                 ),
                 actions: [
-                  if (kIsWeb)
+                  if (kIsWeb & !web_utils.isStandalonePwa())
                     IconButton(
                       icon: const Icon(Icons.refresh, color: Colors.black),
                       onPressed: () async {
-                        final refresh = ref.read(refreshResourcesForCourseProvider(widget.course.code));
+                        final refresh = ref.read(
+                          refreshResourcesForCourseProvider(widget.course.code),
+                        );
                         await refresh();
                       },
                     ),
@@ -106,7 +89,8 @@ class _RepositoryUserPageState extends ConsumerState<RepositoryUserPage>
                       await Navigator.push(
                         context,
                         MaterialPageRoute(
-                          builder: (context) => AddResourcePage(course: widget.course),
+                          builder: (context) =>
+                              AddResourcePage(course: widget.course),
                         ),
                       );
                       // Upload page shows success notification, no need for another here
@@ -174,7 +158,8 @@ class _RepositoryUserPageState extends ConsumerState<RepositoryUserPage>
                   foregroundColor: Colors.white,
                   padding: const EdgeInsets.symmetric(vertical: 16),
                   shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(25)),
+                    borderRadius: BorderRadius.circular(25),
+                  ),
                 ),
                 child: const Text(
                   "Try Again",
@@ -208,7 +193,9 @@ class _RepositoryUserPageState extends ConsumerState<RepositoryUserPage>
     return RefreshIndicator(
       onRefresh: () async {
         // Use the custom refresh function from provider
-        final refresh = ref.read(refreshResourcesForCourseProvider(widget.course.code));
+        final refresh = ref.read(
+          refreshResourcesForCourseProvider(widget.course.code),
+        );
         await refresh();
       },
       child: _buildFileList(resourceType, blue),
@@ -228,16 +215,22 @@ class _RepositoryUserPageState extends ConsumerState<RepositoryUserPage>
         child: SizedBox(
           height: MediaQuery.of(context).size.height * 0.5,
           child: Center(
-            child: Text("No ${resourceNames[resourceType]} Found.",
-                style: const TextStyle(color: Colors.grey, fontSize: 16)),
+            child: Text(
+              "No ${resourceNames[resourceType]} Found.",
+              style: const TextStyle(color: Colors.grey, fontSize: 16),
+            ),
           ),
         ),
       );
     }
 
     // Separate miscellaneous items (year=0 and semester='Unknown')
-    final miscItems = entries.where((e) => e.year == 0 && e.semester == 'Unknown').toList();
-    final regularItems = entries.where((e) => !(e.year == 0 && e.semester == 'Unknown')).toList();
+    final miscItems = entries
+        .where((e) => e.year == 0 && e.semester == 'Unknown')
+        .toList();
+    final regularItems = entries
+        .where((e) => !(e.year == 0 && e.semester == 'Unknown'))
+        .toList();
 
     // Group regular entries by year, then by semester
     Map<int, Map<String, List<ResourceItem>>> entriesByYearAndSemester = {};
@@ -252,7 +245,8 @@ class _RepositoryUserPageState extends ConsumerState<RepositoryUserPage>
     }
 
     // Sort years in descending order
-    final sortedYears = entriesByYearAndSemester.keys.toList()..sort((a, b) => b.compareTo(a));
+    final sortedYears = entriesByYearAndSemester.keys.toList()
+      ..sort((a, b) => b.compareTo(a));
 
     return ListView(
       padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -262,19 +256,12 @@ class _RepositoryUserPageState extends ConsumerState<RepositoryUserPage>
           ExpansionTile(
             title: const Text(
               "Miscellaneous",
-              style: TextStyle(
-                fontWeight: FontWeight.w600,
-                fontSize: 16,
-              ),
+              style: TextStyle(fontWeight: FontWeight.w600, fontSize: 16),
             ),
             initiallyExpanded: true,
             tilePadding: const EdgeInsets.symmetric(horizontal: 0),
-            shape: const RoundedRectangleBorder(
-              side: BorderSide.none,
-            ),
-            collapsedShape: const RoundedRectangleBorder(
-              side: BorderSide.none,
-            ),
+            shape: const RoundedRectangleBorder(side: BorderSide.none),
+            collapsedShape: const RoundedRectangleBorder(side: BorderSide.none),
             children: [
               ListView.builder(
                 shrinkWrap: true,
@@ -301,19 +288,12 @@ class _RepositoryUserPageState extends ConsumerState<RepositoryUserPage>
           return ExpansionTile(
             title: Text(
               "$year",
-              style: const TextStyle(
-                fontWeight: FontWeight.w500,
-                fontSize: 16,
-              ),
+              style: const TextStyle(fontWeight: FontWeight.w500, fontSize: 16),
             ),
             initiallyExpanded: true,
             tilePadding: const EdgeInsets.symmetric(horizontal: 0),
-            shape: const RoundedRectangleBorder(
-              side: BorderSide.none,
-            ),
-            collapsedShape: const RoundedRectangleBorder(
-              side: BorderSide.none,
-            ),
+            shape: const RoundedRectangleBorder(side: BorderSide.none),
+            collapsedShape: const RoundedRectangleBorder(side: BorderSide.none),
             children: [
               ...sortedSemesters.map((semester) {
                 final semesterItems = semesterMap[semester]!;
@@ -321,7 +301,11 @@ class _RepositoryUserPageState extends ConsumerState<RepositoryUserPage>
                 return Column(
                   children: [
                     Padding(
-                      padding: const EdgeInsets.only(left: 16, top: 4, bottom: 8),
+                      padding: const EdgeInsets.only(
+                        left: 16,
+                        top: 4,
+                        bottom: 8,
+                      ),
                       child: Align(
                         alignment: Alignment.centerLeft,
                         child: Text(
@@ -341,35 +325,41 @@ class _RepositoryUserPageState extends ConsumerState<RepositoryUserPage>
                       itemCount: semesterItems.length,
                       itemBuilder: (context, itemIndex) {
                         final item = semesterItems[itemIndex];
-                        final isLastItem = itemIndex == semesterItems.length - 1;
+                        final isLastItem =
+                            itemIndex == semesterItems.length - 1;
 
                         return _buildResourceTile(item, entries, isLastItem);
                       },
                     ),
                   ],
                 );
-              })
+              }),
             ],
           );
-        })
+        }),
       ],
     );
   }
 
   /// Helper method to build individual resource tile
-  Widget _buildResourceTile(ResourceItem item, List<ResourceItem> allEntries, bool isLastItem) {
+  Widget _buildResourceTile(
+    ResourceItem item,
+    List<ResourceItem> allEntries,
+    bool isLastItem,
+  ) {
     return Column(
       children: [
         GestureDetector(
           behavior: HitTestBehavior.opaque,
           onTap: () {
-            logger.i("Tapped on resource: Year ${item.year} - ${item.semester} - ID: ${item.id}");
-            
+            logger.i(
+              "Tapped on resource: Year ${item.year} - ${item.semester} - ID: ${item.id}",
+            );
+
             // For web (non-PWA), open PDF in a new tab
-            if (kIsWeb && !_isPWA()) {
+            if (kIsWeb && !web_utils.isStandalonePwa()) {
               try {
-                final dynamic window = js_util.getProperty(js_util.globalThis, 'window');
-                js_util.callMethod(window, 'open', [item.fileUrl, '_blank']);
+                web_utils.openInNewTab(item.fileUrl);
               } catch (e) {
                 logger.e('Error opening PDF in new tab: $e');
               }
@@ -388,7 +378,7 @@ class _RepositoryUserPageState extends ConsumerState<RepositoryUserPage>
             }
           },
           child: Container(
-            padding: const EdgeInsets.symmetric(vertical: 14 ,horizontal: 14),
+            padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 14),
             child: Row(
               children: [
                 Container(
@@ -397,8 +387,11 @@ class _RepositoryUserPageState extends ConsumerState<RepositoryUserPage>
                     borderRadius: BorderRadius.circular(8),
                   ),
                   padding: const EdgeInsets.all(8),
-                  child: const Icon(Icons.insert_drive_file,
-                      color: Color(0xFF1976D2), size: 20),
+                  child: const Icon(
+                    Icons.insert_drive_file,
+                    color: AppStyle.primaryBlue,
+                    size: 20,
+                  ),
                 ),
                 const SizedBox(width: 12),
                 Expanded(

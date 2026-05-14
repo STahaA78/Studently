@@ -1,8 +1,10 @@
+import 'package:studently/app_style.dart';
 import 'package:flutter/material.dart';
 import 'package:studently/models/chat.dart';
 import 'package:studently/screens/chat_page.dart';
-import 'package:studently/services/firebase_auth.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:cached_network_image/cached_network_image.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:studently/providers/chat_provider.dart';
 import 'package:studently/providers/auth_provider.dart'; // NEW: Added AuthProvider
 
@@ -38,13 +40,15 @@ class _DirectMessagesPageState extends ConsumerState<DirectMessagesPage> {
   String _formatTimestamp(String? isoString) {
     if (isoString == null || isoString.isEmpty) return "";
     try {
-      final date = DateTime.parse(isoString).toLocal();
+      final String safeTimestamp = isoString.endsWith('Z') ? isoString : '${isoString}Z';
+      final date = DateTime.parse(safeTimestamp).toLocal();
       final now = DateTime.now();
       if (date.year == now.year &&
           date.month == now.month &&
           date.day == now.day) {
-        final hour =
-            date.hour > 12 ? date.hour - 12 : (date.hour == 0 ? 12 : date.hour);
+        final hour = date.hour > 12
+            ? date.hour - 12
+            : (date.hour == 0 ? 12 : date.hour);
         final period = date.hour >= 12 ? "PM" : "AM";
         final minute = date.minute.toString().padLeft(2, '0');
         return "$hour:$minute $period";
@@ -58,8 +62,11 @@ class _DirectMessagesPageState extends ConsumerState<DirectMessagesPage> {
     }
   }
 
-  void _applyFilter(List<ChatConversation> allConversations, Map<String, String> userNames) {
-    final String? myId = authService.value.currentUser?.uid;
+  void _applyFilter(
+    List<ChatConversation> allConversations,
+    Map<String, String> userNames,
+  ) {
+    final String? myId = FirebaseAuth.instance.currentUser?.uid;
     final query = _searchController.text.toLowerCase();
 
     List<ChatConversation> filtered = allConversations.where((chat) {
@@ -87,7 +94,7 @@ class _DirectMessagesPageState extends ConsumerState<DirectMessagesPage> {
 
     _filteredConversations = filtered;
   }
-  
+
   void _onSearchChanged() => setState(() {});
 
   /// Returns a human-readable preview string for the last message.
@@ -105,17 +112,24 @@ class _DirectMessagesPageState extends ConsumerState<DirectMessagesPage> {
       final url = attachments.first.toString();
       final cleanPath = url.split('?').first.toLowerCase();
 
-      if (cleanPath.endsWith('.m4a') || cleanPath.endsWith('.mp3') ||
-          cleanPath.endsWith('.aac') || cleanPath.endsWith('.wav')) {
+      if (cleanPath.endsWith('.m4a') ||
+          cleanPath.endsWith('.mp3') ||
+          cleanPath.endsWith('.aac') ||
+          cleanPath.endsWith('.wav')) {
         return "🎤 Voice message";
       }
-      if (cleanPath.endsWith('.jpg') || cleanPath.endsWith('.jpeg') ||
-          cleanPath.endsWith('.png') || cleanPath.endsWith('.gif') ||
-          cleanPath.endsWith('.webp') || cleanPath.endsWith('.heic')) {
+      if (cleanPath.endsWith('.jpg') ||
+          cleanPath.endsWith('.jpeg') ||
+          cleanPath.endsWith('.png') ||
+          cleanPath.endsWith('.gif') ||
+          cleanPath.endsWith('.webp') ||
+          cleanPath.endsWith('.heic')) {
         return "📷 Photo";
       }
-      if (cleanPath.endsWith('.mp4') || cleanPath.endsWith('.mov') ||
-          cleanPath.endsWith('.avi') || cleanPath.endsWith('.mkv')) {
+      if (cleanPath.endsWith('.mp4') ||
+          cleanPath.endsWith('.mov') ||
+          cleanPath.endsWith('.avi') ||
+          cleanPath.endsWith('.mkv')) {
         return "🎥 Video";
       }
 
@@ -148,11 +162,11 @@ class _DirectMessagesPageState extends ConsumerState<DirectMessagesPage> {
   Widget build(BuildContext context) {
     // Watch the global provider state
     final chatState = ref.watch(chatProvider);
-    
+
     // Apply filters passing the conversations AND the fast name cache
     _applyFilter(chatState.conversations, chatState.userNames);
-    
-    final String? myId = authService.value.currentUser?.uid;
+
+    final String? myId = FirebaseAuth.instance.currentUser?.uid;
 
     return Scaffold(
       backgroundColor: Colors.white,
@@ -182,7 +196,7 @@ class _DirectMessagesPageState extends ConsumerState<DirectMessagesPage> {
                 ),
                 child: const Icon(
                   Icons.edit_outlined,
-                  color: Color(0xFF1976D2),
+                  color: AppStyle.primaryBlue,
                   size: 18,
                 ),
               ),
@@ -198,8 +212,8 @@ class _DirectMessagesPageState extends ConsumerState<DirectMessagesPage> {
             child: _filteredConversations.isEmpty
                 ? Center(
                     child: Text(
-                      chatState.conversations.isEmpty 
-                          ? "Loading or no chats yet..." // Fallback text
+                      chatState.conversations.isEmpty
+                          ? "No chats" // Fallback text
                           : "No messages match your search",
                       style: TextStyle(color: Colors.grey.shade500),
                     ),
@@ -221,14 +235,19 @@ class _DirectMessagesPageState extends ConsumerState<DirectMessagesPage> {
                               (id) => id != myId,
                               orElse: () => "Unknown",
                             );
-                      
-                      // Instant name lookup from the Provider cache!
+
+                      // Instant name and pic lookup from the Provider cache!
                       final String displayName = isGroup
                           ? (chat.title ?? "Group Chat")
                           : (chatState.userNames[otherUserId] ?? "Loading...");
+                      final String userPic = isGroup
+                          ? ""
+                          : (chatState.userPics[otherUserId] ?? "");
 
                       final int unreadCount = chat.unreadCounts[myId] ?? 0;
-                      final String lastMsgTime = _formatTimestamp(chat.lastMessage?['timestamp']);
+                      final String lastMsgTime = _formatTimestamp(
+                        chat.lastMessage?['timestamp'],
+                      );
 
                       return _buildConversationTile(
                         chat,
@@ -237,6 +256,7 @@ class _DirectMessagesPageState extends ConsumerState<DirectMessagesPage> {
                         unreadCount,
                         lastMsgTime,
                         isGroup,
+                        userPic,
                       );
                     },
                   ),
@@ -249,22 +269,9 @@ class _DirectMessagesPageState extends ConsumerState<DirectMessagesPage> {
   Widget _buildSearchBar() {
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
-      child: Container(
-        decoration: BoxDecoration(
-          color: Colors.grey.shade100,
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: Colors.grey.shade200),
-        ),
-        child: TextField(
-          controller: _searchController,
-          decoration: const InputDecoration(
-            hintText: "Search messages...",
-            hintStyle: TextStyle(color: Colors.grey, fontSize: 14),
-            prefixIcon: Icon(Icons.search, color: Colors.grey, size: 20),
-            border: InputBorder.none,
-            contentPadding: EdgeInsets.symmetric(vertical: 12),
-          ),
-        ),
+      child: TextField(
+        controller: _searchController,
+        decoration: AppStyle.searchDecoration("Search messages..."),
       ),
     );
   }
@@ -281,16 +288,16 @@ class _DirectMessagesPageState extends ConsumerState<DirectMessagesPage> {
               onTap: () => _setFilter(label),
               child: AnimatedContainer(
                 duration: const Duration(milliseconds: 200),
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 16, vertical: 7),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 7,
+                ),
                 decoration: BoxDecoration(
-                  color: isActive
-                      ? const Color(0xFF1976D2)
-                      : Colors.transparent,
+                  color: isActive ? AppStyle.primaryBlue : Colors.transparent,
                   borderRadius: BorderRadius.circular(20),
                   border: Border.all(
                     color: isActive
-                        ? const Color(0xFF1976D2)
+                        ? AppStyle.primaryBlue
                         : Colors.grey.shade300,
                   ),
                 ),
@@ -299,8 +306,7 @@ class _DirectMessagesPageState extends ConsumerState<DirectMessagesPage> {
                   style: TextStyle(
                     color: isActive ? Colors.white : Colors.grey.shade600,
                     fontSize: 13,
-                    fontWeight:
-                        isActive ? FontWeight.w600 : FontWeight.normal,
+                    fontWeight: isActive ? FontWeight.w600 : FontWeight.normal,
                   ),
                 ),
               ),
@@ -318,6 +324,7 @@ class _DirectMessagesPageState extends ConsumerState<DirectMessagesPage> {
     int unreadCount,
     String lastMsgTime,
     bool isGroup,
+    String userPic,
   ) {
     return InkWell(
       onTap: () {
@@ -342,20 +349,26 @@ class _DirectMessagesPageState extends ConsumerState<DirectMessagesPage> {
           children: [
             CircleAvatar(
               radius: 26,
-              backgroundColor:
-                  isGroup ? Colors.orange.shade400 : const Color(0xFF1976D2),
+              backgroundColor: isGroup
+                  ? Colors.orange.shade400
+                  : AppStyle.primaryBlue,
+              backgroundImage: userPic.isNotEmpty
+                  ? CachedNetworkImageProvider(userPic)
+                  : null,
               child: isGroup
                   ? const Icon(Icons.groups, color: Colors.white, size: 26)
-                  : Text(
-                      displayName != "Loading..." && displayName.isNotEmpty
-                          ? displayName[0].toUpperCase()
-                          : "?",
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontWeight: FontWeight.bold,
-                        fontSize: 18,
-                      ),
-                    ),
+                  : (userPic.isEmpty
+                      ? Text(
+                          displayName != "Loading..." && displayName.isNotEmpty
+                              ? displayName[0].toUpperCase()
+                              : "?",
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 18,
+                          ),
+                        )
+                      : null),
             ),
             const SizedBox(width: 13),
             Expanded(
@@ -402,7 +415,7 @@ class _DirectMessagesPageState extends ConsumerState<DirectMessagesPage> {
                   lastMsgTime,
                   style: TextStyle(
                     color: unreadCount > 0
-                        ? const Color(0xFF1976D2)
+                        ? AppStyle.primaryBlue
                         : Colors.grey.shade400,
                     fontSize: 11,
                     fontWeight: unreadCount > 0
@@ -416,7 +429,7 @@ class _DirectMessagesPageState extends ConsumerState<DirectMessagesPage> {
                     width: 20,
                     height: 20,
                     decoration: const BoxDecoration(
-                      color: Color(0xFF1976D2),
+                      color: AppStyle.primaryBlue,
                       shape: BoxShape.circle,
                     ),
                     child: Center(
@@ -450,6 +463,7 @@ class _DirectMessagesPageState extends ConsumerState<DirectMessagesPage> {
     List<Map<String, String>> allFriends = List.from(authNotifier.friendsList);
     List<Map<String, String>> displayList = List.from(allFriends);
     bool isFetchingFriends = false;
+    bool hasAttemptedFetch = false;
 
     showModalBottomSheet(
       context: context,
@@ -463,8 +477,9 @@ class _DirectMessagesPageState extends ConsumerState<DirectMessagesPage> {
           builder: (BuildContext context, StateSetter setModalState) {
             // If the list is empty and we haven't started a fetch yet, kick one
             // off now and refresh the modal when it resolves.
-            if (allFriends.isEmpty && !isFetchingFriends) {
+            if (allFriends.isEmpty && !isFetchingFriends && !hasAttemptedFetch) {
               isFetchingFriends = true;
+              hasAttemptedFetch = true;
               authNotifier.fetchFriendsList().then((_) {
                 if (outerContext.mounted) {
                   setModalState(() {
@@ -489,7 +504,9 @@ class _DirectMessagesPageState extends ConsumerState<DirectMessagesPage> {
                         const Text(
                           "Start New Chat",
                           style: TextStyle(
-                              fontSize: 22, fontWeight: FontWeight.bold),
+                            fontSize: 22,
+                            fontWeight: FontWeight.bold,
+                          ),
                         ),
                         IconButton(
                           icon: const Icon(Icons.close, color: Colors.black),
@@ -500,67 +517,70 @@ class _DirectMessagesPageState extends ConsumerState<DirectMessagesPage> {
                   ),
                   Container(
                     margin: const EdgeInsets.symmetric(vertical: 10),
-                    decoration: BoxDecoration(
-                      color: Colors.grey.shade100,
-                      borderRadius: BorderRadius.circular(15),
-                    ),
                     child: TextField(
                       onChanged: (value) {
                         setModalState(() {
                           displayList = allFriends
-                              .where((f) => f['Name']!
-                                  .toLowerCase()
-                                  .contains(value.toLowerCase()))
+                              .where(
+                                (f) => f['Name']!.toLowerCase().contains(
+                                  value.toLowerCase(),
+                                ),
+                              )
                               .toList();
                         });
                       },
-                      decoration: const InputDecoration(
-                        hintText: "Search friends...",
-                        prefixIcon: Icon(Icons.search),
-                        border: InputBorder.none,
-                        contentPadding: EdgeInsets.symmetric(vertical: 15),
-                      ),
+                      decoration: AppStyle.searchDecoration("Search friends..."),
                     ),
                   ),
                   const SizedBox(height: 10),
-                  
+
                   Expanded(
                     child: isFetchingFriends
                         ? const Center(child: CircularProgressIndicator())
                         : displayList.isEmpty
                         ? Center(
-                            child: Text(allFriends.isEmpty 
-                                ? "No friends yet" 
-                                : "No results found"
+                            child: Text(
+                              allFriends.isEmpty
+                                  ? "No friends"
+                                  : "No results found",
                             ),
                           )
                         : ListView.builder(
                             itemCount: displayList.length,
                             itemBuilder: (context, index) {
                               final friend = displayList[index];
+                              final friendPic = friend['picture'] ?? "";
                               return ListTile(
-                                contentPadding:
-                                    const EdgeInsets.symmetric(vertical: 5),
-                               leading: CircleAvatar(
+                                contentPadding: const EdgeInsets.symmetric(
+                                  vertical: 5,
+                                ),
+                                leading: CircleAvatar(
                                   backgroundColor: const Color(0xFFE8F0FE),
-                                  child: Text(
-                                    friend['Name']![0].toUpperCase(),
-                                    style: const TextStyle(
-                                      color: Color(0xFF1976D2), 
-                                      fontWeight: FontWeight.bold,
-                                    ),
-                                  ),
+                                  backgroundImage: friendPic.isNotEmpty
+                                      ? CachedNetworkImageProvider(friendPic)
+                                      : null,
+                                  child: friendPic.isEmpty
+                                      ? Text(
+                                          friend['Name']![0].toUpperCase(),
+                                          style: const TextStyle(
+                                            color: AppStyle.primaryBlue,
+                                            fontWeight: FontWeight.bold,
+                                          ),
+                                        )
+                                      : null,
                                 ),
                                 title: Text(
                                   friend['Name']!,
                                   style: const TextStyle(
-                                      fontWeight: FontWeight.w500),
+                                    fontWeight: FontWeight.w500,
+                                  ),
                                 ),
                                 onTap: () async {
                                   // 3. Call the Provider to smartly route or create the chat!
-                                  final convId = await ref.read(chatProvider.notifier)
+                                  final convId = await ref
+                                      .read(chatProvider.notifier)
                                       .createOrGetConversation(friend['id']!);
-                                      
+
                                   if (convId != null && outerContext.mounted) {
                                     Navigator.pop(outerContext);
                                     Navigator.push(
@@ -574,7 +594,9 @@ class _DirectMessagesPageState extends ConsumerState<DirectMessagesPage> {
                                       ),
                                     ).then((_) {
                                       // Safely clear active chat when returning
-                                      ref.read(chatProvider.notifier).clearActiveChat();
+                                      ref
+                                          .read(chatProvider.notifier)
+                                          .clearActiveChat();
                                     });
                                   }
                                 },

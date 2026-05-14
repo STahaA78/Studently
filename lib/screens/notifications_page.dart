@@ -1,9 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:studently/models/notifications.dart';
+import 'package:studently/models/post.dart';
 import 'package:studently/providers/feed_provider.dart';
 import 'package:studently/providers/notifications_provider.dart';
-import 'package:studently/repositories/chat.dart';
+// import 'package:studently/repositories/chat.dart';
 import 'package:studently/screens/chat_page.dart';
 import 'package:studently/screens/post_details_page.dart';
 import 'package:studently/screens/profile_main.dart';
@@ -143,7 +144,7 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
             width: 48,
             height: 48,
             decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.22),
+              color: Colors.white.withValues(alpha: 0.22),
               borderRadius: BorderRadius.circular(14),
             ),
             child: const Icon(
@@ -181,7 +182,7 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
             style: TextButton.styleFrom(
               foregroundColor: Colors.white,
               disabledForegroundColor: const Color(0xA6FFFFFF),
-              backgroundColor: Colors.white.withOpacity(0.18),
+              backgroundColor: Colors.white.withValues(alpha: 0.18),
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(12),
               ),
@@ -244,12 +245,7 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
         if (notification.entityId.isEmpty) return;
         final otherUserId = notification.actorId;
         String otherUserName = 'Chat';
-        if (otherUserId.isNotEmpty) {
-          try {
-            otherUserName = await ChatRepository().getUserName(otherUserId);
-          } catch (_) {}
-        }
-        if (!mounted) return;
+        if (!context.mounted) return;
         await Navigator.push(
           context,
           MaterialPageRoute(
@@ -266,21 +262,39 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
       case 'NEW_COMMENT':
         if (notification.entityId.isEmpty) return;
         try {
-          final repo = ref.read(postRepositoryProvider);
-          final post = await repo.getPostById(notification.entityId);
-          if (!mounted) return;
+          // 1. Try to find the post in the local feed cache first
+          final currentFeed = ref.read(feedProvider).value ?? [];
+          Post? targetPost;
+          try {
+            targetPost = currentFeed.firstWhere((p) => p.id == notification.entityId);
+          } catch (_) {}
+
+          // 2. Fallback to the API if not found locally
+          if (targetPost == null) {
+            final repo = ref.read(postRepositoryProvider);
+            targetPost = await repo.getPostById(notification.entityId);
+          }
+
+          if (!context.mounted) return;
           await Navigator.push(
             context,
             MaterialPageRoute(
-              builder: (_) => PostDetailsPage(postData: post),
+              builder: (_) => PostDetailsPage(postData: targetPost!),
             ),
           );
-        } catch (_) {}
+        } catch (e) {
+          // Fallback UI indication instead of failing silently on 500 error
+          if (context.mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text("Unable to load post. It may have been deleted.")),
+            );
+          }
+        }
         return;
 
       case 'FRIEND_REQUEST':
         if (notification.actorId.isEmpty) return;
-        if (!mounted) return;
+        if (!context.mounted) return;
         await Navigator.push(
           context,
           MaterialPageRoute(
@@ -291,7 +305,7 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
 
       case 'FRIEND_REQUEST_ACCEPTED':
         if (notification.actorId.isEmpty) return;
-        if (!mounted) return;
+        if (!context.mounted) return;
         await Navigator.push(
           context,
           MaterialPageRoute(
@@ -350,7 +364,7 @@ class _NotificationCard extends StatelessWidget {
                   gradient: LinearGradient(
                     colors: [
                       style.backgroundColor,
-                      style.backgroundColor.withOpacity(0.75),
+                      style.backgroundColor.withValues(alpha: 0.75),
                     ],
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,

@@ -1,23 +1,17 @@
 class Department {
   final String name;
   final String code;
-  
+
   Department({required this.name, required this.code});
-  
+
   factory Department.fromJson(Map<String, dynamic> json) {
-    return Department(
-      name: json['name'] ?? '',
-      code: json['code'] ?? '',
-    );
+    return Department(name: json['name'] ?? '', code: json['code'] ?? '');
   }
-  
+
   Map<String, dynamic> toJson() {
-    return {
-      'name': name,
-      'code': code,
-    };
+    return {'name': name, 'code': code};
   }
-  
+
   @override
   String toString() => name;
 }
@@ -27,16 +21,10 @@ class Interest {
   final String emoji;
   Interest({required this.name, required this.emoji});
   factory Interest.fromJson(Map<String, dynamic> json) {
-    return Interest(
-      name: json['name'] ?? '',
-      emoji: json['emoji'] ?? '',
-    );
+    return Interest(name: json['name'] ?? '', emoji: json['emoji'] ?? '');
   }
   Map<String, dynamic> toJson() {
-    return {
-      'name': name,
-      'emoji': emoji,
-    };
+    return {'name': name, 'emoji': emoji};
   }
 }
 
@@ -61,7 +49,7 @@ class BatchRange {
 class BackendConfig {
   List<Department> departments;
   List<InterestCategory> interests;
-  BatchRange batchRange; 
+  BatchRange batchRange;
   CurrentTerm currentTerm;
   List<String> allowedEmailDomains;
 
@@ -79,15 +67,17 @@ class BackendConfig {
           .map((dept) => Department(name: dept['name'], code: dept['code']))
           .toList(),
       interests: (json['interests'] as List)
-          .map((cat) => InterestCategory(
-                category: cat['category'],
-                data: (cat['data'] as List)
-                    .map((intst) => Interest(
-                          name: intst['name'],
-                          emoji: intst['emoji'],
-                        ))
-                    .toList(),
-              ))
+          .map(
+            (cat) => InterestCategory(
+              category: cat['category'],
+              data: (cat['data'] as List)
+                  .map(
+                    (intst) =>
+                        Interest(name: intst['name'], emoji: intst['emoji']),
+                  )
+                  .toList(),
+            ),
+          )
           .toList(),
       batchRange: BatchRange(
         start: json['batch_range']['start'],
@@ -97,8 +87,7 @@ class BackendConfig {
         term: json['current_term']['semester'],
         year: json['current_term']['year'].toString(),
       ),
-      allowedEmailDomains: List<String>.from(json['allowed_email_domains'])
-
+      allowedEmailDomains: List<String>.from(json['allowed_email_domains']),
     );
   }
 }

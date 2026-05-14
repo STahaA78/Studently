@@ -16,8 +16,6 @@ dependencies:
   firebase_core: ^4.2.1
   firebase_auth: ^6.1.2
   logger: ^2.6.2
-  email_otp: ^3.0.2
-  pinput: ^6.0.1
   flutter_svg: ^2.2.3
   google_fonts: ^8.0.0
   web_socket_channel: ^3.0.0
@@ -43,6 +41,9 @@ dependencies:
   firebase_messaging: ^16.2.0
   flutter_local_notifications: ^20.1.0
   js: ^0.6.7
+  cached_network_image: ^3.4.1
+  http_parser: ^4.1.2
+  flutter_cache_manager: ^3.4.1
   
 
 dev_dependencies:
@@ -60,9 +61,9 @@ dev_dependencies:
 flutter_launcher_icons:
   android: true
   ios: true
-  image_path: "assets/images/Logo_gpt.png"
+  image_path: "assets/images/logo.png"
   adaptive_icon_background: "#FFFFFF" # Optional: background for Android adaptive icons
-  adaptive_icon_foreground: "assets/images/Logo_gpt.png" # Optional: foreground for Android adaptive icons
+  adaptive_icon_foreground: "assets/images/logo.png" # Optional: foreground for Android adaptive icons
 
 flutter:
   uses-material-design: true
@@ -77,14 +78,14 @@ dependency_overrides:
 
 flutter_native_splash:
   color: "#FFFFFF" 
-  image: "assets/images/logo_gpt.png" 
-  branding: "assets/images/Studently_wordmark_cropped.png"
-  branding_mode: "bottom"
+  image: "assets/images/logo.png" 
+#  branding: "assets/images/branding.png"
+#  branding_mode: "bottom"
   
   android_12:
     color: "#FFFFFF"
-    image: "assets/images/logo_gpt.png"
-    branding: "assets/images/Studently_wordmark_cropped.png"
+    image: "assets/images/logo.png"
+#    branding: "assets/images/branding.png"
     
   android: true
   ios: true

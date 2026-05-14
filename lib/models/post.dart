@@ -15,7 +15,10 @@ class Comment {
     return Comment(
       userId: json["user_id"] ?? "",
       username: json["username"] ?? "",
-      text: json["content"] ?? "",
+      // Support both payload shapes:
+      // - backend/API: "content"
+      // - legacy local cache: "text"
+      text: (json["content"] ?? json["text"] ?? "").toString(),
       timestamp: DateTime.parse(json["timestamp"].toString()).toLocal(),
     );
   }
@@ -24,7 +27,8 @@ class Comment {
     return {
       "user_id": userId,
       "username": username,
-      "text": text,
+      // Keep cache shape aligned with backend/API contract.
+      "content": text,
       "timestamp": timestamp.toIso8601String(),
     };
   }
@@ -36,7 +40,8 @@ class Post {
   final String authorName;
   final String? authorPic;
   final String content;
-  final List<String> mediaUrls;
+  final String? mediaUrl;
+  final double? mediaAspectRatio;
   final List<String> likes;
   final List<Comment> comments;
   final DateTime timestamp;
@@ -47,7 +52,8 @@ class Post {
     required this.authorName,
     this.authorPic,
     required this.content,
-    required this.mediaUrls,
+    this.mediaUrl,
+    this.mediaAspectRatio,
     required this.likes,
     required this.comments,
     required this.timestamp,
@@ -59,7 +65,8 @@ class Post {
     String? authorName,
     String? authorPic,
     String? content,
-    List<String>? mediaUrls,
+    String? mediaUrl,
+    double? mediaAspectRatio,
     List<String>? likes,
     List<Comment>? comments,
     DateTime? timestamp,
@@ -70,7 +77,8 @@ class Post {
       authorName: authorName ?? this.authorName,
       authorPic: authorPic ?? this.authorPic,
       content: content ?? this.content,
-      mediaUrls: mediaUrls ?? this.mediaUrls,
+      mediaUrl: mediaUrl ?? this.mediaUrl,
+      mediaAspectRatio: mediaAspectRatio ?? this.mediaAspectRatio,
       likes: likes ?? this.likes,
       comments: comments ?? this.comments,
       timestamp: timestamp ?? this.timestamp,
@@ -84,7 +92,10 @@ class Post {
       authorName: json["author_name"],
       authorPic: json["author_pic"],
       content: json["content"],
-      mediaUrls: List<String>.from(json["media_urls"] ?? []),
+      mediaUrl: json["media_url"],
+      mediaAspectRatio: json["media_aspect_ratio"] != null
+          ? (json["media_aspect_ratio"] as num).toDouble()
+          : null,
       likes: List<String>.from(json["likes"] ?? []),
       comments: (json["comments"] as List? ?? [])
           .map((e) => Comment.fromJson(e))
@@ -100,7 +111,8 @@ class Post {
       "author_name": authorName,
       "author_pic": authorPic,
       "content": content,
-      "media_urls": mediaUrls,
+      "media_url": mediaUrl,
+      "media_aspect_ratio": mediaAspectRatio,
       "likes": likes,
       "comments": comments.map((c) => c.toJson()).toList(),
       "timestamp": timestamp.toIso8601String(),

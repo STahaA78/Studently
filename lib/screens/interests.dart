@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:studently/providers/backend_config_provider.dart';
-import 'package:studently/utils/constants.dart';
+import 'package:studently/app_style.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:studently/models/user.dart';
 import 'package:studently/models/backend_config.dart';
@@ -34,10 +34,12 @@ class InterestsSelectionPage extends ConsumerStatefulWidget {
   });
 
   @override
-  ConsumerState<InterestsSelectionPage> createState() => _InterestsSelectionPageState();
+  ConsumerState<InterestsSelectionPage> createState() =>
+      _InterestsSelectionPageState();
 }
 
-class _InterestsSelectionPageState extends ConsumerState<InterestsSelectionPage> {
+class _InterestsSelectionPageState
+    extends ConsumerState<InterestsSelectionPage> {
   static const int selectionLimit = 5;
 
   late Map<String, List<InterestOption>> sections;
@@ -51,18 +53,23 @@ class _InterestsSelectionPageState extends ConsumerState<InterestsSelectionPage>
 
   Future<void> _completeRegistration() async {
     try {
-      setState(() { _completionError = null; });
-      
+      setState(() {
+        _completionError = null;
+      });
+
       // Call signup and wait for completion
-      await ref.read(authProvider.notifier).signUp(
-        name: widget.user!.name,
-        birthday: widget.user!.birthday!,
-        department: widget.user!.department!,
-        batch: widget.user!.batch!,
-        interests: selectedInterests,
-        extractedFields: widget.extractedFields,
-      );
-      
+      await ref
+          .read(authProvider.notifier)
+          .signUp(
+            name: widget.user!.name,
+            birthday: widget.user!.birthday!,
+            department: widget.user!.department!,
+            batch: widget.user!.batch!,
+            interests: selectedInterests,
+            gender: widget.user!.gender,
+            extractedFields: widget.extractedFields,
+          );
+
       logger.i("[$runtimeType] Signup completed successfully");
     } catch (e) {
       logger.e("[$runtimeType] Signup error: $e");
@@ -85,10 +92,14 @@ class _InterestsSelectionPageState extends ConsumerState<InterestsSelectionPage>
       sections = {};
       for (var category in config.interests) {
         sections[category.category] = category.data
-            .map<InterestOption>((interest) => InterestOption(
-                  interest: interest,
-                  selected: widget.initialInterests.any((initial) => initial.name == interest.name),
-                ))
+            .map<InterestOption>(
+              (interest) => InterestOption(
+                interest: interest,
+                selected: widget.initialInterests.any(
+                  (initial) => initial.name == interest.name,
+                ),
+              ),
+            )
             .toList();
       }
     });
@@ -137,7 +148,7 @@ class _InterestsSelectionPageState extends ConsumerState<InterestsSelectionPage>
 
   Widget buildChip(InterestOption item) {
     final bool selected = item.selected;
-    final Color blue = const Color(0xFF1976D2);
+    final Color blue = AppStyle.primaryBlue;
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
@@ -187,23 +198,23 @@ class _InterestsSelectionPageState extends ConsumerState<InterestsSelectionPage>
           ),
         ),
         const SizedBox(height: 10),
-        Wrap(
-          children: items.map(buildChip).toList(),
-        ),
+        Wrap(children: items.map(buildChip).toList()),
       ],
     );
   }
 
   @override
   Widget build(BuildContext context) {
-    final Color blue = const Color(0xFF1976D2);
+    final Color blue = AppStyle.primaryBlue;
     final configAsyncValue = ref.watch(backendConfigProvider);
     final authState = ref.watch(authProvider);
     final isAuthLoading = authState.isLoading;
     ref.listen(authProvider, (previous, next) {
       // 1. Handle Success: If we now have a user, clear the signup stack
       if (next is AsyncData && next.value != null) {
-        logger.i("[$runtimeType] Signup successful, clearing navigation stack.");
+        logger.i(
+          "[$runtimeType] Signup successful, clearing navigation stack.",
+        );
         // This removes all signup screens and reveals the CommunityFeedPage at the root
         Navigator.of(context).popUntil((route) => route.isFirst);
       }
@@ -211,7 +222,10 @@ class _InterestsSelectionPageState extends ConsumerState<InterestsSelectionPage>
       // 2. Handle Errors (Your existing code)
       if (next is AsyncError) {
         setState(() {
-          _completionError = next.error.toString().replaceAll('Exception: ', '');
+          _completionError = next.error.toString().replaceAll(
+            'Exception: ',
+            '',
+          );
         });
       }
     });
@@ -229,7 +243,10 @@ class _InterestsSelectionPageState extends ConsumerState<InterestsSelectionPage>
                     Row(
                       children: [
                         Padding(
-                          padding: const EdgeInsets.only(left: AppStyle.backButtonLeftPadding, bottom: AppStyle.backButtonBottomPadding),
+                          padding: const EdgeInsets.only(
+                            left: AppStyle.backButtonLeftPadding,
+                            bottom: AppStyle.backButtonBottomPadding,
+                          ),
                           child: IconButton(
                             padding: EdgeInsets.zero,
                             icon: const Icon(
@@ -244,7 +261,9 @@ class _InterestsSelectionPageState extends ConsumerState<InterestsSelectionPage>
                     ),
                     // Title (left aligned)
                     Padding(
-                      padding: const EdgeInsets.only(left: AppStyle.signUpPageTitleLeftPadding),
+                      padding: const EdgeInsets.only(
+                        left: AppStyle.signUpPageTitleLeftPadding,
+                      ),
                       child: Align(
                         alignment: Alignment.centerLeft,
                         child: Text(
@@ -260,7 +279,9 @@ class _InterestsSelectionPageState extends ConsumerState<InterestsSelectionPage>
                     ),
                     const SizedBox(height: 8),
                     Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: AppStyle.signUpPageTitleLeftPadding),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: AppStyle.signUpPageTitleLeftPadding,
+                      ),
                       child: Align(
                         alignment: Alignment.centerLeft,
                         child: Text(
@@ -272,19 +293,23 @@ class _InterestsSelectionPageState extends ConsumerState<InterestsSelectionPage>
                     ),
                     const SizedBox(height: 16),
                     configAsyncValue.when(
-                      loading: () => const Center(
-                        child: CircularProgressIndicator(),
-                      ),
+                      loading: () =>
+                          const Center(child: CircularProgressIndicator()),
                       error: (err, stack) => Center(
                         child: Column(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            const Icon(Icons.error_outline, size: 48, color: Colors.red),
+                            const Icon(
+                              Icons.error_outline,
+                              size: 48,
+                              color: Colors.red,
+                            ),
                             const SizedBox(height: 12),
                             const Text('Failed to load interests'),
                             const SizedBox(height: 8),
                             ElevatedButton(
-                              onPressed: () => ref.refresh(backendConfigProvider),
+                              onPressed: () =>
+                                  ref.refresh(backendConfigProvider),
                               child: const Text('Retry'),
                             ),
                           ],
@@ -297,7 +322,9 @@ class _InterestsSelectionPageState extends ConsumerState<InterestsSelectionPage>
                         }
 
                         return Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: AppStyle.signUpPageTitleLeftPadding),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: AppStyle.signUpPageTitleLeftPadding,
+                          ),
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
@@ -335,7 +362,10 @@ class _InterestsSelectionPageState extends ConsumerState<InterestsSelectionPage>
                               Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: sections.entries
-                                    .map((entry) => buildSection(entry.key, entry.value))
+                                    .map(
+                                      (entry) =>
+                                          buildSection(entry.key, entry.value),
+                                    )
                                     .toList(),
                               ),
                             ],
@@ -348,7 +378,12 @@ class _InterestsSelectionPageState extends ConsumerState<InterestsSelectionPage>
               ),
             ),
             Padding(
-              padding: const EdgeInsets.only(left: 20, right: 20, bottom: 5, top: 10),
+              padding: const EdgeInsets.only(
+                left: 20,
+                right: 20,
+                bottom: 5,
+                top: 10,
+              ),
               child: Column(
                 children: [
                   SizedBox(
@@ -365,7 +400,9 @@ class _InterestsSelectionPageState extends ConsumerState<InterestsSelectionPage>
                               height: 24,
                               width: 24,
                               child: CircularProgressIndicator(
-                                valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                                valueColor: AlwaysStoppedAnimation<Color>(
+                                  Colors.white,
+                                ),
                                 strokeWidth: 2.5,
                               ),
                             )
@@ -382,7 +419,11 @@ class _InterestsSelectionPageState extends ConsumerState<InterestsSelectionPage>
                     const SizedBox(height: 12),
                     Text(
                       _completionError!,
-                      style: const TextStyle(color: Colors.redAccent, fontSize: 14, fontWeight: FontWeight.w500),
+                      style: const TextStyle(
+                        color: Colors.redAccent,
+                        fontSize: 14,
+                        fontWeight: FontWeight.w500,
+                      ),
                       textAlign: TextAlign.center,
                     ),
                   ],

@@ -15,9 +15,11 @@ class NavigationIndexNotifier extends Notifier<int> {
   }
 }
 
-final navigationIndexProvider = NotifierProvider<NavigationIndexNotifier, int>(() {
-  return NavigationIndexNotifier();
-});
+final navigationIndexProvider = NotifierProvider<NavigationIndexNotifier, int>(
+  () {
+    return NavigationIndexNotifier();
+  },
+);
 
 class MainScreen extends ConsumerWidget {
   const MainScreen({super.key});
@@ -34,10 +36,7 @@ class MainScreen extends ConsumerWidget {
             offstage: currentIndex != 0,
             child: const CommunityFeedPage(),
           ),
-          Offstage(
-            offstage: currentIndex != 4,
-            child: const ProfilePage(),
-          ),
+          Offstage(offstage: currentIndex != 4, child: const ProfilePage()),
 
           // 2. TRANSIENT PAGES (Force fresh API hit)
           if (currentIndex == 1) const ConnectDiscoverPage(),

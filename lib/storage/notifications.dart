@@ -3,11 +3,10 @@ import 'package:studently/models/notifications.dart';
 import '../logger.dart'; 
 
 class NotificationStorage {
-  // This matches the box name we opened in hive_init.dart
-  static const String _boxName = 'notificationsBox';
+  final Box _box;
 
-  // Helper to easily access the box
-  Box<AppNotification> get _box => Hive.box<AppNotification>(_boxName);
+  // This matches the box name we opened in hive_init.dart
+  NotificationStorage(this._box);
 
   /// 1. Save a batch of notifications (usually when fetching from the API)
   Future<void> saveNotifications(List<AppNotification> notifications) async {
@@ -36,7 +35,7 @@ class NotificationStorage {
   /// 3. Retrieve all cached notifications, sorted newest to oldest
   List<AppNotification> getCachedNotifications() {
     try {
-      final notifications = _box.values.toList();
+      final notifications = _box.values.cast<AppNotification>().toList();
       // Sort them so the newest ones appear at the top of the UI
       notifications.sort((a, b) => b.createdAt.compareTo(a.createdAt));
       return notifications;

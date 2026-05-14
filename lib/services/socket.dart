@@ -7,10 +7,10 @@ import 'package:studently/logger.dart';
 class SocketService {
   static final String _baseUrl = AppConfig.wsBaseUrl;
   WebSocketChannel? _channel;
-  
-  
-  final StreamController<dynamic> _streamController = StreamController<dynamic>.broadcast();
-  
+
+  final StreamController<dynamic> _streamController =
+      StreamController<dynamic>.broadcast();
+
   bool _isConnected = false;
   bool _isIntentionalDisconnect = false;
   Timer? _reconnectTimer;
@@ -62,7 +62,7 @@ class SocketService {
     logger.i("[SocketService] Intentional disconnect.");
     _isIntentionalDisconnect = true;
     _reconnectTimer?.cancel();
-    
+
     _channel?.sink.close();
     _channel = null;
     _isConnected = false;
@@ -81,8 +81,6 @@ class SocketService {
       connect();
     });
   }
-
-  
 }
 
 // Global instance

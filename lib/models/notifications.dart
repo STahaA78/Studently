@@ -52,7 +52,7 @@ class AppNotification {
       message: json['message'] ?? '',
       isRead: json['is_read'] ?? false,
       createdAt: json['created_at'] != null 
-          ? DateTime.parse(json['created_at']).toLocal() 
+          ? DateTime.parse(json['created_at'].toString().endsWith('Z') ? json['created_at'] : '${json['created_at']}Z').toLocal() 
           : DateTime.now(),
     );
   }
