@@ -6,7 +6,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../widgets/custom_nav_bar.dart';
 import 'package:studently/models/knowledge_hub.dart';
 import 'package:studently/providers/knowledge_hub_provider.dart';
-import 'knowledge_hub_course.dart';
+import 'package:studently/screens/knowledge_hub_course.dart';
+import 'package:studently/utils/web_utils.dart' as web_utils;
 
 // NEW IMPORTS FOR GROUP CHAT
 import 'package:studently/repositories/chat.dart';
@@ -290,7 +291,7 @@ class _KnowledgeHubPageState extends ConsumerState<KnowledgeHubPage> {
                     fontSize: 20,
                   ),
                 ),
-                actions: kIsWeb
+                actions: kIsWeb & !web_utils.isStandalonePwa()
                     ? [
                         IconButton(
                           icon: const Icon(Icons.refresh, color: Colors.black),

@@ -31,17 +31,6 @@ class _RepositoryUserPageState extends ConsumerState<RepositoryUserPage>
     _tabController = TabController(length: 2, vsync: this);
   }
 
-  /// Check if the app is running as a PWA (Progressive Web App)
-  bool _isPWA() {
-    if (!kIsWeb) return false;
-    try {
-      return web_utils.isStandalonePwa();
-    } catch (e) {
-      logger.w('Error checking PWA status: $e');
-      return false;
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     final Color blue = AppStyle.primaryBlue;
@@ -84,7 +73,7 @@ class _RepositoryUserPageState extends ConsumerState<RepositoryUserPage>
                   ],
                 ),
                 actions: [
-                  if (kIsWeb)
+                  if (kIsWeb & !web_utils.isStandalonePwa())
                     IconButton(
                       icon: const Icon(Icons.refresh, color: Colors.black),
                       onPressed: () async {
@@ -368,7 +357,7 @@ class _RepositoryUserPageState extends ConsumerState<RepositoryUserPage>
             );
 
             // For web (non-PWA), open PDF in a new tab
-            if (kIsWeb && !_isPWA()) {
+            if (kIsWeb && !web_utils.isStandalonePwa()) {
               try {
                 web_utils.openInNewTab(item.fileUrl);
               } catch (e) {

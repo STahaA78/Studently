@@ -66,6 +66,7 @@ class _InterestsSelectionPageState
             department: widget.user!.department!,
             batch: widget.user!.batch!,
             interests: selectedInterests,
+            gender: widget.user!.gender,
             extractedFields: widget.extractedFields,
           );
 

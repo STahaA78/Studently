@@ -67,14 +67,14 @@ class _LoginGooglePageState extends ConsumerState<LoginGooglePage> {
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      SvgPicture.asset(
-                        'assets/images/logo.svg',
-                        height: AppStyle.logoSize,
-                        colorFilter: const ColorFilter.mode(
-                          AppStyle.primaryBlue,
-                          BlendMode.srcIn,
-                        ),
-                      ),
+                      // SvgPicture.asset(
+                      //   'assets/images/logo.svg',
+                      //   height: AppStyle.logoSize,
+                      //   colorFilter: const ColorFilter.mode(
+                      //     AppStyle.primaryBlue,
+                      //     BlendMode.srcIn,
+                      //   ),
+                      // ),
                       Text(
                         'Studently',
                         style: GoogleFonts.poppins(

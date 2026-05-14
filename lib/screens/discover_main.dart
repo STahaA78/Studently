@@ -11,6 +11,7 @@ import 'package:studently/widgets/custom_nav_bar.dart';
 import 'package:studently/screens/discover_requests.dart';
 import 'package:studently/app_style.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:studently/utils/web_utils.dart' as web_utils;
 
 class ConnectDiscoverPage extends ConsumerStatefulWidget {
   const ConnectDiscoverPage({super.key});
@@ -243,7 +244,7 @@ class _ConnectDiscoverPageState extends ConsumerState<ConnectDiscoverPage> with 
         ),
         actions: [
           // Refresh button (web only)
-          if (kIsWeb)
+          if (kIsWeb && !web_utils.isStandalonePwa())
             IconButton(
               icon: const Icon(Icons.refresh, color: Colors.black),
               tooltip: 'Refresh profiles',
@@ -544,7 +545,7 @@ class _ConnectDiscoverPageState extends ConsumerState<ConnectDiscoverPage> with 
       return _buildErrorState();
     }
     if (state.students.isEmpty) {
-      return _buildEmptyState('All Caught Up!');
+      return _buildEmptyState('All caught up!');
     }
     if (state.topCardIndex >= state.students.length) {
       return Center(
@@ -630,14 +631,7 @@ class _ConnectDiscoverPageState extends ConsumerState<ConnectDiscoverPage> with 
 
   Widget _buildEmptyState(String message) {
     return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(Icons.people_outline, size: 80, color: Colors.grey[300]),
-          const SizedBox(height: 16),
-          Text(message, style: Theme.of(context).textTheme.titleMedium),
-        ],
-      ),
+      child: Text(message, style: TextStyle(fontSize: 18, color: Colors.grey, fontWeight: FontWeight.w500)),
     );
   }
 

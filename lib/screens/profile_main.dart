@@ -13,6 +13,7 @@ import 'package:studently/providers/feed_provider.dart';
 import 'package:studently/models/post.dart';
 import 'package:studently/screens/post_details_page.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:studently/utils/web_utils.dart' as web_utils;
 
 class ProfilePage extends ConsumerStatefulWidget {
   final String? userId;
@@ -284,7 +285,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                 onPressed: () => Navigator.pop(context),
               )
             : null,
-        actions: kIsWeb
+        actions: kIsWeb && !web_utils.isStandalonePwa()
             ? [
                 IconButton(
                   icon: const Icon(Icons.refresh, color: Colors.black),
@@ -375,7 +376,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                     // Edit Profile / Connect buttons
                     if (isMyProfile)
                       SizedBox(
-                        height: 40,
+                        height: 46,
                         width: double.infinity,
                         child: OutlinedButton(
                           onPressed: () {

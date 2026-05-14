@@ -7,7 +7,6 @@ import 'package:studently/widgets/custom_nav_bar.dart';
 import 'package:studently/widgets/notification_badge_icon.dart';
 import 'package:studently/screens/post_details_page.dart';
 import 'package:studently/screens/notifications_page.dart';
-import 'package:flutter_svg/flutter_svg.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:studently/app_style.dart';
 import 'package:studently/screens/profile_main.dart';
@@ -16,6 +15,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:studently/providers/feed_provider.dart';
 import 'package:studently/providers/notifications_provider.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:studently/utils/web_utils.dart' as web_utils;
 
 class CommunityFeedPage extends ConsumerStatefulWidget {
   const CommunityFeedPage({super.key});
@@ -121,14 +121,14 @@ class _CommunityFeedPageState extends ConsumerState<CommunityFeedPage> {
                     title: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        SvgPicture.asset(
-                          'assets/images/logo.svg',
-                          height: AppStyle.logoSize*0.9,
-                          colorFilter: const ColorFilter.mode(
-                            AppStyle.primaryBlue,
-                            BlendMode.srcIn,
-                          ),
-                        ),
+                        // SvgPicture.asset(
+                        //   'assets/images/logo.svg',
+                        //   height: AppStyle.logoSize*0.9,
+                        //   colorFilter: const ColorFilter.mode(
+                        //     AppStyle.primaryBlue,
+                        //     BlendMode.srcIn,
+                        //   ),
+                        // ),
                         Flexible(
                           child: Text(
                             'Studently',
@@ -144,7 +144,7 @@ class _CommunityFeedPageState extends ConsumerState<CommunityFeedPage> {
                       ],
                     ),
                     actions: [
-                      if (kIsWeb)
+                      if (kIsWeb & !web_utils.isStandalonePwa())
                         IconButton(
                           icon: const Icon(
                             Icons.refresh,

@@ -282,6 +282,7 @@ class AuthNotifier extends AsyncNotifier<User?> {
     required Department department,
     required String batch,
     required List<Interest> interests,
+    Gender? gender,
     bool extractedFields = true,
   }) async {
     state = const AsyncValue<User?>.loading();
@@ -300,6 +301,7 @@ class AuthNotifier extends AsyncNotifier<User?> {
         department: department,
         batch: batch,
         interests: interests,
+        gender: gender?.toApiString(),
         extractedFields: extractedFields,
       );
 
