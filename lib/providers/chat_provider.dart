@@ -7,6 +7,7 @@ import 'package:studently/services/socket.dart';
 import 'package:studently/services/firebase_auth.dart';
 import 'package:studently/services/chat_presence.dart';
 import 'package:studently/logger.dart';
+import 'package:studently/providers/cache_freshness_provider.dart';
 import 'package:studently/services/storage.dart';
 import 'dart:async';
 
@@ -17,6 +18,7 @@ class ChatState {
   final String? activeConversationId;
   final bool isLoading;
   final Map<String, String> userNames;
+  final Map<String, String> userPics;
 
   ChatState({
     this.conversations = const [],
@@ -24,6 +26,7 @@ class ChatState {
     this.activeConversationId,
     this.isLoading = false,
     this.userNames = const {},
+    this.userPics = const {},
   });
 
   ChatState copyWith({
@@ -32,6 +35,7 @@ class ChatState {
     String? activeConversationId,
     bool? isLoading,
     Map<String, String>? userNames,
+    Map<String, String>? userPics,
   }) {
     return ChatState(
       conversations: conversations ?? this.conversations,
@@ -39,6 +43,7 @@ class ChatState {
       activeConversationId: activeConversationId ?? this.activeConversationId,
       isLoading: isLoading ?? this.isLoading,
       userNames: userNames ?? this.userNames,
+      userPics: userPics ?? this.userPics,
     );
   }
 }
@@ -49,6 +54,7 @@ class ChatNotifier extends Notifier<ChatState> {
   final _chatStorage = StorageService().chatStorage;
   late final AppLifecycleListener _lifecycleListener;
   StreamSubscription? _socketSubscription;
+  Timer? _userPicsRefreshTimer; // Timer for periodic refresh of user pictures
 
   // Tracks conversations the user has explicitly opened (and zeroed) in THIS session.
   // Only these get the "trust local zero" treatment in fetchConversations().
@@ -63,6 +69,7 @@ class ChatNotifier extends Notifier<ChatState> {
       activeConversationId: null,
       isLoading: false,
       userNames: state.userNames,
+      userPics: state.userPics,
     );
   }
 
@@ -94,8 +101,11 @@ class ChatNotifier extends Notifier<ChatState> {
       ChatPresence.setActiveConversation(null);
       _lifecycleListener.dispose();
       _socketSubscription?.cancel(); // Unplug the listener
+      _userPicsRefreshTimer?.cancel(); // Cancel periodic refresh timer
       socketService.disconnect();
     });
+
+    _listenToCacheEvents();
 
     // 4. Initialize API and Socket connection
     Future.microtask(() => _init());
@@ -110,6 +120,96 @@ class ChatNotifier extends Notifier<ChatState> {
 
     socketService.connect();
     _initSocketListener();
+    
+    // Start periodic refresh of user pictures (similar to feed's silentRefresh)
+    _startUserPicsRefreshTimer();
+  }
+
+  void _listenToCacheEvents() {
+    ref.listen<int>(cacheInvalidationBusProvider, (_, __) {
+      final event = ref.read(cacheInvalidationBusProvider.notifier).latest();
+      if (event == null) return;
+      if (event.type == 'profile_photo_updated' ||
+          event.type == 'profile_photo_removed' ||
+          event.type == 'profile_updated' ||
+          event.type == 'friendship_changed') {
+        ref.read(cacheCoordinatorProvider).invalidate(CacheDomain.chatUserProfiles);
+        _refreshAllUserPicturesFromServer(force: true);
+      } else if (event.type == 'chat_state_changed') {
+        ref.read(cacheCoordinatorProvider).invalidate(CacheDomain.chatConversations);
+        fetchConversations();
+      }
+    });
+  }
+
+  /// Start a timer that periodically refreshes user pictures
+  /// This mirrors the feed provider's silentRefresh pattern
+  void _startUserPicsRefreshTimer() {
+    _userPicsRefreshTimer?.cancel();
+    _userPicsRefreshTimer = Timer.periodic(const Duration(seconds: 45), (_) {
+      _refreshAllUserPicturesFromServer();
+    });
+  }
+
+  /// Refresh all user pictures from the server without blocking UI
+  /// This is called periodically to ensure profile picture updates are shown
+  Future<void> _refreshAllUserPicturesFromServer({bool force = false}) async {
+    final cache = ref.read(cacheCoordinatorProvider);
+    if (!force && !cache.isStale(CacheDomain.chatUserProfiles)) return;
+    if (!cache.tryBeginRefresh(CacheDomain.chatUserProfiles)) return;
+    final convos = state.conversations;
+    if (convos.isEmpty) {
+      cache.endRefresh(CacheDomain.chatUserProfiles, success: true);
+      return;
+    }
+
+    final myUid = authService.value.currentUser?.uid;
+    final userIdsToFetch = <String>{};
+
+    // Collect all user IDs from conversations
+    for (final conv in convos) {
+      if (!conv.isGroup) {
+        for (final userId in conv.participants) {
+          if (userId != myUid) {
+            userIdsToFetch.add(userId);
+          }
+        }
+      }
+    }
+
+    if (userIdsToFetch.isEmpty) {
+      cache.endRefresh(CacheDomain.chatUserProfiles, success: true);
+      return;
+    }
+
+    final updatedPics = Map<String, String>.from(state.userPics);
+    final updatedNames = Map<String, String>.from(state.userNames);
+    bool hasChanges = false;
+
+    for (final userId in userIdsToFetch) {
+      try {
+        final profile = await _chatRepo.getUserProfileBasic(userId);
+        final newName = profile['name'] ?? "Unknown User";
+        final newPic = profile['picture'] ?? "";
+        
+        // Only update if changed (to avoid unnecessary UI rebuilds)
+        if (updatedNames[userId] != newName || updatedPics[userId] != newPic) {
+          updatedNames[userId] = newName;
+          updatedPics[userId] = newPic;
+          hasChanges = true;
+        }
+      } catch (e) {
+        logger.w("[ChatProvider] Failed to refresh profile for $userId: $e");
+      }
+    }
+
+    if (hasChanges) {
+      state = state.copyWith(userNames: updatedNames, userPics: updatedPics);
+      _chatStorage.saveUserNames(updatedNames);
+      _chatStorage.saveUserPics(updatedPics);
+      logger.i("[ChatProvider] Periodic refresh updated user pictures");
+    }
+    cache.endRefresh(CacheDomain.chatUserProfiles, success: true);
   }
 
   Future<String?> createOrGetConversation(String friendId) async {
@@ -139,8 +239,9 @@ class ChatNotifier extends Notifier<ChatState> {
 
   void _loadNamesFromHive() {
     final namesMap = _chatStorage.getCachedUserNames();
-    if (namesMap.isNotEmpty) {
-      state = state.copyWith(userNames: namesMap);
+    final picsMap = _chatStorage.getCachedUserPics();
+    if (namesMap.isNotEmpty || picsMap.isNotEmpty) {
+      state = state.copyWith(userNames: namesMap, userPics: picsMap);
     }
   }
 
@@ -161,17 +262,21 @@ class ChatNotifier extends Notifier<ChatState> {
     if (missingIds.isEmpty) return;
 
     final updatedNames = Map<String, String>.from(state.userNames);
+    final updatedPics = Map<String, String>.from(state.userPics);
     for (final id in missingIds) {
       try {
-        final name = await _chatRepo.getUserName(id);
-        updatedNames[id] = name;
+        final profile = await _chatRepo.getUserProfileBasic(id);
+        updatedNames[id] = profile['name'] ?? "Unknown User";
+        updatedPics[id] = profile['picture'] ?? "";
       } catch (e) {
         updatedNames[id] = "Unknown User";
+        updatedPics[id] = "";
       }
     }
 
-    state = state.copyWith(userNames: updatedNames);
+    state = state.copyWith(userNames: updatedNames, userPics: updatedPics);
     _chatStorage.saveUserNames(updatedNames);
+    _chatStorage.saveUserPics(updatedPics);
   }
 
   // --- API & CACHING FOR CONVERSATIONS ---
@@ -222,6 +327,7 @@ class ChatNotifier extends Notifier<ChatState> {
 
       state = state.copyWith(conversations: mergedConvos);
       _chatStorage.saveConversations(mergedConvos);
+      ref.read(cacheCoordinatorProvider).markFresh(CacheDomain.chatConversations);
 
       _fetchMissingNames(mergedConvos);
     } catch (e) {
@@ -391,6 +497,83 @@ class ChatNotifier extends Notifier<ChatState> {
 
     state = state.copyWith(conversations: updatedConvos);
     _chatStorage.saveConversations(updatedConvos);
+  }
+
+  /// Refresh a specific user's profile picture when they update their profile photo
+  /// Called by auth provider when a user updates their profile picture
+  /// This ensures the new profile pic shows up immediately in DM active chats and new chat list
+  void refreshUserPicture(String userId, String newPhotoUrl) {
+    final updatedPics = Map<String, String>.from(state.userPics);
+    updatedPics[userId] = newPhotoUrl;
+    state = state.copyWith(userPics: updatedPics);
+    _chatStorage.saveUserPics(updatedPics);
+    ref.read(cacheCoordinatorProvider).invalidate(CacheDomain.chatUserProfiles);
+    logger.i("[ChatProvider] Updated cached picture for user $userId");
+  }
+
+  /// Refresh all user pictures from the server
+  /// Useful when multiple users' profiles might have changed
+  Future<void> refreshAllUserPictures() async {
+    final convos = state.conversations;
+    if (convos.isEmpty) return;
+
+    final myUid = authService.value.currentUser?.uid;
+    final updatedPics = Map<String, String>.from(state.userPics);
+    final updatedNames = Map<String, String>.from(state.userNames);
+    bool hasChanges = false;
+
+    for (final conv in convos) {
+      if (!conv.isGroup) {
+        for (final userId in conv.participants) {
+          if (userId != myUid && !updatedPics.containsKey(userId)) {
+            try {
+              final profile = await _chatRepo.getUserProfileBasic(userId);
+              updatedNames[userId] = profile['name'] ?? "Unknown User";
+              updatedPics[userId] = profile['picture'] ?? "";
+              hasChanges = true;
+            } catch (e) {
+              logger.w("[ChatProvider] Failed to fetch profile for $userId: $e");
+            }
+          }
+        }
+      }
+    }
+
+    if (hasChanges) {
+      state = state.copyWith(userNames: updatedNames, userPics: updatedPics);
+      _chatStorage.saveUserNames(updatedNames);
+      _chatStorage.saveUserPics(updatedPics);
+      logger.i("[ChatProvider] Refreshed all user pictures");
+    }
+  }
+
+  /// Refresh a specific user's picture immediately from the server
+  /// Called when a user's profile picture has been updated
+  /// This ensures the change is reflected in both active chats and the friends list
+  Future<void> refreshUserPictureFromServer(String userId) async {
+    final cache = ref.read(cacheCoordinatorProvider);
+    if (!cache.tryBeginRefresh(CacheDomain.chatUserProfiles, scopeId: userId)) return;
+    try {
+      final profile = await _chatRepo.getUserProfileBasic(userId);
+      final newPic = profile['picture'] ?? "";
+      final newName = profile['name'] ?? "Unknown User";
+      
+      final updatedPics = Map<String, String>.from(state.userPics);
+      final updatedNames = Map<String, String>.from(state.userNames);
+      
+      updatedPics[userId] = newPic;
+      updatedNames[userId] = newName;
+      
+      state = state.copyWith(userNames: updatedNames, userPics: updatedPics);
+      _chatStorage.saveUserNames(updatedNames);
+      _chatStorage.saveUserPics(updatedPics);
+      cache.endRefresh(CacheDomain.chatUserProfiles, scopeId: userId, success: true);
+      
+      logger.i("[ChatProvider] Refreshed picture for user $userId from server");
+    } catch (e) {
+      cache.endRefresh(CacheDomain.chatUserProfiles, scopeId: userId, success: false);
+      logger.w("[ChatProvider] Failed to refresh picture for $userId: $e");
+    }
   }
 }
 

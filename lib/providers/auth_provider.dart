@@ -1,11 +1,13 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:studently/services/firebase_auth.dart';
 import 'package:studently/repositories/user.dart';
 import 'package:studently/models/user.dart';
 import 'package:studently/models/backend_config.dart';
 import 'package:studently/logger.dart';
 import 'package:studently/providers/backend_config_provider.dart';
+import 'package:studently/providers/cache_freshness_provider.dart';
+import 'package:studently/providers/chat_provider.dart';
 import 'package:studently/services/storage.dart';
 import 'dart:typed_data';
 
@@ -59,13 +61,20 @@ class AuthNotifier extends AsyncNotifier<User?> {
         await _ensureUserStorageInitialized();
 
         // INSTANT UI: Return cached data but trigger a refresh in the background
-        _refreshProfileInBackground(firebaseUser.uid);
+        final cache = ref.read(cacheCoordinatorProvider);
+        if (cache.isStale(CacheDomain.userProfile)) {
+          _refreshProfileInBackground(firebaseUser.uid);
+        }
+        if (cache.isStale(CacheDomain.friendsList)) {
+          fetchFriendsList();
+        }
 
         return cachedUser;
       }
 
       // No cache found, but logged into Firebase: Fetch fresh from FastAPI
       final freshUser = await _fetchAndSaveFreshProfile(firebaseUser.uid);
+      ref.read(cacheCoordinatorProvider).markFresh(CacheDomain.userProfile);
 
       await _ensureUserStorageInitialized();
 
@@ -101,28 +110,36 @@ class AuthNotifier extends AsyncNotifier<User?> {
   }
 
   Future<void> _refreshProfileInBackground(String uid) async {
+    final cache = ref.read(cacheCoordinatorProvider);
+    if (!cache.tryBeginRefresh(CacheDomain.userProfile)) return;
     try {
       final freshUser = await _fetchAndSaveFreshProfile(uid);
       state = AsyncValue.data(freshUser); // Update the state silently
+      cache.endRefresh(CacheDomain.userProfile, success: true);
 
       // Fetch and cache friends in the background
       await fetchFriendsList();
 
       logger.d("[$runtimeType] Background profile refresh complete");
     } catch (e) {
+      cache.endRefresh(CacheDomain.userProfile, success: false);
       logger.w("[$runtimeType] Background refresh failed: $e");
     }
   }
 
   // Dedicated method to fetch friends from UserRepository
   Future<void> fetchFriendsList() async {
+    final cache = ref.read(cacheCoordinatorProvider);
+    if (!cache.tryBeginRefresh(CacheDomain.friendsList)) return;
     try {
       final userRepo = ref.read(userRepositoryProvider);
       final rawFriends = await userRepo.getFriendsList();
 
       friendsList = rawFriends;
       _authStorage.saveFriendsList(friendsList);
+      cache.endRefresh(CacheDomain.friendsList, success: true);
     } catch (e) {
+      cache.endRefresh(CacheDomain.friendsList, success: false);
       logger.e("[$runtimeType] Error fetching friends list: $e");
     }
   }
@@ -290,6 +307,7 @@ class AuthNotifier extends AsyncNotifier<User?> {
 
       if (success) {
         final user = await _fetchAndSaveFreshProfile(firebaseUser.uid);
+        ref.read(cacheCoordinatorProvider).markFresh(CacheDomain.userProfile);
         // Clear signup flag after successful signup
         setSignupInProgress(false);
 
@@ -325,6 +343,12 @@ class AuthNotifier extends AsyncNotifier<User?> {
     _authStorage.clearFriendsList(); // Also wipe friends list on logout
     _authStorage.clearInSignupFlow(); // Clear signup flag on logout
     friendsList.clear();
+    final cache = ref.read(cacheCoordinatorProvider);
+    cache.invalidateMany([
+      (CacheDomain.userProfile, null),
+      (CacheDomain.friendsList, null),
+      (CacheDomain.chatUserProfiles, null),
+    ]);
 
     state = const AsyncValue.data(null);
   }
@@ -380,6 +404,11 @@ class AuthNotifier extends AsyncNotifier<User?> {
       // 3. Update RAM and Disk instantly
       state = AsyncValue.data(updatedUser);
       _authStorage.saveUser(updatedUser);
+      final cache = ref.read(cacheCoordinatorProvider);
+      cache.markFresh(CacheDomain.userProfile);
+      ref.read(cacheInvalidationBusProvider.notifier).publish(
+        CacheInvalidationEvent(type: 'profile_updated', userId: updatedUser.id),
+      );
     }
   }
 
@@ -390,6 +419,8 @@ class AuthNotifier extends AsyncNotifier<User?> {
   }) async {
     try {
       final userRepo = ref.read(userRepositoryProvider);
+      final currentUser = state.value;
+      final oldPhotoUrl = currentUser?.picture;
 
       // 1. Upload the photo to the backend
       await userRepo.uploadProfilePhoto(
@@ -403,10 +434,32 @@ class AuthNotifier extends AsyncNotifier<User?> {
       if (firebaseUser != null) {
         final updatedUser = await _fetchAndSaveFreshProfile(firebaseUser.uid);
 
-        // 3. Update state to trigger UI refresh with new profile photo
+        // 3. Clear CachedNetworkImage cache for old photo if it existed
+        if (oldPhotoUrl != null && oldPhotoUrl.isNotEmpty) {
+          await CachedNetworkImage.evictFromCache(oldPhotoUrl);
+          logger.i("[$runtimeType] Cleared cache for old profile photo: $oldPhotoUrl");
+        }
+
+        // 4. Refresh friends list to get updated profile pictures from server
+        await fetchFriendsList();
+
+        // 5. Notify chat provider to refresh user pictures cache
+        // This ensures the new profile pic shows up in DM active chats and new chat list
+        if (updatedUser.picture != null && updatedUser.picture!.isNotEmpty) {
+          await _notifyProfilePhotoUpdated(firebaseUser.uid, updatedUser.picture!);
+        }
+        ref.read(cacheCoordinatorProvider).markFresh(CacheDomain.userProfile);
+        ref.read(cacheInvalidationBusProvider.notifier).publish(
+          CacheInvalidationEvent(
+            type: 'profile_photo_updated',
+            userId: firebaseUser.uid,
+          ),
+        );
+
+        // 6. Update state to trigger UI refresh with new profile photo
         state = AsyncValue.data(updatedUser);
 
-        logger.i("[$runtimeType] Profile photo updated successfully");
+        logger.i("[$runtimeType] Profile photo updated successfully - friends list refreshed");
       }
     } catch (e, stack) {
       logger.e(
@@ -418,13 +471,32 @@ class AuthNotifier extends AsyncNotifier<User?> {
     }
   }
 
+  /// Notify the chat provider that a user's profile photo has been updated
+  /// This ensures the DM page and new chat modal show the updated profile pictures
+  Future<void> _notifyProfilePhotoUpdated(String userId, String newPhotoUrl) async {
+    try {
+      final chatNotifier = ref.read(chatProvider.notifier);
+      // Optimistically update the in-memory cache so UI updates immediately
+      chatNotifier.refreshUserPicture(userId, newPhotoUrl);
+
+      // Also fetch the authoritative profile from server to ensure consistency
+      // (handles cases where backend canonicalizes or rewrites the URL)
+      await chatNotifier.refreshUserPictureFromServer(userId);
+
+      logger.d("[$runtimeType] Notified chat provider about profile photo update for $userId");
+    } catch (e) {
+      logger.w("[$runtimeType] Could not notify chat provider: $e");
+    }
+  }
+
   Future<void> removeProfilePhoto() async {
     final userRepo = ref.read(userRepositoryProvider);
+    final currentUser = state.value;
+    final oldPhotoUrl = currentUser?.picture;
 
     // 1. Wait for FastAPI to delete the file
     await userRepo.removeProfilePhoto();
 
-    final currentUser = state.value;
     if (currentUser != null) {
       // 2. Locally clear the photo URL string
       final updatedUser = User(
@@ -443,6 +515,36 @@ class AuthNotifier extends AsyncNotifier<User?> {
       // 3. Update RAM and Disk
       state = AsyncValue.data(updatedUser);
       _authStorage.saveUser(updatedUser);
+
+      // 4. Clear cached image for old URL if present
+      if (oldPhotoUrl != null && oldPhotoUrl.isNotEmpty) {
+        await CachedNetworkImage.evictFromCache(oldPhotoUrl);
+      }
+
+      // 5. Refresh friends list and chat cache so DM + new chat modal reflect removal
+      await fetchFriendsList();
+      final firebaseUser = authService.value.currentUser;
+      if (firebaseUser != null) {
+        final chatNotifier = ref.read(chatProvider.notifier);
+        chatNotifier.refreshUserPicture(firebaseUser.uid, '');
+        await chatNotifier.refreshUserPictureFromServer(firebaseUser.uid);
+        ref.read(cacheInvalidationBusProvider.notifier).publish(
+          CacheInvalidationEvent(
+            type: 'profile_photo_removed',
+            userId: firebaseUser.uid,
+          ),
+        );
+      }
+    }
+  }
+
+  /// Explicitly refresh friends list (useful when profile pictures need to be updated)
+  Future<void> refreshFriendsWithUpdatedPics() async {
+    try {
+      await fetchFriendsList();
+      logger.i("[$runtimeType] Friends list refreshed with latest profile pictures");
+    } catch (e) {
+      logger.e("[$runtimeType] Failed to refresh friends list: $e");
     }
   }
 
@@ -485,6 +587,12 @@ class AuthNotifier extends AsyncNotifier<User?> {
       // NEW: If accepted, background refresh the friends list to ensure the chat modal gets updated!
       if (action == 'accept') {
         fetchFriendsList(); // Note: No await needed, let it update the cache silently!
+        ref.read(cacheInvalidationBusProvider.notifier).publish(
+          CacheInvalidationEvent(
+            type: 'friendship_changed',
+            userId: requesterId,
+          ),
+        );
       }
     } catch (e) {
       // 4. ROLLBACK: If API fails, revert state if we changed it

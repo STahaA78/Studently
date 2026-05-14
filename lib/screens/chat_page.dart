@@ -10,6 +10,7 @@ import 'package:audioplayers/audioplayers.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:open_filex/open_filex.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 
 import 'package:studently/models/chat.dart';
 import 'package:studently/providers/chat_provider.dart';
@@ -167,7 +168,8 @@ class _ChatPageState extends ConsumerState<ChatPage> {
 
   String _formatTime(String timestamp) {
     try {
-      final DateTime dt = DateTime.parse(timestamp).toLocal();
+      final String safeTimestamp = timestamp.endsWith('Z') ? timestamp : '${timestamp}Z';
+      final DateTime dt = DateTime.parse(safeTimestamp).toLocal();
       final hour = dt.hour > 12 ? dt.hour - 12 : (dt.hour == 0 ? 12 : dt.hour);
       final period = dt.hour >= 12 ? "PM" : "AM";
       final minute = dt.minute.toString().padLeft(2, '0');
@@ -384,7 +386,9 @@ class _ChatPageState extends ConsumerState<ChatPage> {
     if (cleanPath.endsWith('.jpg') ||
         cleanPath.endsWith('.png') ||
         cleanPath.endsWith('.jpeg') ||
+        cleanPath.endsWith('.jpe') ||
         cleanPath.endsWith('.gif') ||
+        cleanPath.endsWith('.heic') ||
         cleanPath.endsWith('.webp')) {
       return Padding(
         padding: const EdgeInsets.only(bottom: 8.0),
@@ -400,33 +404,29 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                 ),
                 child: ClipRRect(
                   borderRadius: BorderRadius.circular(8),
-                  child: Image.network(
-                    url,
+                  child: CachedNetworkImage(
+                    imageUrl: url,
                     fit: BoxFit.cover,
-                    loadingBuilder: (context, child, loadingProgress) {
-                      if (loadingProgress == null) return child;
-                      return Container(
-                        height: 200,
-                        width: MediaQuery.of(context).size.width * 0.6,
-                        color: isMe
-                            ? Colors.white.withValues(alpha: 0.2)
-                            : Colors.grey.shade300,
-                        child: const Center(
-                          child: CircularProgressIndicator(strokeWidth: 2),
+                    placeholder: (context, url) => Container(
+                      height: 200,
+                      width: MediaQuery.of(context).size.width * 0.6,
+                      color: isMe
+                          ? Colors.white.withValues(alpha: 0.2)
+                          : Colors.grey.shade300,
+                      child: const Center(
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      ),
+                    ),
+                    errorWidget: (context, url, error) => const SizedBox(
+                      height: 100,
+                      child: Center(
+                        child: Icon(
+                          Icons.broken_image,
+                          color: Colors.grey,
+                          size: 40,
                         ),
-                      );
-                    },
-                    errorBuilder: (context, error, stackTrace) =>
-                        const SizedBox(
-                          height: 100,
-                          child: Center(
-                            child: Icon(
-                              Icons.broken_image,
-                              color: Colors.grey,
-                              size: 40,
-                            ),
-                          ),
-                        ),
+                      ),
+                    ),
                   ),
                 ),
               ),

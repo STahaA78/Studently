@@ -9,6 +9,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:studently/logger.dart';
 import 'package:studently/models/notifications.dart';
 import 'package:studently/models/post.dart';
+import 'package:studently/providers/cache_freshness_provider.dart';
 import 'package:studently/providers/feed_provider.dart';
 import 'package:studently/repositories/notifications.dart';
 import 'package:studently/repositories/chat.dart';
@@ -60,6 +61,7 @@ class NotificationController extends Notifier<NotificationState> {
   Timer? _fallbackSyncTimer;
   Map<String, dynamic>? _pendingTapPayload;
   bool _isTapRoutingInProgress = false;
+  String? _lastHandledTapSignature;
 
   String? _registeredToken;
   String? _initializedUid;
@@ -95,21 +97,36 @@ class NotificationController extends Notifier<NotificationState> {
       isLoading: true,
       notifications: _storage.getCachedNotifications(),
     );
+    ref.listen<int>(cacheInvalidationBusProvider, (_, __) {
+      final event = ref.read(cacheInvalidationBusProvider.notifier).latest();
+      if (event == null) return;
+      if (event.type == 'notification_state_changed') {
+        ref.read(cacheCoordinatorProvider).invalidate(CacheDomain.notifications);
+        refreshFromServer();
+      }
+    });
 
     await _configureMessaging(uid);
-    await refreshFromServer();
+    final cache = ref.read(cacheCoordinatorProvider);
+    if (cache.isStale(CacheDomain.notifications)) {
+      await refreshFromServer();
+    }
     await processPendingTapIfAny();
 
     state = state.copyWith(isLoading: false, initialized: true);
   }
 
   Future<void> refreshFromServer() async {
+    final cache = ref.read(cacheCoordinatorProvider);
+    if (!cache.tryBeginRefresh(CacheDomain.notifications)) return;
     try {
       final fresh = await _repository.fetchNotifications(skip: 0, limit: 100);
       final visible = _filterVisibleNotifications(fresh);
       state = state.copyWith(notifications: visible);
       await _storage.saveNotifications(visible);
+      cache.endRefresh(CacheDomain.notifications, success: true);
     } catch (e) {
+      cache.endRefresh(CacheDomain.notifications, success: false);
       logger.e('[NotificationController] refresh failed: $e');
     }
   }
@@ -132,6 +149,9 @@ class NotificationController extends Notifier<NotificationState> {
     await _storage.markAsReadLocally(id);
     await _repository.markAsRead(id);
     await _clearSystemNotificationsIfSupported();
+    ref.read(cacheInvalidationBusProvider.notifier).publish(
+      const CacheInvalidationEvent(type: 'notification_state_changed'),
+    );
   }
 
   Future<void> clearForLogout() async {
@@ -147,8 +167,10 @@ class NotificationController extends Notifier<NotificationState> {
 
     _initializedUid = null;
     _pendingTapPayload = null;
+    _lastHandledTapSignature = null;
     state = const NotificationState(notifications: []);
     await _storage.clearStorage();
+    ref.read(cacheCoordinatorProvider).invalidate(CacheDomain.notifications);
   }
 
   Future<void> markAllAsRead() async {
@@ -168,6 +190,9 @@ class NotificationController extends Notifier<NotificationState> {
       return;
     }
     await _clearSystemNotificationsIfSupported();
+    ref.read(cacheInvalidationBusProvider.notifier).publish(
+      const CacheInvalidationEvent(type: 'notification_state_changed'),
+    );
   }
 
   Future<void> _configureMessaging(String uid) async {
@@ -217,6 +242,7 @@ class NotificationController extends Notifier<NotificationState> {
       final isActiveChatMessage =
           messageType == 'NEW_MESSAGE' &&
           entityId == ChatPresence.activeConversationId;
+      _publishCacheEventsFromPayload(message.data);
 
       await _handleForegroundMessage(message);
 
@@ -241,6 +267,7 @@ class NotificationController extends Notifier<NotificationState> {
       message,
     ) async {
       if (!_isSessionCompatible(uid)) return;
+      _publishCacheEventsFromPayload(message.data);
 
       final messageType = message.data['type']?.toString();
       if (messageType == 'NEW_POST' ||
@@ -248,13 +275,13 @@ class NotificationController extends Notifier<NotificationState> {
           messageType == 'POST_LIKE') {
         ref.read(feedProvider.notifier).silentRefresh();
       }
-
-      await refreshFromServer();
       await _routeByPayloadOrQueue(message.data);
+      unawaited(refreshFromServer());
     });
 
     final initialMessage = await _messaging.getInitialMessage();
     if (initialMessage != null && _isSessionCompatible(uid)) {
+      _publishCacheEventsFromPayload(initialMessage.data);
       final messageType = initialMessage.data['type']?.toString();
       if (messageType == 'NEW_POST' ||
           messageType == 'NEW_COMMENT' ||
@@ -262,8 +289,8 @@ class NotificationController extends Notifier<NotificationState> {
         Future.microtask(() => ref.read(feedProvider.notifier).silentRefresh());
       }
 
-      await refreshFromServer();
       await _routeByPayloadOrQueue(initialMessage.data);
+      unawaited(refreshFromServer());
     }
 
     _fallbackSyncTimer = Timer.periodic(const Duration(seconds: 30), (_) async {
@@ -291,8 +318,8 @@ class NotificationController extends Notifier<NotificationState> {
           if (payload == null || payload.isEmpty) return;
           try {
             final data = jsonDecode(payload) as Map<String, dynamic>;
-            await refreshFromServer();
             await _routeByPayloadOrQueue(data);
+            unawaited(refreshFromServer());
           } catch (e) {
             logger.w(
               '[NotificationController] Invalid local notification payload: $e',
@@ -312,6 +339,7 @@ class NotificationController extends Notifier<NotificationState> {
           try {
             final data = jsonDecode(launchPayload) as Map<String, dynamic>;
             await _routeByPayloadOrQueue(data);
+            unawaited(refreshFromServer());
           } catch (e) {
             logger.w('[NotificationController] Invalid launch payload: $e');
           }
@@ -418,8 +446,88 @@ class NotificationController extends Notifier<NotificationState> {
   }
 
   Future<void> _routeByPayloadOrQueue(Map<String, dynamic> payload) async {
+    _publishCacheEventsFromPayload(payload);
     _pendingTapPayload = payload;
     await processPendingTapIfAny();
+  }
+
+  void _publishCacheEventsFromPayload(Map<String, dynamic> payload) {
+    final type = payload['type']?.toString() ?? '';
+    final normalizedType = type.toUpperCase();
+    final entityId = payload['entity_id']?.toString();
+    final actorId = payload['actor_id']?.toString();
+    final bus = ref.read(cacheInvalidationBusProvider.notifier);
+    final cache = ref.read(cacheCoordinatorProvider);
+
+    switch (normalizedType) {
+      case 'NEW_POST':
+      case 'NEW_COMMENT':
+      case 'POST_LIKE':
+      case 'POST_UNLIKE':
+      case 'POST_LIKE_REMOVED':
+      case 'COMMENT_DELETED':
+      case 'COMMENT_REMOVED':
+      case 'POST_DELETED':
+      case 'POST_REMOVED':
+        cache.invalidate(CacheDomain.feedPosts);
+        bus.publish(const CacheInvalidationEvent(type: 'post_state_changed'));
+        break;
+      case 'NEW_MESSAGE':
+        cache.invalidate(CacheDomain.chatConversations);
+        bus.publish(const CacheInvalidationEvent(type: 'chat_state_changed'));
+        break;
+      case 'FRIEND_REQUEST':
+      case 'FRIEND_REQUEST_ACCEPTED':
+      case 'FRIEND_REQUEST_REJECTED':
+      case 'FRIEND_REQUEST_DECLINED':
+        cache.invalidate(CacheDomain.friendsList);
+        cache.invalidate(CacheDomain.chatConversations);
+        bus.publish(
+          CacheInvalidationEvent(
+            type: 'friendship_changed',
+            userId: actorId ?? entityId,
+          ),
+        );
+        break;
+      case 'PROFILE_UPDATED':
+      case 'PROFILE_PHOTO_UPDATED':
+      case 'PROFILE_PHOTO_REMOVED':
+        cache.invalidate(CacheDomain.userProfile);
+        cache.invalidate(CacheDomain.friendsList);
+        cache.invalidate(CacheDomain.chatUserProfiles);
+        bus.publish(
+          CacheInvalidationEvent(
+            type: type == 'PROFILE_PHOTO_REMOVED'
+                ? 'profile_photo_removed'
+                : 'profile_photo_updated',
+            userId: actorId ?? entityId,
+          ),
+        );
+        break;
+      case 'KNOWLEDGE_RESOURCE_UPLOADED':
+      case 'KNOWLEDGE_RESOURCE_DELETED':
+      case 'KNOWLEDGE_COURSE_UPDATED':
+        final courseId = entityId;
+        cache.invalidate(CacheDomain.knowledgeCourses);
+        if (courseId != null && courseId.isNotEmpty) {
+          cache.invalidate(
+            CacheDomain.knowledgeCourseResources,
+            scopeId: courseId,
+          );
+        } else {
+          cache.invalidate(CacheDomain.knowledgeCourseResources);
+        }
+        bus.publish(
+          CacheInvalidationEvent(
+            type: type.toLowerCase(),
+            courseId: courseId,
+          ),
+        );
+        break;
+      default:
+        // Unknown push type: keep no-op to avoid accidental broad invalidation.
+        break;
+    }
   }
 
   bool _isSessionCompatible(String uid) {
@@ -447,15 +555,21 @@ class NotificationController extends Notifier<NotificationState> {
     final payloadNotificationId = payload['notification_id']?.toString() ?? '';
     var entityId = payload['entity_id']?.toString() ?? '';
     var actorId = payload['actor_id']?.toString() ?? '';
+    final signature = '$type|$payloadNotificationId|$entityId|$actorId';
+    if (_lastHandledTapSignature == signature) {
+      return true;
+    }
 
     AppNotification? appNotification;
     if (payloadNotificationId.isNotEmpty) {
       appNotification = _findById(payloadNotificationId);
-      if (appNotification == null) {
-        await refreshFromServer();
-        appNotification = _findById(payloadNotificationId);
+      if (appNotification != null) {
+        unawaited(markAsRead(payloadNotificationId));
+      } else {
+        unawaited(refreshFromServer().then((_) async {
+          await markAsRead(payloadNotificationId);
+        }));
       }
-      await markAsRead(payloadNotificationId);
     }
 
     if (entityId.isEmpty) {
@@ -482,14 +596,15 @@ class NotificationController extends Notifier<NotificationState> {
         case 'NEW_MESSAGE':
           if (entityId.isEmpty) {
             await openNotificationsFallback();
+            _lastHandledTapSignature = signature;
             return true;
           }
-          var otherUserName = 'Chat';
-          if (actorId.isNotEmpty) {
-            try {
-              otherUserName = await ChatRepository().getUserName(actorId);
-            } catch (_) {}
-          }
+          var otherUserName = 'Chat'; // 
+          // if (actorId.isNotEmpty) {
+            // try {
+              // otherUserName = await ChatRepository().getUserName(actorId);
+            // } catch (_) {}
+          // }
           await navigator.push(
             MaterialPageRoute(
               builder: (_) => ChatPage(
@@ -499,26 +614,39 @@ class NotificationController extends Notifier<NotificationState> {
               ),
             ),
           );
+          _lastHandledTapSignature = signature;
           return true;
 
         case 'POST_LIKE':
         case 'NEW_COMMENT':
           if (entityId.isEmpty) {
             await openNotificationsFallback();
+            _lastHandledTapSignature = signature;
             return true;
           }
           try {
-            // Check cache first to bypass potential 500 error on api call
-            final currentFeed = ref.read(feedProvider).value ?? [];
+            final repo = ref.read(postRepositoryProvider);
             Post? targetPost;
-            try {
-              targetPost = currentFeed.firstWhere((p) => p.id == entityId);
-            } catch (_) {}
 
-            // Fallback to network if not in local feed
+            // Prefer latest single-post fetch for deep links so comments/likes
+            // are current even if feed cache is slightly behind.
+            try {
+              targetPost = await repo
+                  .getPostById(entityId)
+                  .timeout(const Duration(milliseconds: 1500));
+              ref.read(feedProvider.notifier).updatePostLocally(targetPost);
+            } catch (_) {
+              // If details fetch fails/timeout, fall back to current feed cache.
+              final currentFeed = ref.read(feedProvider).value ?? [];
+              try {
+                targetPost = currentFeed.firstWhere((p) => p.id == entityId);
+              } catch (_) {}
+            }
+
             if (targetPost == null) {
-              final repo = ref.read(postRepositoryProvider);
-              targetPost = await repo.getPostById(entityId);
+              await openNotificationsFallback();
+              _lastHandledTapSignature = signature;
+              return true;
             }
 
             await navigator.push(
@@ -526,8 +654,10 @@ class NotificationController extends Notifier<NotificationState> {
                 builder: (_) => PostDetailsPage(postData: targetPost!),
               ),
             );
+            _lastHandledTapSignature = signature;
           } catch (_) {
             await openNotificationsFallback();
+            _lastHandledTapSignature = signature;
           }
           return true;
 
@@ -535,6 +665,7 @@ class NotificationController extends Notifier<NotificationState> {
           final targetUserId = actorId.isNotEmpty ? actorId : entityId;
           if (targetUserId.isEmpty) {
             await openNotificationsFallback();
+            _lastHandledTapSignature = signature;
             return true;
           }
           await navigator.push(
@@ -542,12 +673,14 @@ class NotificationController extends Notifier<NotificationState> {
               builder: (_) => ProfilePage(userId: targetUserId),
             ),
           );
+          _lastHandledTapSignature = signature;
           return true;
 
         case 'FRIEND_REQUEST_ACCEPTED':
           final targetUserId = actorId.isNotEmpty ? actorId : entityId;
           if (targetUserId.isEmpty) {
             await openNotificationsFallback();
+            _lastHandledTapSignature = signature;
             return true;
           }
           await navigator.push(
@@ -555,14 +688,27 @@ class NotificationController extends Notifier<NotificationState> {
               builder: (_) => ProfilePage(userId: targetUserId),
             ),
           );
+          _lastHandledTapSignature = signature;
           return true;
 
         default:
           await openNotificationsFallback();
+          _lastHandledTapSignature = signature;
           return true;
       }
     } finally {
       _isTapRoutingInProgress = false;
+    }
+  }
+
+  Future<void> _refreshFeedForPostTap() async {
+    try {
+      await ref
+          .read(feedProvider.notifier)
+          .silentRefresh()
+          .timeout(const Duration(milliseconds: 1200));
+    } catch (_) {
+      // Timeout/failure should not block routing.
     }
   }
 }

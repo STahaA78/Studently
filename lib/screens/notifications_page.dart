@@ -245,11 +245,6 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
         if (notification.entityId.isEmpty) return;
         final otherUserId = notification.actorId;
         String otherUserName = 'Chat';
-        if (otherUserId.isNotEmpty) {
-          try {
-            otherUserName = await ChatRepository().getUserName(otherUserId);
-          } catch (_) {}
-        }
         if (!context.mounted) return;
         await Navigator.push(
           context,
