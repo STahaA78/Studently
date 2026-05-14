@@ -53,9 +53,6 @@ class AuthService {
       logger.i("[$runtimeType] SignInWithGoogle Successful");
       logger.d("[$runtimeType] User: ${userCredential.user?.email}");
 
-      // Clean up GoogleSignIn after successful authentication
-      await googleSignIn.disconnect();
-
       return userCredential.user;
     } catch (e) {
       logger.e("[$runtimeType] SignInWithGoogle Failed", error: e);
@@ -65,17 +62,27 @@ class AuthService {
 
   Future<void> signOut() async {
     logger.i("[$runtimeType] SignOut Started");
-    try {
-      // Clean up GoogleSignIn
-      final GoogleSignIn googleSignIn = GoogleSignIn(
-        clientId: AppConfig.googleClientId,
-      );
-      await googleSignIn.disconnect();
+    final GoogleSignIn googleSignIn = _googleSignIn();
 
+    // On Android/iOS, Google cleanup can fail on some devices/ROMs.
+    // Logout must still succeed, so we never let this block Firebase sign-out.
+    try {
+      await googleSignIn.signOut();
+    } catch (e) {
+      logger.w("[$runtimeType] Google signOut cleanup failed: $e");
+    }
+
+    try {
+      await googleSignIn.disconnect();
+    } catch (e) {
+      logger.w("[$runtimeType] Google disconnect cleanup failed: $e");
+    }
+
+    try {
       await firebaseAuth.signOut();
       logger.i("[$runtimeType] SignOut Successful");
     } catch (e) {
-      logger.e("[$runtimeType] SignOut Failed", error: e);
+      logger.e("[$runtimeType] Firebase signOut failed", error: e);
       rethrow;
     }
   }
