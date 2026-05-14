@@ -61,9 +61,9 @@ dev_dependencies:
 flutter_launcher_icons:
   android: true
   ios: true
-  image_path: "assets/images/Logo_gpt.png"
+  image_path: "assets/images/logo.png"
   adaptive_icon_background: "#FFFFFF" # Optional: background for Android adaptive icons
-  adaptive_icon_foreground: "assets/images/Logo_gpt.png" # Optional: foreground for Android adaptive icons
+  adaptive_icon_foreground: "assets/images/logo.png" # Optional: foreground for Android adaptive icons
 
 flutter:
   uses-material-design: true
@@ -79,13 +79,13 @@ dependency_overrides:
 flutter_native_splash:
   color: "#FFFFFF" 
   image: "assets/images/logo.png" 
-  branding: "assets/images/branding.png"
-  branding_mode: "bottom"
+#  branding: "assets/images/branding.png"
+#  branding_mode: "bottom"
   
   android_12:
     color: "#FFFFFF"
     image: "assets/images/logo.png"
-    branding: "assets/images/branding.png"
+#    branding: "assets/images/branding.png"
     
   android: true
   ios: true

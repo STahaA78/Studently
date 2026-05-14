@@ -98,30 +98,34 @@ class CustomNavBar extends StatelessWidget {
       return isSelected ? paths[index].$2 : paths[index].$1;
     }
 
-    return BottomNavigationBar(
-      backgroundColor: Colors.white,
-      currentIndex: currentIndex,
-      onTap: onItemTapped,
-      type: BottomNavigationBarType.fixed,
-      selectedItemColor: blue,
-      unselectedItemColor: Colors.grey,
-      showUnselectedLabels: false,
-      showSelectedLabels: false,
-      items: List.generate(5, (index) {
-        final assetPath = getSvgAssetPath(index, currentIndex == index);
-        return BottomNavigationBarItem(
-          icon: SvgPicture.asset(
-            assetPath,
-            width: 24,
-            height: 24,
-            colorFilter: ColorFilter.mode(
-              currentIndex == index ? blue : Colors.grey,
-              BlendMode.srcIn,
+    return SafeArea(
+      top: false,
+      minimum: const EdgeInsets.only(bottom: 6),
+      child: BottomNavigationBar(
+        backgroundColor: Colors.white,
+        currentIndex: currentIndex,
+        onTap: onItemTapped,
+        type: BottomNavigationBarType.fixed,
+        selectedItemColor: blue,
+        unselectedItemColor: Colors.grey,
+        showUnselectedLabels: false,
+        showSelectedLabels: false,
+        items: List.generate(5, (index) {
+          final assetPath = getSvgAssetPath(index, currentIndex == index);
+          return BottomNavigationBarItem(
+            icon: SvgPicture.asset(
+              assetPath,
+              width: 24,
+              height: 24,
+              colorFilter: ColorFilter.mode(
+                currentIndex == index ? blue : Colors.grey,
+                BlendMode.srcIn,
+              ),
             ),
-          ),
-          label: "",
-        );
-      }),
+            label: "",
+          );
+        }),
+      ),
     );
   }
 }

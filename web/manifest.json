@@ -1,7 +1,7 @@
 {
   "name": "Studently",
   "short_name": "Studently",
-  "description": "",
+  "description": "An app for students, by students.",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
