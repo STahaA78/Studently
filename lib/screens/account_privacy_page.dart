@@ -90,7 +90,7 @@ class _AccountPrivacyPageState extends ConsumerState<AccountPrivacyPage> {
             onChanged: (value) {
               setState(() => _isPrivateLocal = value);
             },
-            activeColor: AppStyle.primaryBlue,
+            activeThumbColor: AppStyle.primaryBlue,
           ),
         ],
       ),

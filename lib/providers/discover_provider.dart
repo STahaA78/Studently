@@ -114,7 +114,6 @@ class DiscoverConnectNotifier extends Notifier<DiscoverConnectState> {
   late DiscoverStorage _storage;
   Timer? _searchDebounceTimer;
   bool _hasInitialized = false;
-  bool _buildInitialized = false;
 
   static const int _cacheDurationMs = 300000;
 
@@ -467,7 +466,6 @@ class DiscoverRequestsState {
 class DiscoverRequestsNotifier extends Notifier<DiscoverRequestsState> {
   late DiscoverRepository _repository;
   late DiscoverStorage _storage;
-  bool _initialized = false;
 
   @override
   DiscoverRequestsState build() {

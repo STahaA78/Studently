@@ -1,10 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:studently/app_style.dart';
-import 'package:studently/models/user.dart';
 import 'package:studently/providers/auth_provider.dart';
 import 'package:studently/screens/account_privacy_page.dart';
-import 'package:studently/logger.dart';
 
 class SettingsPage extends ConsumerStatefulWidget {
   const SettingsPage({super.key});
@@ -58,16 +56,12 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
           ElevatedButton(
             onPressed: () async {
               if (formKey.currentState!.validate()) {
-                final user = ref.read(authProvider).value;
-                if (user == null) return;
-
                 final success = await ref.read(userRepositoryProvider).submitErrorReport(
-                      userId: user.id,
                       subject: subjectController.text,
                       description: descriptionController.text,
                     );
-
-                if (mounted) {
+                    
+                if (context.mounted) {
                   Navigator.pop(context);
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(

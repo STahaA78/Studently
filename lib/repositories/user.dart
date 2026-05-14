@@ -237,18 +237,16 @@ class UserRepository {
   }
 
   Future<bool> submitErrorReport({
-    required String userId,
     required String subject,
     required String description,
   }) async {
     logger.i("[$runtimeType] Submit Error Report Initiated");
     final payload = {
-      "user_id": userId,
       "subject": subject,
       "description": description,
     };
     try {
-      final response = await _apiService.post('/users/report-error', body: payload);
+      final response = await _apiService.post('/users/0/report', body: payload);
       if (response.statusCode == 200 || response.statusCode == 201) {
         logger.i("[$runtimeType] Submit Error Report Completed Successfully");
         return true;
