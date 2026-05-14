@@ -1,4 +1,0 @@
-*.cc text eol=lf
-*.h text eol=lf
-*.swift text eol=lf
-*.cmake text eol=lf
