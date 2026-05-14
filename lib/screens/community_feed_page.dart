@@ -7,7 +7,6 @@ import 'package:studently/widgets/custom_nav_bar.dart';
 import 'package:studently/widgets/notification_badge_icon.dart';
 import 'package:studently/screens/post_details_page.dart';
 import 'package:studently/screens/notifications_page.dart';
-import 'package:flutter_svg/flutter_svg.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:studently/app_style.dart';
 import 'package:studently/screens/profile_main.dart';

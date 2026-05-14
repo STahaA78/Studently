@@ -102,12 +102,6 @@ class _EditProfilePageState extends ConsumerState<EditProfilePage> {
     } else {
       setState(() => _departmentError = null);
     }
-    if (selectedBatch == null || selectedBatch!.isEmpty) {
-      setState(() => _batchError = 'Select batch');
-      return;
-    } else {
-      setState(() => _batchError = null);
-    }
 
     setState(() => isSaving = true);
 
@@ -125,14 +119,12 @@ class _EditProfilePageState extends ConsumerState<EditProfilePage> {
     });
 
     final updatedData = {
-      'name': nameController.text.trim(),
       'department': selectedDepartmentObj != null
           ? {
               'name': selectedDepartmentObj!.name,
               'code': selectedDepartmentObj!.code,
             }
           : null,
-      'batch': selectedBatch,
       'interests': interests,
     };
 
@@ -490,6 +482,46 @@ class _EditProfilePageState extends ConsumerState<EditProfilePage> {
                           ),
                         ),
                       ),
+                    const SizedBox(height: 20),
+                    // Gender - Read Only
+                    const Text(
+                      'Gender',
+                      style: TextStyle(
+                        fontWeight: FontWeight.w500,
+                        fontSize: 15,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    Container(
+                      height: 50,
+                      decoration: BoxDecoration(
+                        color: Colors.grey.shade100,
+                        borderRadius: BorderRadius.circular(25),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withValues(alpha: 0.04),
+                            blurRadius: 6,
+                            offset: const Offset(0, 2),
+                          ),
+                        ],
+                      ),
+                      child: TextFormField(
+                        initialValue: widget.user.gender?.displayName ?? 'Not specified',
+                        readOnly: true,
+                        enableInteractiveSelection: false,
+                        showCursor: false,
+                        style: TextStyle(
+                          color: Colors.grey.shade700,
+                        ),
+                        decoration: InputDecoration(
+                          contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 18,
+                            vertical: 14,
+                          ),
+                          border: InputBorder.none,
+                        ),
+                      ),
+                    ),
                     const SizedBox(height: 28),
                     const Text(
                       'Interests',

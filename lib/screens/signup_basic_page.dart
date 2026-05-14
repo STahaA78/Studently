@@ -4,7 +4,6 @@ import 'interests.dart';
 import 'package:studently/models/user.dart' as studently_user;
 import 'package:studently/models/backend_config.dart';
 import 'package:studently/logger.dart';
-import 'package:flutter_svg/flutter_svg.dart';
 import 'package:studently/app_style.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -31,8 +30,10 @@ class _SignupBasicPageState extends ConsumerState<SignupBasicPage> {
 
   String? _nameError;
   String? _birthdayError;
+  String? _genderError;
   String? _completionError;
   String? _departmentCode;       // Selected department code (always via dropdown)
+  studently_user.Gender? _selectedGender; // Selected gender
   bool _batchExtracted = false;  // Track if batch was extracted from name
   bool _extractedFields = true;  // True only if both name and batch were found
 
@@ -212,7 +213,7 @@ class _SignupBasicPageState extends ConsumerState<SignupBasicPage> {
     final batch = _batchController.text.trim();
 
     logger.i(
-      "[$runtimeType] Google Signup Completion — Name: $name | Birthday: $birthday | DeptCode: $departmentCode | Batch: $batch",
+      "[$runtimeType] Google Signup Completion — Name: $name | Birthday: $birthday | DeptCode: $departmentCode | Batch: $batch | Gender: $_selectedGender",
     );
 
     // Extra guard: department must be selected
@@ -221,7 +222,7 @@ class _SignupBasicPageState extends ConsumerState<SignupBasicPage> {
       return;
     }
 
-    if (_validateBirthday() && _validateName()) {
+    if (_validateBirthday() && _validateName() && _validateGender()) {
       setState(() => _completionError = null);
 
       final googleSignUpUser = authService.value.currentUser;
@@ -262,6 +263,7 @@ class _SignupBasicPageState extends ConsumerState<SignupBasicPage> {
                     department: department,
                     batch: batch,
                     birthday: birthday,
+                    gender: _selectedGender,
                     picture: googleSignUpUser.photoURL ?? '',
                     interests: const [],
                   ),
@@ -303,6 +305,15 @@ class _SignupBasicPageState extends ConsumerState<SignupBasicPage> {
       return false;
     }
     if (_birthdayError != null) setState(() => _birthdayError = null);
+    return true;
+  }
+
+  bool _validateGender() {
+    if (_selectedGender == null) {
+      setState(() => _genderError = 'Please select your gender');
+      return false;
+    }
+    if (_genderError != null) setState(() => _genderError = null);
     return true;
   }
 
@@ -385,19 +396,19 @@ class _SignupBasicPageState extends ConsumerState<SignupBasicPage> {
                           ),
                           Row(
                             mainAxisAlignment: MainAxisAlignment.end,
+
                             children: [
-                              SvgPicture.asset(
-                                'assets/images/logo.svg',
-                                height: AppStyle.logoSize,
-                              ),
-                              Text(
-                                'Studently',
-                                style: GoogleFonts.poppins(
-                                  color: blue,
-                                  fontSize: AppStyle.titleFontSize,
-                                  fontWeight: FontWeight.w700,
-                                  fontStyle: FontStyle.italic,
-                                  letterSpacing: 0.5,
+                              Padding(
+                                padding: const EdgeInsets.only(right: 40.0),
+                                child: Text(
+                                  'Studently',
+                                  style: GoogleFonts.poppins(
+                                    color: blue,
+                                    fontSize: AppStyle.titleFontSize,
+                                    fontWeight: FontWeight.w700,
+                                    fontStyle: FontStyle.italic,
+                                    letterSpacing: 0.5,
+                                  ),
                                 ),
                               ),
                             ],
@@ -407,14 +418,6 @@ class _SignupBasicPageState extends ConsumerState<SignupBasicPage> {
                     ),
                   ),
                 ],
-              ),
-              const SizedBox(height: 15),
-
-              // ── Subtitle ────────────────────────────────────────────────
-              const Text(
-                "Complete your profile",
-                textAlign: TextAlign.center,
-                style: TextStyle(fontSize: 15, color: Colors.grey, height: 1.4),
               ),
               const SizedBox(height: 40),
 
@@ -695,6 +698,69 @@ class _SignupBasicPageState extends ConsumerState<SignupBasicPage> {
                         ),
                       ),
                     const SizedBox(height: 16),
+
+                    // Gender ──────────────────────────────────────────────
+                    const Text(
+                      'Gender',
+                      style: TextStyle(fontWeight: FontWeight.w500, fontSize: 15),
+                    ),
+                    const SizedBox(height: 6),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: [
+                        ...studently_user.Gender.values.map((gender) {
+                          final bool isSelected = _selectedGender == gender;
+                          final Color blue = AppStyle.primaryBlue;
+                          return GestureDetector(
+                            onTap: () {
+                              setState(() {
+                                _selectedGender = gender;
+                                _genderError = null;
+                              });
+                            },
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 16,
+                                vertical: 8,
+                              ),
+                              decoration: BoxDecoration(
+                                color: isSelected ? blue : Colors.grey.shade100,
+                                borderRadius: BorderRadius.circular(20),
+                                border: Border.all(
+                                  color: isSelected
+                                      ? blue
+                                      : const Color(0xFFE0E6ED),
+                                ),
+                              ),
+                              child: Text(
+                                gender.displayName,
+                                style: TextStyle(
+                                  color: isSelected
+                                      ? Colors.white
+                                      : const Color(0xFF334155),
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                            ),
+                          );
+                        }),
+                      ],
+                    ),
+                    if (_genderError != null)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 8, left: 4),
+                        child: Text(
+                          _genderError!,
+                          style: const TextStyle(
+                            color: Colors.redAccent,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ),
+                    const SizedBox(height: 20),
 
                     // Next Button ─────────────────────────────────────────
                     SizedBox(

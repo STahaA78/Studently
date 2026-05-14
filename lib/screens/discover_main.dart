@@ -545,7 +545,7 @@ class _ConnectDiscoverPageState extends ConsumerState<ConnectDiscoverPage> with 
       return _buildErrorState();
     }
     if (state.students.isEmpty) {
-      return _buildEmptyState('All Caught Up!');
+      return _buildEmptyState('All caught up!');
     }
     if (state.topCardIndex >= state.students.length) {
       return Center(
@@ -631,14 +631,7 @@ class _ConnectDiscoverPageState extends ConsumerState<ConnectDiscoverPage> with 
 
   Widget _buildEmptyState(String message) {
     return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(Icons.people_outline, size: 80, color: Colors.grey[300]),
-          const SizedBox(height: 16),
-          Text(message, style: Theme.of(context).textTheme.titleMedium),
-        ],
-      ),
+      child: Text(message, style: TextStyle(fontSize: 18, color: Colors.grey, fontWeight: FontWeight.w500)),
     );
   }
 

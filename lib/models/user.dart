@@ -1,5 +1,35 @@
 import 'package:studently/models/backend_config.dart';
 
+enum Gender { male, female, other }
+
+extension GenderExtension on Gender {
+  String get displayName {
+    switch (this) {
+      case Gender.male:
+        return 'Male';
+      case Gender.female:
+        return 'Female';
+      case Gender.other:
+        return 'Other';
+    }
+  }
+
+  static Gender fromString(String value) {
+    switch (value.toLowerCase()) {
+      case 'male':
+        return Gender.male;
+      case 'female':
+        return Gender.female;
+      case 'other':
+        return Gender.other;
+      default:
+        throw ArgumentError('Invalid gender: $value');
+    }
+  }
+
+  String toApiString() => displayName;
+}
+
 class FriendStatus {
   final String id;
   final String status; // "friends", "incoming_request", "none"
@@ -20,6 +50,7 @@ class User {
   String? birthday; // MM/DD/YYYY
   Department? department;
   String? batch;
+  Gender? gender;
   List<Interest> interests;
   String? university;
   String? picture; // Cloudflare R2 URL
@@ -33,6 +64,7 @@ class User {
     this.birthday,
     this.department,
     this.batch,
+    this.gender,
     List<Interest>? interests,
     this.university,
     this.picture,
@@ -50,6 +82,9 @@ class User {
           ? Department.fromJson(json['department'])
           : null,
       batch: json['batch'],
+      gender: json['gender'] != null
+          ? GenderExtension.fromString(json['gender'])
+          : null,
       interests:
           (json['interests'] as List<dynamic>?)
               ?.map((e) => Interest.fromJson(e))
@@ -70,6 +105,7 @@ class User {
       'birthday': birthday,
       'department': department?.toJson(),
       'batch': batch,
+      'gender': gender?.toApiString(),
       'university': university,
       'picture': picture,
       'interests': interests.map((i) => i.toJson()).toList(),

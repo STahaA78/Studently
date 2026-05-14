@@ -20,6 +20,7 @@ class UserRepository {
     required Department department,
     required String batch,
     required List<Interest> interests,
+    String? gender,
     bool extractedFields = true,
   }) async {
     logger.i("[$runtimeType] Register User Initiated for email: $email");
@@ -31,6 +32,7 @@ class UserRepository {
       "department": {"name": department.name, "code": department.code},
       "batch": batch,
       "interests": interests.map((e) => e.toJson()).toList(),
+      "gender": gender,
       "extracted_fields": extractedFields,
     };
     try {
