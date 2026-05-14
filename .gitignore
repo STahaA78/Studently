@@ -1,7 +1,8 @@
 # ==========================
 # Flutter / Dart
 # ==========================
-**/build/
+**/build/*
+!build/web/
 **/.dart_tool/
 **/.flutter-plugins
 **/.flutter-plugins-dependencies
@@ -52,13 +53,8 @@ secrets.json
 firebase_config.json
 google-services.json
 GoogleService-Info.plist
-
-# ==========================
-# Node / Web (if ever used)
-# ==========================
-node_modules/
-npm-debug.log
-yarn-error.log
+backend/firebase_key.json
+*-venv/
 
 # ==========================
 # JetBrains / VSCode metadata
@@ -66,3 +62,12 @@ yarn-error.log
 .idea/
 .vscode/
 *.iml
+
+*.cmake
+
+backend/serviceAccountKey.json
+# Knowledge Hub Material Folder
+misc/
+resources/
+
+uploads/
