@@ -100,7 +100,6 @@ class CustomNavBar extends StatelessWidget {
 
     return SafeArea(
       top: false,
-      minimum: const EdgeInsets.only(bottom: 6),
       child: BottomNavigationBar(
         backgroundColor: Colors.white,
         currentIndex: currentIndex,

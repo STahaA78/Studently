@@ -32,10 +32,10 @@ class _SignupBasicPageState extends ConsumerState<SignupBasicPage> {
   String? _birthdayError;
   String? _genderError;
   String? _completionError;
-  String? _departmentCode;       // Selected department code (always via dropdown)
+  String? _departmentCode; // Selected department code (always via dropdown)
   studently_user.Gender? _selectedGender; // Selected gender
-  bool _batchExtracted = false;  // Track if batch was extracted from name
-  bool _extractedFields = true;  // True only if both name and batch were found
+  bool _batchExtracted = false; // Track if batch was extracted from name
+  bool _extractedFields = true; // True only if both name and batch were found
 
   DateTime? _selectedBirthday;
 
@@ -93,25 +93,27 @@ class _SignupBasicPageState extends ConsumerState<SignupBasicPage> {
       }
     }
 
-    // Mirror Python: extracted_name = parts[:batchIndex - 1]
-    // (drops the degree abbreviation sitting right before the batch year)
-    String extractedName;
-    if (batchIndex >= 1) {
-      extractedName = parts.sublist(0, batchIndex - 1).join(' ');
-    } else {
-      extractedName = fullName; // no batch found → keep original name
-    }
+    // Only treat the Firebase display name as extracted when both a batch and
+    // a non-empty name prefix are found. Otherwise fall back to full user input.
+    final bool extractedSuccessfully = batchIndex >= 1;
+    final String extractedName = extractedSuccessfully
+        ? parts.sublist(0, batchIndex - 1).join(' ')
+        : fullName;
+
+    final bool hasValidExtraction =
+        extractedSuccessfully && extractedName.trim().isNotEmpty;
+    final String resolvedBatch = hasValidExtraction ? batch : '';
 
     setState(() {
       _nameController.text = extractedName;
-      _batchController.text = batch;
-      _batchExtracted = batch.isNotEmpty;
-      // Both name AND batch must have been resolved for "extractedFields" to be true
-      _extractedFields = extractedName.isNotEmpty && batch.isNotEmpty;
+      _batchController.text = resolvedBatch;
+      _batchExtracted = hasValidExtraction;
+      // Both name AND batch must have been resolved for "extractedFields" to be true.
+      _extractedFields = hasValidExtraction;
     });
 
     logger.d(
-      "[$runtimeType] Extracted → Name: $extractedName | Batch: $batch | Success: $_extractedFields",
+      "[$runtimeType] Extracted → Name: $extractedName | Batch: $resolvedBatch | Success: $_extractedFields",
     );
   }
 
@@ -163,16 +165,16 @@ class _SignupBasicPageState extends ConsumerState<SignupBasicPage> {
                     child: SfDateRangePicker(
                       onSelectionChanged:
                           (DateRangePickerSelectionChangedArgs args) {
-                        if (args.value is DateTime) {
-                          setState(() {
-                            _selectedBirthday = args.value as DateTime;
-                            _birthdayController.text =
-                                "${_selectedBirthday!.month}/${_selectedBirthday!.day}/${_selectedBirthday!.year}";
-                            _birthdayError = null;
-                          });
-                          Navigator.pop(context);
-                        }
-                      },
+                            if (args.value is DateTime) {
+                              setState(() {
+                                _selectedBirthday = args.value as DateTime;
+                                _birthdayController.text =
+                                    "${_selectedBirthday!.month}/${_selectedBirthday!.day}/${_selectedBirthday!.year}";
+                                _birthdayError = null;
+                              });
+                              Navigator.pop(context);
+                            }
+                          },
                       selectionMode: DateRangePickerSelectionMode.single,
                       initialSelectedDate: _selectedBirthday,
                       selectableDayPredicate: (DateTime dateTime) {
@@ -334,8 +336,9 @@ class _SignupBasicPageState extends ConsumerState<SignupBasicPage> {
     final Color blue = AppStyle.primaryBlue;
     final Size screenSize = MediaQuery.of(context).size;
     final bool isLandscape = screenSize.width > screenSize.height;
-    final double formWidth =
-        isLandscape ? screenSize.width * 0.6 : screenSize.width * 0.85;
+    final double formWidth = isLandscape
+        ? screenSize.width * 0.6
+        : screenSize.width * 0.85;
 
     return Scaffold(
       backgroundColor: Colors.white,
@@ -430,7 +433,10 @@ class _SignupBasicPageState extends ConsumerState<SignupBasicPage> {
                     // Full Name ──────────────────────────────────────────
                     const Text(
                       'Full Name',
-                      style: TextStyle(fontWeight: FontWeight.w500, fontSize: 15),
+                      style: TextStyle(
+                        fontWeight: FontWeight.w500,
+                        fontSize: 15,
+                      ),
                     ),
                     const SizedBox(height: 6),
                     SizedBox(
@@ -491,72 +497,80 @@ class _SignupBasicPageState extends ConsumerState<SignupBasicPage> {
                     // Department — always a dropdown ─────────────────────
                     const Text(
                       'Department',
-                      style: TextStyle(fontWeight: FontWeight.w500, fontSize: 15),
+                      style: TextStyle(
+                        fontWeight: FontWeight.w500,
+                        fontSize: 15,
+                      ),
                     ),
                     const SizedBox(height: 6),
-                    ref.watch(backendConfigProvider).when(
-                      data: (config) {
-                        return SizedBox(
-                          height: 50,
-                          child: DropdownButtonFormField<String>(
-                            initialValue: _departmentCode,
-                            style: const TextStyle(
-                              fontSize: 15,
-                              color: Colors.black87,
-                            ),
-                            hint: const Text(
-                              'Select Department',
-                              style: TextStyle(
-                                fontSize: 15,
-                                color: Colors.black87,
+                    ref
+                        .watch(backendConfigProvider)
+                        .when(
+                          data: (config) {
+                            return SizedBox(
+                              height: 50,
+                              child: DropdownButtonFormField<String>(
+                                initialValue: _departmentCode,
+                                style: const TextStyle(
+                                  fontSize: 15,
+                                  color: Colors.black87,
+                                ),
+                                hint: const Text(
+                                  'Select Department',
+                                  style: TextStyle(
+                                    fontSize: 15,
+                                    color: Colors.black87,
+                                  ),
+                                ),
+                                items: config.departments.map((dept) {
+                                  return DropdownMenuItem<String>(
+                                    value: dept.code,
+                                    child: Text(dept.name),
+                                  );
+                                }).toList(),
+                                onChanged: (value) {
+                                  if (value != null) {
+                                    setState(() => _departmentCode = value);
+                                  }
+                                },
+                                decoration: InputDecoration(
+                                  contentPadding: const EdgeInsets.symmetric(
+                                    horizontal: 18,
+                                    vertical: 14,
+                                  ),
+                                  border: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(16),
+                                  ),
+                                ),
                               ),
-                            ),
-                            items: config.departments.map((dept) {
-                              return DropdownMenuItem<String>(
-                                value: dept.code,
-                                child: Text(dept.name),
-                              );
-                            }).toList(),
-                            onChanged: (value) {
-                              if (value != null) {
-                                setState(() => _departmentCode = value);
-                              }
-                            },
-                            decoration: InputDecoration(
-                              contentPadding: const EdgeInsets.symmetric(
-                                horizontal: 18,
-                                vertical: 14,
-                              ),
-                              border: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(16),
-                              ),
-                            ),
+                            );
+                          },
+                          loading: () => const SizedBox(
+                            height: 50,
+                            child: Center(child: CircularProgressIndicator()),
                           ),
-                        );
-                      },
-                      loading: () => const SizedBox(
-                        height: 50,
-                        child: Center(child: CircularProgressIndicator()),
-                      ),
-                      error: (error, stack) => SizedBox(
-                        height: 50,
-                        child: TextField(
-                          enabled: false,
-                          decoration: InputDecoration(
-                            hintText: 'Error loading departments',
-                            border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(16),
+                          error: (error, stack) => SizedBox(
+                            height: 50,
+                            child: TextField(
+                              enabled: false,
+                              decoration: InputDecoration(
+                                hintText: 'Error loading departments',
+                                border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(16),
+                                ),
+                              ),
                             ),
                           ),
                         ),
-                      ),
-                    ),
                     const SizedBox(height: 16),
 
                     // Batch ───────────────────────────────────────────────
                     const Text(
                       'Batch',
-                      style: TextStyle(fontWeight: FontWeight.w500, fontSize: 15),
+                      style: TextStyle(
+                        fontWeight: FontWeight.w500,
+                        fontSize: 15,
+                      ),
                     ),
                     const SizedBox(height: 6),
                     if (_batchExtracted) ...[
@@ -588,66 +602,75 @@ class _SignupBasicPageState extends ConsumerState<SignupBasicPage> {
                       ),
                     ] else ...[
                       // Dropdown if not extracted
-                      ref.watch(backendConfigProvider).when(
-                        data: (config) {
-                          final batches = List<int>.generate(
-                            config.batchRange.end - config.batchRange.start + 1,
-                            (i) => config.batchRange.start + i,
-                          );
-                          return SizedBox(
-                            height: 50,
-                            child: DropdownButtonFormField<String>(
-                              initialValue: _batchController.text.isNotEmpty
-                                  ? _batchController.text
-                                  : null,
-                              hint: const Text('Select Batch'),
-                              items: batches.map((batch) {
-                                return DropdownMenuItem<String>(
-                                  value: batch.toString(),
-                                  child: Text(batch.toString()),
-                                );
-                              }).toList(),
-                              onChanged: (value) {
-                                if (value != null) {
-                                  setState(() => _batchController.text = value);
-                                }
-                              },
-                              decoration: InputDecoration(
-                                contentPadding: const EdgeInsets.symmetric(
-                                  horizontal: 18,
-                                  vertical: 14,
+                      ref
+                          .watch(backendConfigProvider)
+                          .when(
+                            data: (config) {
+                              final batches = List<int>.generate(
+                                config.batchRange.end -
+                                    config.batchRange.start +
+                                    1,
+                                (i) => config.batchRange.start + i,
+                              );
+                              return SizedBox(
+                                height: 50,
+                                child: DropdownButtonFormField<String>(
+                                  initialValue: _batchController.text.isNotEmpty
+                                      ? _batchController.text
+                                      : null,
+                                  hint: const Text('Select Batch'),
+                                  items: batches.map((batch) {
+                                    return DropdownMenuItem<String>(
+                                      value: batch.toString(),
+                                      child: Text(batch.toString()),
+                                    );
+                                  }).toList(),
+                                  onChanged: (value) {
+                                    if (value != null) {
+                                      setState(
+                                        () => _batchController.text = value,
+                                      );
+                                    }
+                                  },
+                                  decoration: InputDecoration(
+                                    contentPadding: const EdgeInsets.symmetric(
+                                      horizontal: 18,
+                                      vertical: 14,
+                                    ),
+                                    border: OutlineInputBorder(
+                                      borderRadius: BorderRadius.circular(16),
+                                    ),
+                                  ),
                                 ),
-                                border: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(16),
-                                ),
-                              ),
+                              );
+                            },
+                            loading: () => const SizedBox(
+                              height: 50,
+                              child: Center(child: CircularProgressIndicator()),
                             ),
-                          );
-                        },
-                        loading: () => const SizedBox(
-                          height: 50,
-                          child: Center(child: CircularProgressIndicator()),
-                        ),
-                        error: (error, stack) => SizedBox(
-                          height: 50,
-                          child: TextField(
-                            enabled: false,
-                            decoration: InputDecoration(
-                              hintText: 'Error loading batches',
-                              border: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(16),
+                            error: (error, stack) => SizedBox(
+                              height: 50,
+                              child: TextField(
+                                enabled: false,
+                                decoration: InputDecoration(
+                                  hintText: 'Error loading batches',
+                                  border: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(16),
+                                  ),
+                                ),
                               ),
                             ),
                           ),
-                        ),
-                      ),
                     ],
                     const SizedBox(height: 16),
 
                     // Birthday ────────────────────────────────────────────
                     const Text(
                       'Birthday',
-                      style: TextStyle(fontWeight: FontWeight.w500, fontSize: 15),
+                      style: TextStyle(
+                        fontWeight: FontWeight.w500,
+                        fontSize: 15,
+                      ),
                     ),
                     const SizedBox(height: 6),
                     SizedBox(
@@ -677,10 +700,6 @@ class _SignupBasicPageState extends ConsumerState<SignupBasicPage> {
                                 color: Color(0xFFD0D0D0),
                               ),
                             ),
-                            suffixIcon: const Padding(
-                              padding: EdgeInsets.only(right: 12),
-                              child: Icon(Icons.calendar_today),
-                            ),
                           ),
                         ),
                       ),
@@ -702,7 +721,10 @@ class _SignupBasicPageState extends ConsumerState<SignupBasicPage> {
                     // Gender ──────────────────────────────────────────────
                     const Text(
                       'Gender',
-                      style: TextStyle(fontWeight: FontWeight.w500, fontSize: 15),
+                      style: TextStyle(
+                        fontWeight: FontWeight.w500,
+                        fontSize: 15,
+                      ),
                     ),
                     const SizedBox(height: 6),
                     Wrap(

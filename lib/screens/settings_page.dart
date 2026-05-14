@@ -21,31 +21,37 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Report Error'),
-        content: Form(
-          key: formKey,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextFormField(
-                controller: subjectController,
-                decoration: const InputDecoration(
-                  hintText: 'Subject',
+        backgroundColor: Colors.white,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        contentPadding: const EdgeInsets.fromLTRB(24, 16, 24, 8),
+        content: SizedBox(
+          width: 380,
+          child: Form(
+            key: formKey,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextFormField(
+                  controller: subjectController,
+                  decoration: const InputDecoration(
+                    hintText: 'Subject',
+                  ),
+                  validator: (value) =>
+                      value == null || value.isEmpty ? 'Please enter a subject' : null,
                 ),
-                validator: (value) =>
-                    value == null || value.isEmpty ? 'Please enter a subject' : null,
-              ),
-              const SizedBox(height: 16),
-              TextFormField(
-                controller: descriptionController,
-                decoration: const InputDecoration(
-                  hintText: 'Describe the error...',
+                const SizedBox(height: 16),
+                TextFormField(
+                  controller: descriptionController,
+                  decoration: const InputDecoration(
+                    hintText: 'Describe the error...',
+                  ),
+                  maxLines: 5,
+                  minLines: 4,
+                  validator: (value) =>
+                      value == null || value.isEmpty ? 'Please enter a description' : null,
                 ),
-                maxLines: 4,
-                validator: (value) =>
-                    value == null || value.isEmpty ? 'Please enter a description' : null,
-              ),
-            ],
+              ],
+            ),
           ),
         ),
         actions: [
@@ -129,7 +135,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
           ),
           ListTile(
             leading: const Icon(Icons.report_problem_outlined),
-            title: const Text('Report Error'),
+            title: const Text('Report something'),
             trailing: const Icon(Icons.chevron_right),
             onTap: _showReportErrorDialog,
           ),
@@ -154,27 +160,53 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
             onTap: () {
               showDialog(
                 context: context,
-                builder: (context) => AlertDialog(
-                  title: const Text('Logout'),
-                  content: const Text('Are you sure you want to logout?'),
+                builder: (_) => AlertDialog(
+                  backgroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                  title: const Text(
+                    "Logout",
+                    style: TextStyle(fontWeight: FontWeight.w600, fontSize: 18),
+                  ),
+                  content: const Text(
+                    "Are you sure you want to logout?",
+                    style: TextStyle(fontSize: 14, color: Colors.grey),
+                  ),
+                  actionsAlignment: MainAxisAlignment.spaceBetween,
                   actions: [
                     TextButton(
-                      onPressed: () => Navigator.pop(context),
-                      child: const Text('Cancel'),
+                      onPressed: () => Navigator.pop(context, false),
+                      style: TextButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                      ),
+                      child: const Text(
+                        "Cancel",
+                        style: TextStyle(color: Colors.grey, fontWeight: FontWeight.w500),
+                      ),
                     ),
-                    TextButton(
-                      onPressed: () {
-                        Navigator.pop(context);
-                        ref.read(authProvider.notifier).logout();
-                      },
+                    ElevatedButton(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.red,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 10),
+                      ),
+                      onPressed: () => Navigator.pop(context, true),
                       child: const Text(
                         'Logout',
-                        style: TextStyle(color: AppStyle.errorRed),
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.w600,
+                        ),
                       ),
                     ),
                   ],
                 ),
-              );
+              ).then((confirmed) {
+                if (confirmed == true) {
+                  ref.read(authProvider.notifier).logout();
+                }
+              });
             },
           ),
         ],
