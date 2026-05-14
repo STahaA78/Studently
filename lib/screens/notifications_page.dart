@@ -4,7 +4,7 @@ import 'package:studently/models/notifications.dart';
 import 'package:studently/models/post.dart';
 import 'package:studently/providers/feed_provider.dart';
 import 'package:studently/providers/notifications_provider.dart';
-import 'package:studently/repositories/chat.dart';
+// import 'package:studently/repositories/chat.dart';
 import 'package:studently/screens/chat_page.dart';
 import 'package:studently/screens/post_details_page.dart';
 import 'package:studently/screens/profile_main.dart';

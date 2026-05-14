@@ -97,7 +97,7 @@ class NotificationController extends Notifier<NotificationState> {
       isLoading: true,
       notifications: _storage.getCachedNotifications(),
     );
-    ref.listen<int>(cacheInvalidationBusProvider, (_, __) {
+    ref.listen<int>(cacheInvalidationBusProvider, (_, _) {
       final event = ref.read(cacheInvalidationBusProvider.notifier).latest();
       if (event == null) return;
       if (event.type == 'notification_state_changed') {
@@ -701,16 +701,16 @@ class NotificationController extends Notifier<NotificationState> {
     }
   }
 
-  Future<void> _refreshFeedForPostTap() async {
-    try {
-      await ref
-          .read(feedProvider.notifier)
-          .silentRefresh()
-          .timeout(const Duration(milliseconds: 1200));
-    } catch (_) {
-      // Timeout/failure should not block routing.
-    }
-  }
+  // Future<void> _refreshFeedForPostTap() async {
+  //   try {
+  //     await ref
+  //         .read(feedProvider.notifier)
+  //         .silentRefresh()
+  //         .timeout(const Duration(milliseconds: 1200));
+  //   } catch (_) {
+  //     // Timeout/failure should not block routing.
+  //   }
+  // }
 }
 
 final notificationProvider =

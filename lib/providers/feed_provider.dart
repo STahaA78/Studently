@@ -49,7 +49,7 @@ class FeedNotifier extends AsyncNotifier<List<Post>> {
     _refreshTimer = Timer.periodic(const Duration(seconds: 30), (_) {
       silentRefresh();
     });
-    ref.listen<int>(cacheInvalidationBusProvider, (_, __) {
+    ref.listen<int>(cacheInvalidationBusProvider, (_, _) {
       final event = ref.read(cacheInvalidationBusProvider.notifier).latest();
       if (event == null) return;
       if (event.type == 'post_state_changed' ||

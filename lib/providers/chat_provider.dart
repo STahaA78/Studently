@@ -126,7 +126,7 @@ class ChatNotifier extends Notifier<ChatState> {
   }
 
   void _listenToCacheEvents() {
-    ref.listen<int>(cacheInvalidationBusProvider, (_, __) {
+    ref.listen<int>(cacheInvalidationBusProvider, (_, _) {
       final event = ref.read(cacheInvalidationBusProvider.notifier).latest();
       if (event == null) return;
       if (event.type == 'profile_photo_updated' ||
