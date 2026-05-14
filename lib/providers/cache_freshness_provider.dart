@@ -40,7 +40,7 @@ class CacheCoordinator {
     CacheDomain.friendsList: CachePolicy(ttl: Duration(seconds: 60)),
     CacheDomain.chatConversations: CachePolicy(ttl: Duration(seconds: 30)),
     CacheDomain.chatUserProfiles: CachePolicy(ttl: Duration(seconds: 45)),
-    CacheDomain.feedPosts: CachePolicy(ttl: Duration(seconds: 30)),
+    CacheDomain.feedPosts: CachePolicy(ttl: Duration(seconds: 60)),
     CacheDomain.notifications: CachePolicy(ttl: Duration(seconds: 20)),
     CacheDomain.knowledgeCourses: CachePolicy(ttl: Duration(seconds: 60)),
     CacheDomain.knowledgeCourseResources: CachePolicy(ttl: Duration(seconds: 45)),
