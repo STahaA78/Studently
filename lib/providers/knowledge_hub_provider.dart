@@ -1,5 +1,7 @@
+import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:studently/models/knowledge_hub.dart';
+import 'package:studently/logger.dart';
 import 'package:studently/providers/cache_freshness_provider.dart';
 import 'package:studently/repositories/knowledge_hub.dart';
 import 'dart:typed_data';
@@ -19,6 +21,25 @@ final allCoursesProvider = FutureProvider<List<Course>>((ref) async {
   ref.watch(cacheInvalidationBusProvider);
   final repository = ref.watch(knowledgeHubRepositoryProvider);
   final cache = ref.read(cacheCoordinatorProvider);
+  Timer? refreshTimer;
+
+  void scheduleRefreshChecks() {
+    refreshTimer?.cancel();
+    refreshTimer = Timer.periodic(const Duration(seconds: 15), (_) {
+      if (cache.isStale(CacheDomain.knowledgeCourses)) {
+        repository.fetchAllCourses(forceRefresh: true).then((_) {
+          cache.markFresh(CacheDomain.knowledgeCourses);
+          ref.invalidateSelf();
+        }).catchError((e) {
+          logger.w('[KnowledgeHub] Auto refresh for courses failed: $e');
+        });
+      }
+    });
+    ref.onDispose(() => refreshTimer?.cancel());
+  }
+
+  scheduleRefreshChecks();
+
   final courses = await repository.fetchAllCourses();
   if (cache.isStale(CacheDomain.knowledgeCourses)) {
     // fire-and-forget refresh while returning cached-first result
@@ -54,6 +75,28 @@ final resourcesByCourseProvider = FutureProvider.family<ResourceGroup, String>((
   ref.watch(cacheInvalidationBusProvider);
   final repository = ref.watch(knowledgeHubRepositoryProvider);
   final cache = ref.read(cacheCoordinatorProvider);
+  Timer? refreshTimer;
+
+  void scheduleRefreshChecks() {
+    refreshTimer?.cancel();
+    refreshTimer = Timer.periodic(const Duration(seconds: 15), (_) {
+      if (cache.isStale(CacheDomain.knowledgeCourseResources, scopeId: courseId)) {
+        repository.fetchResourcesByCourse(courseId, forceRefresh: true).then((_) {
+          cache.markFresh(
+            CacheDomain.knowledgeCourseResources,
+            scopeId: courseId,
+          );
+          ref.invalidateSelf();
+        }).catchError((e) {
+          logger.w('[KnowledgeHub] Auto refresh for course $courseId failed: $e');
+        });
+      }
+    });
+    ref.onDispose(() => refreshTimer?.cancel());
+  }
+
+  scheduleRefreshChecks();
+
   final resources = await repository.fetchResourcesByCourse(
     courseId,
   ); // Uses default forceRefresh: false
