@@ -365,7 +365,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                                           _buildStatColumn("Posts", "0"),
                                     ),
                                     const SizedBox(width: 35),
-                                    _buildStatColumn("Resources", "0"),
+                                    _buildStatColumn("Resources", displayUser.resourcesCount.toString()),
                                   ],
                                 ),
                               ],

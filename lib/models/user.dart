@@ -61,6 +61,7 @@ class User {
   String name;
   final String email;
   int? friendsCount;
+  int? resourcesCount;
   String? password;
   String? birthday; // MM/DD/YYYY
   Department? department;
@@ -77,6 +78,7 @@ class User {
     required this.name,
     required this.email,
     this.friendsCount,
+    this.resourcesCount,
     this.password,
     this.birthday,
     this.department,
@@ -95,6 +97,7 @@ class User {
       name: json['name'] ?? '',
       email: json['email'] ?? '',
       friendsCount: json['friends_count'] ?? 0,
+      resourcesCount: json['resources_count'] ?? 0,
       password: json['password'],
       birthday: json['birthday'],
       department: json['department'] != null
@@ -122,6 +125,7 @@ class User {
       'name': name,
       'email': email,
       'friendsCount': friendsCount,
+      'resourcesCount': resourcesCount,
       'password': password,
       'birthday': birthday,
       'department': department?.toJson(),
