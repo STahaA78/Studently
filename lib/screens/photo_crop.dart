@@ -59,6 +59,8 @@ class PostPhotoCropScreen extends StatelessWidget {
 class _PhotoCropScreenState extends State<PhotoCropScreen> {
   Uint8List? _imageBytes;
   ui.Image? _decodedImage;
+  bool _isInitializing = true;
+  String? _initErrorMessage;
   Offset _cropCenter = Offset.zero;
 
   double _zoomScale = 1.0;
@@ -70,8 +72,11 @@ class _PhotoCropScreenState extends State<PhotoCropScreen> {
   static const double _circleToViewportRatio = 0.82;
   static const double _maskOpacity = 0.32;
   static const double _portraitAspect = 4 / 5;
-  static const double _landscapeAspect = 1.91;
-  static const int _outputLongEdge = 1350;
+  static const double _landscapeAspect = 1080 / 566;
+  static const int _portraitOutputWidth = 1080;
+  static const int _portraitOutputHeight = 1350;
+  static const int _landscapeOutputWidth = 1080;
+  static const int _landscapeOutputHeight = 566;
 
   double _cropWidth = 300.0;
   double _cropHeight = 300.0;
@@ -89,6 +94,11 @@ class _PhotoCropScreenState extends State<PhotoCropScreen> {
   }
 
   Future<void> _initializeImage() async {
+    setState(() {
+      _isInitializing = true;
+      _initErrorMessage = null;
+    });
+
     try {
       final bytes = await widget.initialImage.readAsBytes();
       final codec = await ui.instantiateImageCodec(bytes);
@@ -98,14 +108,20 @@ class _PhotoCropScreenState extends State<PhotoCropScreen> {
         _decodedImage = frame.image;
         _cropCenter = Offset(frame.image.width / 2, frame.image.height / 2);
         _zoomScale = 1.0;
+        _isInitializing = false;
       });
     } catch (e) {
       logger.e('Error initializing image: $e');
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error loading image: $e')),
-        );
-      }
+      if (!mounted) return;
+
+      setState(() {
+        _isInitializing = false;
+        _imageBytes = null;
+        _decodedImage = null;
+        _initErrorMessage =
+            'This image format is not supported on this device/browser. '
+            'Please choose a JPG or PNG image.';
+      });
     }
   }
 
@@ -235,13 +251,13 @@ class _PhotoCropScreenState extends State<PhotoCropScreen> {
     final int outWidth = _isCircle
       ? 250
       : _isLandscape
-        ? _outputLongEdge
-        : (_outputLongEdge * _rectAspectRatio).round();
+        ? _landscapeOutputWidth
+        : _portraitOutputWidth;
     final int outHeight = _isCircle
       ? 250
       : _isLandscape
-        ? (_outputLongEdge / _rectAspectRatio).round()
-        : _outputLongEdge;
+        ? _landscapeOutputHeight
+        : _portraitOutputHeight;
 
     final recorder = ui.PictureRecorder();
     final canvas = Canvas(recorder);
@@ -258,10 +274,25 @@ class _PhotoCropScreenState extends State<PhotoCropScreen> {
     final byteData = await uiImg.toByteData(format: ui.ImageByteFormat.png);
 
     if (!mounted) return;
-    Navigator.of(context).pop({
+
+    final result = <String, dynamic>{
+      // Keep this key for create_post pipeline compatibility.
       'bytes': byteData!.buffer.asUint8List(),
       'aspectRatio': _rectAspectRatio,
-    });
+    };
+
+    // Profile edit path needs original bytes + crop box for backend avatar crop.
+    if (_isCircle) {
+      result['originalBytes'] = _imageBytes;
+      result['cropData'] = {
+        'x': src.left.toInt(),
+        'y': src.top.toInt(),
+        'width': src.width.toInt(),
+        'height': src.height.toInt(),
+      };
+    }
+
+    Navigator.of(context).pop(result);
   }
 
   void _handleScaleStart(ScaleStartDetails details) {
@@ -295,13 +326,51 @@ class _PhotoCropScreenState extends State<PhotoCropScreen> {
     return Scaffold(
       backgroundColor: backgroundColor,
       appBar: AppBar(
-        title: Text(widget.title),
-        backgroundColor: Colors.black,
+        title: Center(
+          child:Text(widget.title)
+        ),
+        backgroundColor: Colors.white,
         foregroundColor: Colors.white,
         elevation: 0,
+        leading: IconButton(
+          icon: const Icon(Icons.close),
+          onPressed: () => Navigator.pop(context),
+          tooltip: 'Cancel',
+        ),
       ),
-      body: _imageBytes == null || _decodedImage == null
+      body: _isInitializing
           ? const Center(child: CircularProgressIndicator())
+          : _initErrorMessage != null
+          ? Center(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 24),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(
+                      Icons.broken_image_outlined,
+                      size: 56,
+                      color: Colors.grey.shade500,
+                    ),
+                    const SizedBox(height: 16),
+                    Text(
+                      _initErrorMessage!,
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        fontSize: 14,
+                        color: Colors.grey.shade700,
+                      ),
+                    ),
+                    const SizedBox(height: 18),
+                    ElevatedButton.icon(
+                      onPressed: () => Navigator.pop(context),
+                      icon: const Icon(Icons.arrow_back),
+                      label: const Text('Go Back'),
+                    ),
+                  ],
+                ),
+              ),
+            )
           : Column(
               children: [
                 Expanded(
@@ -416,6 +485,7 @@ class _PhotoCropScreenState extends State<PhotoCropScreen> {
                   padding: const EdgeInsets.all(20),
                   child: SizedBox(
                     width: double.infinity,
+                    height: 56,
                     child: ElevatedButton.icon(
                       onPressed: _returnCroppedImage,
                       icon: const Icon(Icons.check),

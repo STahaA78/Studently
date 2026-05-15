@@ -51,17 +51,26 @@ class CacheCoordinator {
   bool isStale(CacheDomain domain, {String? scopeId}) {
     final key = _key(domain, scopeId);
     final last = _lastFreshAt[key];
-    if (last == null) return true;
+    if (last == null) {
+      logger.d('[CacheCoordinator] isStale key=$key result=true reason=missing');
+      return true;
+    }
     final ttl = policies[domain]?.ttl ?? const Duration(seconds: 30);
-    return DateTime.now().difference(last) > ttl;
+    final stale = DateTime.now().difference(last) > ttl;
+    logger.d('[CacheCoordinator] isStale key=$key result=$stale ttl=${ttl.inSeconds}s');
+    return stale;
   }
 
   void markFresh(CacheDomain domain, {String? scopeId}) {
-    _lastFreshAt[_key(domain, scopeId)] = DateTime.now();
+    final key = _key(domain, scopeId);
+    _lastFreshAt[key] = DateTime.now();
+    logger.d('[CacheCoordinator] markFresh key=$key');
   }
 
   void invalidate(CacheDomain domain, {String? scopeId}) {
-    _lastFreshAt.remove(_key(domain, scopeId));
+    final key = _key(domain, scopeId);
+    _lastFreshAt.remove(key);
+    logger.d('[CacheCoordinator] invalidate key=$key');
   }
 
   void invalidateMany(List<(CacheDomain, String?)> keys) {
@@ -72,17 +81,33 @@ class CacheCoordinator {
 
   bool tryBeginRefresh(CacheDomain domain, {String? scopeId}) {
     final key = _key(domain, scopeId);
-    if (_inFlight.contains(key)) return false;
+    if (_inFlight.contains(key)) {
+      logger.d('[CacheCoordinator] tryBeginRefresh key=$key result=false reason=in_flight');
+      return false;
+    }
     _inFlight.add(key);
+    logger.d('[CacheCoordinator] tryBeginRefresh key=$key result=true');
     return true;
   }
 
   void endRefresh(CacheDomain domain, {String? scopeId, bool success = true}) {
     final key = _key(domain, scopeId);
     _inFlight.remove(key);
+    logger.d('[CacheCoordinator] endRefresh key=$key success=$success');
     if (success) {
       markFresh(domain, scopeId: scopeId);
     }
+  }
+
+  Duration? timeUntilStale(CacheDomain domain, {String? scopeId}) {
+    final key = _key(domain, scopeId);
+    final last = _lastFreshAt[key];
+    if (last == null) return Duration.zero;
+
+    final ttl = policies[domain]?.ttl ?? const Duration(seconds: 30);
+    final elapsed = DateTime.now().difference(last);
+    final remaining = ttl - elapsed;
+    return remaining.isNegative ? Duration.zero : remaining;
   }
 }
 

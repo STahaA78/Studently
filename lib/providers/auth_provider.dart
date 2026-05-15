@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import 'dart:async';
 import 'package:studently/services/firebase_auth.dart';
 import 'package:studently/repositories/user.dart';
 import 'package:studently/models/user.dart';
@@ -18,6 +19,7 @@ final userRepositoryProvider = Provider<UserRepository>((ref) {
 
 class AuthNotifier extends AsyncNotifier<User?> {
   final _authStorage = StorageService().authStorage;
+  Timer? _cacheRefreshTimer;
 
   List<Map<String, String>> friendsList = [];
 
@@ -26,6 +28,7 @@ class AuthNotifier extends AsyncNotifier<User?> {
     logger.i(
       "[$runtimeType] build() started - Checking local disk and Firebase",
     );
+    ref.onDispose(_cancelCacheRefreshTimer);
 
     // 2. Check if user is in incomplete signup flow
     final inSignupFlow = _authStorage.getInSignupFlow();
@@ -70,6 +73,8 @@ class AuthNotifier extends AsyncNotifier<User?> {
           fetchFriendsList();
         }
 
+        _startCacheRefreshChecks();
+
         return cachedUser;
       }
 
@@ -78,6 +83,7 @@ class AuthNotifier extends AsyncNotifier<User?> {
       ref.read(cacheCoordinatorProvider).markFresh(CacheDomain.userProfile);
 
       await _ensureUserStorageInitialized();
+      _startCacheRefreshChecks();
 
       return freshUser;
     }
@@ -97,17 +103,88 @@ class AuthNotifier extends AsyncNotifier<User?> {
     }
   }
 
+  void _cancelCacheRefreshTimer() {
+    _cacheRefreshTimer?.cancel();
+    _cacheRefreshTimer = null;
+  }
+
+  void _startCacheRefreshChecks() {
+    if (_cacheRefreshTimer != null) return;
+
+    _cacheRefreshTimer = Timer.periodic(const Duration(seconds: 10), (_) async {
+      final currentUser = authService.value.currentUser;
+      if (currentUser == null) return;
+
+      final cache = ref.read(cacheCoordinatorProvider);
+      final profileStale = cache.isStale(CacheDomain.userProfile);
+      final friendsStale = cache.isStale(CacheDomain.friendsList);
+
+      logger.d(
+        "[$runtimeType] Cache refresh tick profileStale=$profileStale friendsStale=$friendsStale",
+      );
+
+      if (profileStale) {
+        await _refreshProfileInBackground(currentUser.uid);
+      }
+      if (friendsStale) {
+        await fetchFriendsList();
+      }
+    });
+  }
+
   // --- Helper Methods ---
 
   Future<User> _fetchAndSaveFreshProfile(String uid) async {
     final userRepo = ref.read(userRepositoryProvider);
-    final freshUser = await userRepo.fetchUserProfile(
+    final profileResponse = await userRepo.fetchUserProfile(
       userId: uid,
-    ); // Fetch specific user's profile
+    );
+
+    if (!profileResponse.exists || profileResponse.data == null) {
+      throw Exception("User profile not found");
+    }
+
+    final freshUser = profileResponse.data!;
 
     // 4. Synchronous write to Hive
     _authStorage.saveUser(freshUser);
     return freshUser;
+  }
+
+  Future<User> _waitForUpdatedPhotoProfile({
+    required String uid,
+    required String? previousPhotoUrl,
+  }) async {
+    final userRepo = ref.read(userRepositoryProvider);
+    User? latestUser;
+
+    for (int attempt = 0; attempt < 10; attempt++) {
+      final response = await userRepo.fetchUserProfile(
+        userId: uid
+      );
+
+      if (response.exists && response.data != null) {
+        latestUser = response.data!;
+        final oldUrl = (previousPhotoUrl ?? '').trim();
+        final newUrl = (latestUser.picture ?? '').trim();
+
+        // Wait until backend background processing publishes the new URL.
+        final hasNewPhoto = oldUrl.isEmpty ? newUrl.isNotEmpty : (newUrl != oldUrl);
+        if (hasNewPhoto) {
+          _authStorage.saveUser(latestUser);
+          return latestUser;
+        }
+      }
+
+      await Future.delayed(const Duration(milliseconds: 450));
+    }
+
+    if (latestUser != null) {
+      _authStorage.saveUser(latestUser);
+      return latestUser;
+    }
+
+    throw Exception('Unable to fetch updated profile photo');
   }
 
   Future<void> _refreshProfileInBackground(String uid) async {
@@ -158,11 +235,8 @@ class AuthNotifier extends AsyncNotifier<User?> {
       final firebaseUser = await authService.value.signInWithGoogle();
 
       if (firebaseUser == null) {
-        // User cancelled Google sign-in
-        state = AsyncValue.error(
-          Exception("Google sign-in cancelled"),
-          StackTrace.current,
-        );
+        logger.d("[$runtimeType] Google Sign-In cancelled by user");
+        state = const AsyncValue.data(null);
         return;
       }
 
@@ -171,7 +245,11 @@ class AuthNotifier extends AsyncNotifier<User?> {
       );
 
       if (firebaseUser.email == null) {
-        throw Exception("Google account does not have an email associated.");
+        logger.w("[$runtimeType] Google Sign-In did not return an email");
+        logger.i("[$runtimeType] Signing out of Firebase due to missing email");
+        await authService.value.signOut();
+        state = const AsyncValue.data(null);
+        return;
       }
 
       // Step 2: Validate email domain against allowed organizations
@@ -203,7 +281,7 @@ class AuthNotifier extends AsyncNotifier<User?> {
           data: (allowed) {
             if (!allowed) {
               throw Exception(
-                "Your email domain is not authorized for signup. Please use your organization email.",
+                "Please use your university email to sign in.",
               );
             }
           },
@@ -221,17 +299,18 @@ class AuthNotifier extends AsyncNotifier<User?> {
       } catch (e) {
         logger.e("[$runtimeType] Email validation error", error: e);
         await authService.value.signOut();
-        state = AsyncValue.error(e, StackTrace.current);
+        state = AsyncValue.error("Failed to validate email. Please try again.", StackTrace.current);
         return;
       }
 
       // Step 3: Call /profile endpoint to check if user exists
       final userRepo = ref.read(userRepositoryProvider);
 
-      try {
-        // Try to fetch user profile - this determines if user exists
-        final user = await userRepo
-            .fetchUserProfile(); // Uses default "0" for logged-in user
+      // Fetch user profile envelope - the backend now returns 200 for both states.
+      final profileResponse = await userRepo.fetchUserProfile();
+
+      if (profileResponse.exists && profileResponse.data != null) {
+        final user = profileResponse.data!;
 
         // Step 4a: User exists in backend - save profile and login
         logger.i("[$runtimeType] Existing user detected: ${user.email}");
@@ -240,28 +319,12 @@ class AuthNotifier extends AsyncNotifier<User?> {
         await _ensureUserStorageInitialized();
 
         state = AsyncValue.data(user);
-      } catch (e) {
-        // Step 4b: User doesn't exist in backend (404 or error)
-        // Check if error indicates user not found
-        final errorString = e.toString().toLowerCase();
-        if (errorString.contains('404') || errorString.contains('not found')) {
-          logger.i(
-            "[$runtimeType] New user detected (404), routing to signup...",
-          );
-          // Set signup flag to track incomplete signup flow
-          setSignupInProgress(true);
-          // Firebase user is available via authService.value.currentUser
-          // State is set to null which will trigger SignupBasicPage
-          state = AsyncValue.data(null);
-        } else {
-          // Other errors should be reported
-          logger.e("[$runtimeType] Error checking user profile", error: e);
-          await authService.value.signOut();
-          state = AsyncValue.error(
-            Exception("Failed to verify account. Please try again."),
-            StackTrace.current,
-          );
-        }
+      } else {
+        logger.i(
+          "[$runtimeType] New user detected (profile missing), routing to signup...",
+        );
+        setSignupInProgress(true);
+        state = AsyncValue.data(null);
       }
     } catch (e, stack) {
       logger.e(
@@ -273,7 +336,9 @@ class AuthNotifier extends AsyncNotifier<User?> {
       try {
         await authService.value.signOut();
       } catch (_) {}
-      state = AsyncValue.error(e, stack);
+      logger.e("[$runtimeType] Something went wrong during sign-in: $e");
+      // Keep UI out of loading state without surfacing a generic error.
+      state = const AsyncValue.data(null);
     }
   }
 
@@ -401,9 +466,11 @@ class AuthNotifier extends AsyncNotifier<User?> {
         email: currentUser.email,
         birthday: currentUser.birthday,
         picture: currentUser.picture,
+        thumbnail: currentUser.thumbnail,
         name: updatedData['name'] ?? currentUser.name,
         department: updatedDepartment ?? currentUser.department,
         batch: updatedData['batch'] ?? currentUser.batch,
+        gender: currentUser.gender,
         interests: updatedData['interests'] != null
             ? List<Interest>.from(updatedData['interests'])
             : currentUser.interests,
@@ -417,6 +484,7 @@ class AuthNotifier extends AsyncNotifier<User?> {
       _authStorage.saveUser(updatedUser);
       final cache = ref.read(cacheCoordinatorProvider);
       cache.markFresh(CacheDomain.userProfile);
+      _startCacheRefreshChecks();
       ref.read(cacheInvalidationBusProvider.notifier).publish(
         CacheInvalidationEvent(type: 'profile_updated', userId: updatedUser.id),
       );
@@ -427,6 +495,7 @@ class AuthNotifier extends AsyncNotifier<User?> {
     required String filePath,
     Uint8List? fileBytes,
     String? filename,
+    Map<String, dynamic>? cropData,
   }) async {
     try {
       final userRepo = ref.read(userRepositoryProvider);
@@ -438,17 +507,29 @@ class AuthNotifier extends AsyncNotifier<User?> {
         filePath: filePath,
         fileBytes: fileBytes,
         filename: filename,
+        cropData: cropData,
       );
 
       // 2. Fetch the updated profile with new photo URL from backend
       final firebaseUser = authService.value.currentUser;
       if (firebaseUser != null) {
-        final updatedUser = await _fetchAndSaveFreshProfile(firebaseUser.uid);
+        final updatedUser = await _waitForUpdatedPhotoProfile(
+          uid: firebaseUser.uid,
+          previousPhotoUrl: oldPhotoUrl,
+        );
+        final newPhotoUrl = updatedUser.picture;
 
-        // 3. Clear CachedNetworkImage cache for old photo if it existed
-        if (oldPhotoUrl != null && oldPhotoUrl.isNotEmpty) {
+        // 3. Clear old cache only if URL changed.
+        if (oldPhotoUrl != null &&
+            oldPhotoUrl.isNotEmpty &&
+            oldPhotoUrl != newPhotoUrl) {
           await CachedNetworkImage.evictFromCache(oldPhotoUrl);
           logger.i("[$runtimeType] Cleared cache for old profile photo: $oldPhotoUrl");
+        }
+
+        // Also evict current URL to avoid stale CDN/browser cache artifacts.
+        if (newPhotoUrl != null && newPhotoUrl.isNotEmpty) {
+          await CachedNetworkImage.evictFromCache(newPhotoUrl);
         }
 
         // 4. Refresh friends list to get updated profile pictures from server
@@ -456,10 +537,11 @@ class AuthNotifier extends AsyncNotifier<User?> {
 
         // 5. Notify chat provider to refresh user pictures cache
         // This ensures the new profile pic shows up in DM active chats and new chat list
-        if (updatedUser.picture != null && updatedUser.picture!.isNotEmpty) {
-          await _notifyProfilePhotoUpdated(firebaseUser.uid, updatedUser.picture!);
+        if (newPhotoUrl != null && newPhotoUrl.isNotEmpty) {
+          await _notifyProfilePhotoUpdated(firebaseUser.uid, newPhotoUrl);
         }
         ref.read(cacheCoordinatorProvider).markFresh(CacheDomain.userProfile);
+        _startCacheRefreshChecks();
         ref.read(cacheInvalidationBusProvider.notifier).publish(
           CacheInvalidationEvent(
             type: 'profile_photo_updated',
@@ -517,8 +599,10 @@ class AuthNotifier extends AsyncNotifier<User?> {
         birthday: currentUser.birthday,
         department: currentUser.department,
         batch: currentUser.batch,
+        gender: currentUser.gender,
         interests: currentUser.interests,
         picture: '', // Wipe the photo locally
+        thumbnail: '',
         friendsCount: currentUser.friendsCount,
         university: currentUser.university,
         isPrivate: currentUser.isPrivate,

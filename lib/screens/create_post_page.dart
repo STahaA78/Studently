@@ -27,7 +27,7 @@ class _CreatePostPageState extends ConsumerState<CreatePostPage> {
 
   /// PICK IMAGE
   Future<void> pickImage() async {
-    final picked = await picker.pickImage(source: ImageSource.gallery, maxWidth: 1080, maxHeight: 1350, imageQuality: 80);
+    final picked = await picker.pickImage(source: ImageSource.gallery);
 
     if (picked == null || !mounted) return;
 

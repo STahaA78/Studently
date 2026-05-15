@@ -41,11 +41,27 @@ class FriendStatus {
   }
 }
 
+class UserProfileResponse {
+  final bool exists;
+  final User? data;
+
+  UserProfileResponse({required this.exists, this.data});
+
+  factory UserProfileResponse.fromJson(Map<String, dynamic> json) {
+    final rawData = json['data'];
+    return UserProfileResponse(
+      exists: json['exists'] ?? false,
+      data: rawData is Map<String, dynamic> ? User.fromJson(rawData) : null,
+    );
+  }
+}
+
 class User {
   final String id;
   String name;
   final String email;
   int? friendsCount;
+  int? resourcesCount;
   String? password;
   String? birthday; // MM/DD/YYYY
   Department? department;
@@ -54,6 +70,7 @@ class User {
   List<Interest> interests;
   String? university;
   String? picture; // Cloudflare R2 URL
+  String? thumbnail; // Discover card background URL
   bool isPrivate;
 
   User({
@@ -61,6 +78,7 @@ class User {
     required this.name,
     required this.email,
     this.friendsCount,
+    this.resourcesCount,
     this.password,
     this.birthday,
     this.department,
@@ -69,6 +87,7 @@ class User {
     List<Interest>? interests,
     this.university,
     this.picture,
+    this.thumbnail,
     this.isPrivate = false,
   }) : interests = interests ?? [];
 
@@ -78,6 +97,7 @@ class User {
       name: json['name'] ?? '',
       email: json['email'] ?? '',
       friendsCount: json['friends_count'] ?? 0,
+      resourcesCount: json['resources_count'] ?? 0,
       password: json['password'],
       birthday: json['birthday'],
       department: json['department'] != null
@@ -94,6 +114,7 @@ class User {
           [],
       university: json['university'],
       picture: json['picture'] ?? '',
+      thumbnail: json['thumbnail'] ?? '',
       isPrivate: json['is_private'] ?? false,
     );
   }
@@ -104,6 +125,7 @@ class User {
       'name': name,
       'email': email,
       'friendsCount': friendsCount,
+      'resourcesCount': resourcesCount,
       'password': password,
       'birthday': birthday,
       'department': department?.toJson(),
@@ -111,6 +133,7 @@ class User {
       'gender': gender?.toApiString(),
       'university': university,
       'picture': picture,
+      'thumbnail': thumbnail,
       'interests': interests.map((i) => i.toJson()).toList(),
       'is_private': isPrivate,
     };

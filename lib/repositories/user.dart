@@ -1,10 +1,8 @@
 import 'dart:convert';
-import 'dart:typed_data';
 import 'package:studently/models/user.dart';
 import 'package:studently/models/backend_config.dart';
 import 'package:studently/services/api.dart';
 import 'package:studently/logger.dart';
-import 'package:studently/utils/image_compression.dart';
 import 'dart:io';
 
 class UserRepository {
@@ -52,7 +50,7 @@ class UserRepository {
   // Fetch User Profile for Profile Page and User Requests
   //(userId is optional, defaults to "0" for logged in user)
 
-  Future<User> fetchUserProfile({String userId = "0"}) async {
+  Future<UserProfileResponse> fetchUserProfile({String userId = "0"}) async {
     logger.i("[$runtimeType] Fetch User Profile Initiated for userId: $userId");
     try {
       final response = await _apiService.get('/users/$userId/profile');
@@ -64,7 +62,7 @@ class UserRepository {
         final data = jsonDecode(response.body);
         logger.d("[$runtimeType] Decoded JSON successfully");
         logger.i("[$runtimeType] Fetch User Profile Completed Successfully");
-        return User.fromJson(data);
+        return UserProfileResponse.fromJson(data);
       } on FormatException catch (e) {
         final bodyPreview = response.body.length > 200
             ? response.body.substring(0, 200)
@@ -183,6 +181,7 @@ class UserRepository {
     required String filePath,
     List<int>? fileBytes,
     String? filename,
+    Map<String, dynamic>? cropData,
   }) async {
     logger.i("[$runtimeType] Upload Profile Photo Initiated");
     try {
@@ -190,19 +189,18 @@ class UserRepository {
       var bytes = fileBytes ?? await File(filePath).readAsBytes();
       final fname = filename ?? filePath.split('/').last;
 
-      // Compress image before uploading (Instagram-style compression)
-      logger.i("[$runtimeType] Compressing image before upload...");
-      final compressedBytes = await ImageCompressionUtil.compressImage(
-        Uint8List.fromList(bytes),
-        maxWidth: 1080,
-        quality: 85,
-      );
+      // Build metadata with crop data if provided
+      final metadata = {"userId": "0"};
+      if (cropData != null) {
+        metadata['cropData'] = jsonEncode(cropData);
+      }
 
+      // No compression for profile photos - backend handles variant generation
       await _apiService.multiPartFromBytes(
         endpoint: '/users/0/profile/photo/add',
-        fileBytes: compressedBytes,
+        fileBytes: bytes,
         filename: fname,
-        metadata: {"userId": "0"},
+        metadata: metadata,
         fieldName: 'photo', // Backend expects 'photo' field name
       );
       logger.i("[$runtimeType] Upload Profile Photo Completed Successfully");

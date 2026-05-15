@@ -15,6 +15,7 @@ class CustomNavBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     const Color blue = AppStyle.primaryBlue;
+    final bottomInset = MediaQuery.viewPaddingOf(context).bottom;
 
     void onItemTapped(int index) async {
       if (index == currentIndex) return;
@@ -98,32 +99,36 @@ class CustomNavBar extends StatelessWidget {
       return isSelected ? paths[index].$2 : paths[index].$1;
     }
 
-    return SafeArea(
-      top: false,
-      child: BottomNavigationBar(
-        backgroundColor: Colors.white,
-        currentIndex: currentIndex,
-        onTap: onItemTapped,
-        type: BottomNavigationBarType.fixed,
-        selectedItemColor: blue,
-        unselectedItemColor: Colors.grey,
-        showUnselectedLabels: false,
-        showSelectedLabels: false,
-        items: List.generate(5, (index) {
-          final assetPath = getSvgAssetPath(index, currentIndex == index);
-          return BottomNavigationBarItem(
-            icon: SvgPicture.asset(
-              assetPath,
-              width: 24,
-              height: 24,
-              colorFilter: ColorFilter.mode(
-                currentIndex == index ? blue : Colors.grey,
-                BlendMode.srcIn,
+    return ColoredBox(
+      color: Colors.white,
+      child: Padding(
+        // Use the real device inset (iOS home indicator, etc.) instead of fixed extra space.
+        padding: EdgeInsets.only(bottom: bottomInset),
+        child: BottomNavigationBar(
+          backgroundColor: Colors.white,
+          currentIndex: currentIndex,
+          onTap: onItemTapped,
+          type: BottomNavigationBarType.fixed,
+          selectedItemColor: blue,
+          unselectedItemColor: Colors.grey,
+          showUnselectedLabels: false,
+          showSelectedLabels: false,
+          items: List.generate(5, (index) {
+            final assetPath = getSvgAssetPath(index, currentIndex == index);
+            return BottomNavigationBarItem(
+              icon: SvgPicture.asset(
+                assetPath,
+                width: 24,
+                height: 24,
+                colorFilter: ColorFilter.mode(
+                  currentIndex == index ? blue : Colors.grey,
+                  BlendMode.srcIn,
+                ),
               ),
-            ),
-            label: "",
-          );
-        }),
+              label: "",
+            );
+          }),
+        ),
       ),
     );
   }
