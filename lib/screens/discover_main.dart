@@ -789,12 +789,17 @@ class _ConnectDiscoverPageState extends ConsumerState<ConnectDiscoverPage> with 
   }
 
   Widget _buildCardBackground(User student) {
-    if (student.picture != null && student.picture!.isNotEmpty) {
+    final backgroundUrl =
+        (student.thumbnail != null && student.thumbnail!.isNotEmpty)
+            ? student.thumbnail!
+            : student.picture;
+
+    if (backgroundUrl != null && backgroundUrl.isNotEmpty) {
       return Stack(
         fit: StackFit.expand,
         children: [
           Image.network(
-            student.picture!,
+            backgroundUrl,
             fit: BoxFit.cover,
             errorBuilder: (context, error, stackTrace) =>
                 _buildDefaultBackground(),

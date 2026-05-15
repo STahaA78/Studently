@@ -99,7 +99,7 @@ class _CommunityFeedPageState extends ConsumerState<CommunityFeedPage> {
     );
 
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: Colors.grey[50],
       body: SafeArea(
         child: feedAsync.when(
           data: (posts) => ScrollConfiguration(
@@ -118,30 +118,14 @@ class _CommunityFeedPageState extends ConsumerState<CommunityFeedPage> {
                     surfaceTintColor: Colors.transparent,
                     floating: true,
                     snap: true,
-                    title: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        // SvgPicture.asset(
-                        //   'assets/images/logo.svg',
-                        //   height: AppStyle.logoSize*0.9,
-                        //   colorFilter: const ColorFilter.mode(
-                        //     AppStyle.primaryBlue,
-                        //     BlendMode.srcIn,
-                        //   ),
-                        // ),
-                        Flexible(
-                          child: Text(
-                            'Studently',
-                            style: GoogleFonts.poppins(
-                              color: AppStyle.primaryBlue,
-                              fontSize: AppStyle.titleFontSize * 0.9,
-                              fontWeight: FontWeight.w700,
-                              fontStyle: FontStyle.italic,
-                              letterSpacing: 0.5,
-                            ),
-                          ),
-                        ),
-                      ],
+                    title: Text(
+                      'Studently',
+                      style: GoogleFonts.poppins(
+                        color: AppStyle.primaryBlue,
+                        fontSize: AppStyle.titleFontSize * 0.8,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: 0.5,
+                      ),
                     ),
                     actions: [
                       if (kIsWeb & !web_utils.isStandalonePwa())
@@ -188,6 +172,13 @@ class _CommunityFeedPageState extends ConsumerState<CommunityFeedPage> {
                       const SizedBox(width: 8),
                     ],
                   ),
+                  const SliverToBoxAdapter(
+                    child: Divider(
+                      height: 1,
+                      thickness: 0.5,
+                      color: Color(0x14000000),
+                    ),
+                  ),
                   if (posts.isEmpty)
                     SliverFillRemaining(
                       child: Center(
@@ -209,16 +200,19 @@ class _CommunityFeedPageState extends ConsumerState<CommunityFeedPage> {
                         final int likes = post.likes.length;
                         final int comments = post.comments.length;
 
-                        return _buildPostCard(
-                          post: post,
-                          index: index,
-                          name: post.authorName,
-                          time: formatTime(post.timestamp),
-                          isLiked: isLiked,
-                          likes: likes,
-                          comments: comments,
-                          onCommentTap: () => openPostDetails(index, posts),
-                          allPosts: posts,
+                        return Padding(
+                          padding: const EdgeInsets.only(bottom: 8),
+                          child: _buildPostCard(
+                            post: post,
+                            index: index,
+                            name: post.authorName,
+                            time: formatTime(post.timestamp),
+                            isLiked: isLiked,
+                            likes: likes,
+                            comments: comments,
+                            onCommentTap: () => openPostDetails(index, posts),
+                            allPosts: posts,
+                          ),
                         );
                       }, childCount: posts.length),
                     ),
@@ -317,7 +311,9 @@ class _CommunityFeedPageState extends ConsumerState<CommunityFeedPage> {
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.only(top: 12, bottom: 12),
-      decoration: const BoxDecoration(color: Colors.white),
+      decoration: BoxDecoration(
+        color: Colors.white,
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -339,8 +335,9 @@ class _CommunityFeedPageState extends ConsumerState<CommunityFeedPage> {
                               : Text(
                                   name.isNotEmpty ? name[0] : "?",
                                   style: const TextStyle(
-                                    color: Colors.black,
-                                    fontWeight: FontWeight.w600,
+                                    fontSize: 14,
+                                    color:  Colors.black,
+                                    fontWeight: FontWeight.w500,
                                   ),
                                 ),
                         ),
@@ -360,7 +357,10 @@ class _CommunityFeedPageState extends ConsumerState<CommunityFeedPage> {
                               ),
                               Text(
                                 time,
-                                style: const TextStyle(color: Colors.grey),
+                                style: TextStyle(
+                                  color: Colors.grey[600],
+                                  fontSize: 12,
+                                ),
                               ),
                             ],
                           ),
@@ -474,14 +474,16 @@ class _CommunityFeedPageState extends ConsumerState<CommunityFeedPage> {
               ],
             ),
           ),
-          const SizedBox(height: 10),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 19),
-            child: Text(
-              post.content,
-              style: const TextStyle(fontSize: 15, color: Colors.black87),
+          const SizedBox(height: 15),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 19),
+              child: Text(
+                post.content,
+                style: const TextStyle(fontSize: 15, color: Colors.black87),
+              ),
             ),
-          ),
+          if (post.content.isNotEmpty)
+            const SizedBox(height: 10),
           if (post.mediaUrl != null && post.mediaUrl!.isNotEmpty)
             Padding(
               padding: const EdgeInsets.only(top: 10),
@@ -527,6 +529,15 @@ class _CommunityFeedPageState extends ConsumerState<CommunityFeedPage> {
                 ),
               ),
             ),
+          const SizedBox(height: 10),
+          const Padding(
+            padding: EdgeInsets.symmetric(horizontal: 16),
+            child: Divider(
+              height: 1,
+              thickness: 0.8,
+              color: Color(0x14000000),
+            ),
+          ),
           const SizedBox(height: 12),
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 19),

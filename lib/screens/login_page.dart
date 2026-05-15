@@ -48,7 +48,7 @@ class _LoginGooglePageState extends ConsumerState<LoginGooglePage> {
           setState(() {
             _googleSignInError = _getFriendlyErrorMessage(error);
           });
-          logger.e("Google Sign-In Error: $error");
+          logger.e("[$runtimeType] Google Sign-In Error: $error");
         },
       );
     });
@@ -71,21 +71,12 @@ class _LoginGooglePageState extends ConsumerState<LoginGooglePage> {
                         child: Row(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            // SvgPicture.asset(
-                            //   'assets/images/logo.svg',
-                            //   height: AppStyle.logoSize,
-                            //   colorFilter: const ColorFilter.mode(
-                            //     AppStyle.primaryBlue,
-                            //     BlendMode.srcIn,
-                            //   ),
-                            // ),
                             Text(
                               'Studently',
                               style: GoogleFonts.poppins(
                                 color: AppStyle.primaryBlue,
-                                fontSize: AppStyle.titleFontSize,
+                                fontSize: AppStyle.titleFontSize *1.2,
                                 fontWeight: FontWeight.w700,
-                                fontStyle: FontStyle.italic,
                                 letterSpacing: 0.5,
                               ),
                             ),
@@ -98,17 +89,6 @@ class _LoginGooglePageState extends ConsumerState<LoginGooglePage> {
                         width: formWidth,
                         child: Column(
                           children: [
-                            // Info Block
-                            Text(
-                              'Hi there! Login with Google to continue.',
-                              textAlign: TextAlign.center,
-                              style: TextStyle(
-                                fontSize: 15,
-                                color: Colors.grey[700],
-                                fontWeight: FontWeight.w500,
-                              ),
-                            ),
-                            const SizedBox(height: 8),
                             // Google Sign-In Button - Official Google Colors
                             SizedBox(
                               height: 48,
@@ -166,7 +146,22 @@ class _LoginGooglePageState extends ConsumerState<LoginGooglePage> {
                               ),
                             ),
 
-                            // Error Message
+                           
+                            const SizedBox(height: 10),
+
+                           // Info Block
+                            Text(
+                              'Login with university account to continue.',
+                              textAlign: TextAlign.center,
+                              style: TextStyle(
+                                fontSize: 14,
+                                color: Colors.grey[700],
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+
+                            const SizedBox(height: 10),
+                             // Error Message
                             if (_googleSignInError.isNotEmpty)
                               Padding(
                                 padding: const EdgeInsets.only(top: 16),
@@ -194,39 +189,43 @@ class _LoginGooglePageState extends ConsumerState<LoginGooglePage> {
                 ),
               ),
             ),
-            Padding(
-              padding: const EdgeInsets.only(bottom: 12),
-              child: Column(
-                children: [
-                  Text(
-                    'Created by',
-                    style: GoogleFonts.poppins(
-                      fontSize: 13,
-                      color: Colors.grey[600],
-                      fontWeight: FontWeight.w500,
+            SafeArea(
+              top: false,
+              minimum: const EdgeInsets.only(bottom: 10),
+              child: Padding(
+                padding: const EdgeInsets.only(bottom: 12),
+                child: Column(
+                  children: [
+                    Text(
+                      'Created by',
+                      style: GoogleFonts.poppins(
+                        fontSize: 13,
+                        color: Colors.grey[600],
+                        fontWeight: FontWeight.w500,
+                      ),
                     ),
-                  ),
-                  const SizedBox(height: 8),
-                  Wrap(
-                    alignment: WrapAlignment.center,
-                    spacing: 12,
-                    runSpacing: 6,
-                    children: [
-                      _buildCreatorTile(
-                        '• Moiz',
-                        'https://linkedin.com/in/moizpasha',
-                      ),
-                      _buildCreatorTile(
-                        '• Hamza',
-                        'https://linkedin.com/in/raoameerhamza',
-                      ),
-                      _buildCreatorTile(
-                        '• Taha',
-                        'https://linkedin.com/in/syed-taha-ahmed78',
-                      ),
-                    ],
-                  ),
-                ],
+                    const SizedBox(height: 8),
+                    Wrap(
+                      alignment: WrapAlignment.center,
+                      spacing: 12,
+                      runSpacing: 6,
+                      children: [
+                        _buildCreatorTile(
+                          '• Moiz',
+                          'https://linkedin.com/in/moizpasha',
+                        ),
+                        _buildCreatorTile(
+                          '• Hamza',
+                          'https://linkedin.com/in/raoameerhamza',
+                        ),
+                        _buildCreatorTile(
+                          '• Taha',
+                          'https://linkedin.com/in/syed-taha-ahmed78',
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
               ),
             ),
           ],

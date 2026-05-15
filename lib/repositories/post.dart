@@ -1,10 +1,8 @@
 import 'dart:convert';
-import 'dart:typed_data';
 import 'package:image_picker/image_picker.dart';
 import '../models/post.dart';
 import '../services/api.dart';
 import 'package:studently/logger.dart';
-import 'package:studently/utils/image_compression.dart';
 
 /// Repository for handling all Post and Feed related API operations
 class PostRepository {
@@ -78,10 +76,6 @@ class PostRepository {
     try {
       if (image != null) {
         final originalBytes = await image.readAsBytes();
-        final compressedBytes = await ImageCompressionUtil.compressImage(
-          Uint8List.fromList(originalBytes),
-          quality: 85,
-        );
 
         final rawName = image.name.isNotEmpty ? image.name : 'post.jpg';
         final filename = rawName.endsWith('.jpg') || rawName.endsWith('.jpeg')
@@ -95,7 +89,7 @@ class PostRepository {
 
         final response = await _apiService.multiPartFromBytes(
           endpoint: "/feed/",
-          fileBytes: compressedBytes,
+          fileBytes: originalBytes,
           filename: filename,
           formFields: formFields,
         );

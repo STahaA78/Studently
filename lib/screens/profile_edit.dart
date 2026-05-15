@@ -30,8 +30,10 @@ class _EditProfilePageState extends ConsumerState<EditProfilePage> {
   String? _departmentError;
   String? _batchError;
 
-  // Store cropped profile photo locally until user saves
-  Uint8List? _croppedPhotoBytes;
+  // Store original profile photo data with crop info
+  Uint8List? _originalPhotoBytes;
+  Uint8List? _croppedPreviewBytes;
+  Map<String, dynamic>? _photosCropData;
   String? _croppedPhotoFileName;
   bool _profileImageFailed = false;
 
@@ -130,17 +132,20 @@ class _EditProfilePageState extends ConsumerState<EditProfilePage> {
 
     try {
       // If user selected a new profile photo, upload it first
-      if (_croppedPhotoBytes != null) {
-        logger.i('Uploading profile photo...');
+      if (_originalPhotoBytes != null) {
+        logger.i('Uploading profile photo with crop data...');
         await ref
             .read(authProvider.notifier)
             .updateProfilePhoto(
               filePath: _croppedPhotoFileName ?? 'profile_photo.jpg',
-              fileBytes: _croppedPhotoBytes,
+              fileBytes: _originalPhotoBytes,
               filename: _croppedPhotoFileName ?? 'profile_photo.jpg',
+              cropData: _photosCropData,
             );
         logger.i('Profile photo uploaded successfully');
-        _croppedPhotoBytes = null;
+        _originalPhotoBytes = null;
+        _croppedPreviewBytes = null;
+        _photosCropData = null;
         _croppedPhotoFileName = null;
       }
 
@@ -245,19 +250,21 @@ class _EditProfilePageState extends ConsumerState<EditProfilePage> {
                             children: [
                               CircleAvatar(
                                 key: ValueKey<String?>(
-                                  _croppedPhotoBytes != null
+                                  (_croppedPreviewBytes != null || _originalPhotoBytes != null)
                                       ? 'cropped'
                                       : currentUser.picture,
                                 ),
                                 radius: 52,
                                 backgroundColor: Colors.grey.shade300,
-                                backgroundImage: _croppedPhotoBytes != null
-                                    ? MemoryImage(_croppedPhotoBytes!)
+                                backgroundImage: _croppedPreviewBytes != null
+                                    ? MemoryImage(_croppedPreviewBytes!)
+                                    : _originalPhotoBytes != null
+                                    ? MemoryImage(_originalPhotoBytes!)
                                     : (hasPhoto
                                           ? NetworkImage(currentUser.picture!)
                                           : null),
                                 onBackgroundImageError:
-                                    _croppedPhotoBytes == null && hasPhoto
+                                    _croppedPreviewBytes == null && _originalPhotoBytes == null && hasPhoto
                                     ? (exception, stackTrace) {
                                         // Defer setState to avoid calling it during paint phase
                                         SchedulerBinding.instance
@@ -272,8 +279,8 @@ class _EditProfilePageState extends ConsumerState<EditProfilePage> {
                                       }
                                     : null,
                                 child:
-                                    (_croppedPhotoBytes == null &&
-                                        (!hasPhoto || _profileImageFailed))
+                                    ((_croppedPreviewBytes == null && _originalPhotoBytes == null) &&
+                                            (!hasPhoto || _profileImageFailed))
                                     ? const Icon(
                                         Icons.person,
                                         size: 48,
@@ -334,34 +341,15 @@ class _EditProfilePageState extends ConsumerState<EditProfilePage> {
                       height: 50,
                       decoration: BoxDecoration(
                         color: Colors.grey.shade100,
-                        borderRadius: BorderRadius.circular(25),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withValues(alpha: 0.04),
-                            blurRadius: 6,
-                            offset: const Offset(0, 2),
-                          ),
-                        ],
+                        borderRadius: BorderRadius.circular(16),
                       ),
-                      child: TextFormField(
-                        controller: nameController,
-                        textCapitalization: TextCapitalization.words,
-                        readOnly: true,
-                        enableInteractiveSelection: false,
-                        showCursor: false,
-                        style: TextStyle(
-                          color: Colors.grey.shade700,
-                        ),
-                        decoration: const InputDecoration(
-                          contentPadding: EdgeInsets.symmetric(
-                            horizontal: 18,
-                            vertical: 14,
-                          ),
-                          border: InputBorder.none,
-                        ),
-                        validator: (v) => v == null || v.trim().isEmpty
-                            ? 'Enter your name'
-                            : null,
+                      padding: const EdgeInsets.symmetric(horizontal: 18),
+                      alignment: Alignment.centerLeft,
+                      child: Text(
+                        nameController.text,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(color: Colors.grey.shade700),
                       ),
                     ),
                     const SizedBox(height: 20),
@@ -444,31 +432,15 @@ class _EditProfilePageState extends ConsumerState<EditProfilePage> {
                       height: 50,
                       decoration: BoxDecoration(
                         color: Colors.grey.shade100,
-                        borderRadius: BorderRadius.circular(25),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withValues(alpha: 0.04),
-                            blurRadius: 6,
-                            offset: const Offset(0, 2),
-                          ),
-                        ],
+                        borderRadius: BorderRadius.circular(16),
                       ),
-                      child: TextFormField(
-                        initialValue: effectiveBatchValue ?? '',
-                        readOnly: true,
-                        enableInteractiveSelection: false,
-                        showCursor: false,
-                        style: TextStyle(
-                          color: Colors.grey.shade700,
-                        ),
-                        decoration: InputDecoration(
-                          contentPadding: const EdgeInsets.symmetric(
-                            horizontal: 18,
-                            vertical: 14,
-                          ),
-                          border: InputBorder.none,
-                          errorText: _batchError,
-                        ),
+                      padding: const EdgeInsets.symmetric(horizontal: 18),
+                      alignment: Alignment.centerLeft,
+                      child: Text(
+                        effectiveBatchValue ?? '',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(color: Colors.grey.shade700),
                       ),
                     ),
                     if (_batchError != null)
@@ -496,30 +468,15 @@ class _EditProfilePageState extends ConsumerState<EditProfilePage> {
                       height: 50,
                       decoration: BoxDecoration(
                         color: Colors.grey.shade100,
-                        borderRadius: BorderRadius.circular(25),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withValues(alpha: 0.04),
-                            blurRadius: 6,
-                            offset: const Offset(0, 2),
-                          ),
-                        ],
+                        borderRadius: BorderRadius.circular(16),
                       ),
-                      child: TextFormField(
-                        initialValue: widget.user.gender?.displayName ?? 'Not specified',
-                        readOnly: true,
-                        enableInteractiveSelection: false,
-                        showCursor: false,
-                        style: TextStyle(
-                          color: Colors.grey.shade700,
-                        ),
-                        decoration: InputDecoration(
-                          contentPadding: const EdgeInsets.symmetric(
-                            horizontal: 18,
-                            vertical: 14,
-                          ),
-                          border: InputBorder.none,
-                        ),
+                      padding: const EdgeInsets.symmetric(horizontal: 18),
+                      alignment: Alignment.centerLeft,
+                      child: Text(
+                        widget.user.gender?.displayName ?? 'Not specified',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(color: Colors.grey.shade700),
                       ),
                     ),
                     const SizedBox(height: 28),
@@ -760,7 +717,7 @@ class _EditProfilePageState extends ConsumerState<EditProfilePage> {
                   height: 4,
                   margin: const EdgeInsets.only(bottom: 16),
                   decoration: BoxDecoration(
-                    color: Colors.grey.shade300,
+                    color: Colors.white,
                     borderRadius: BorderRadius.circular(2),
                   ),
                 ),
@@ -799,7 +756,9 @@ class _EditProfilePageState extends ConsumerState<EditProfilePage> {
     if (action == 'remove') {
       // Clear the pending cropped photo if user removes
       setState(() {
-        _croppedPhotoBytes = null;
+        _originalPhotoBytes = null;
+        _croppedPreviewBytes = null;
+        _photosCropData = null;
         _croppedPhotoFileName = null;
       });
       // Provider handles backend deletion AND state clearing
@@ -819,15 +778,18 @@ class _EditProfilePageState extends ConsumerState<EditProfilePage> {
           ),
         );
 
-        // Store the cropped image locally (no upload yet)
+        // Store the photo data locally (original bytes + crop info, no upload yet)
         if (croppedResult != null && mounted) {
-          final croppedImageBytes = croppedResult['bytes'] as Uint8List?;
-          if (croppedImageBytes != null) {
+          final originalImageBytes = croppedResult['originalBytes'] as Uint8List?;
+          final croppedPreviewBytes = croppedResult['bytes'] as Uint8List?;
+          final cropData = croppedResult['cropData'] as Map<String, dynamic>?;
+          if (originalImageBytes != null && cropData != null) {
             setState(() {
-              _croppedPhotoBytes = croppedImageBytes;
+              _originalPhotoBytes = originalImageBytes;
+              _croppedPreviewBytes = croppedPreviewBytes;
+              _photosCropData = cropData;
               _croppedPhotoFileName = pickedFile.name;
             });
-
           }
         }
       }

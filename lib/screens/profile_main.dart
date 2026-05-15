@@ -93,11 +93,11 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
   Future<void> _loadOtherUserProfile() async {
     setState(() => isLoadingOtherUser = true);
     try {
-      final fetchedUser = await userRepository.fetchUserProfile(
+      final profileResponse = await userRepository.fetchUserProfile(
         userId: widget.userId!,
       );
       setState(() {
-        otherUser = fetchedUser;
+        otherUser = profileResponse.exists ? profileResponse.data : null;
         isLoadingOtherUser = false;
       });
     } catch (e) {
@@ -107,10 +107,10 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
 
   Future<void> _refreshOwnUserProfile() async {
     try {
-      final freshUser = await userRepository.fetchUserProfile();
+      final profileResponse = await userRepository.fetchUserProfile();
       // Only update local cache via setState - don't touch authProvider
       setState(() {
-        refreshedOwnUser = freshUser;
+        refreshedOwnUser = profileResponse.exists ? profileResponse.data : null;
       });
       // Clear refreshedOwnUser after a brief moment to resume normal feed watching
       await Future.delayed(const Duration(milliseconds: 500));

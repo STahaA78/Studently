@@ -270,6 +270,17 @@ class ApiService {
 
     final url = Uri.parse("$_baseUrl$endpoint");
 
+    MediaType inferImageMediaType(String name) {
+      final lower = name.toLowerCase();
+      if (lower.endsWith('.png')) return MediaType('image', 'png');
+      if (lower.endsWith('.webp')) return MediaType('image', 'webp');
+      if (lower.endsWith('.gif')) return MediaType('image', 'gif');
+      if (lower.endsWith('.bmp')) return MediaType('image', 'bmp');
+      if (lower.endsWith('.heic')) return MediaType('image', 'heic');
+      if (lower.endsWith('.heif')) return MediaType('image', 'heif');
+      return MediaType('image', 'jpeg');
+    }
+
     try {
       var request = http.MultipartRequest('POST', url)
         ..headers['Authorization'] =
@@ -280,13 +291,18 @@ class ApiService {
             fieldName,
             fileBytes,
             filename: filename,
-            contentType: MediaType('image', 'jpeg'),
+            contentType: inferImageMediaType(filename),
           ),
         );
 
       // Add additional form fields if provided
       if (formFields != null) {
         request.fields.addAll(formFields);
+      }
+      
+      // Extract and add crop_data if present in metadata
+      if (metadata != null && metadata.containsKey('cropData')) {
+        request.fields['crop_data'] = metadata['cropData'].toString();
       }
 
       final streamedResponse = await request.send();
