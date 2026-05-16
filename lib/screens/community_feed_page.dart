@@ -17,6 +17,7 @@ import 'package:studently/providers/notifications_provider.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:studently/utils/web_utils.dart' as web_utils;
+import 'package:studently/widgets/post_comments_sheet.dart';
 
 class CommunityFeedPage extends ConsumerStatefulWidget {
   const CommunityFeedPage({super.key});
@@ -29,6 +30,59 @@ class _CommunityFeedPageState extends ConsumerState<CommunityFeedPage> {
   final Color blue = AppStyle.primaryBlue;
   final ApiService api = ApiService();
   final ScrollController scrollController = ScrollController();
+
+  Future<bool?> _showDeleteConfirmation({
+    required String title,
+    required String message,
+  }) {
+    return showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        backgroundColor: Colors.white,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+        ),
+        title: Text(
+          title,
+          style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 18),
+        ),
+        content: Text(
+          message,
+          style: const TextStyle(fontSize: 14, color: Colors.grey),
+        ),
+        actionsAlignment: MainAxisAlignment.spaceBetween,
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            style: TextButton.styleFrom(
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+            ),
+            child: const Text(
+              'Cancel',
+              style: TextStyle(color: Colors.grey, fontWeight: FontWeight.w500),
+            ),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 10),
+            ),
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text(
+              'Delete',
+              style: TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 
   @override
   void initState() {
@@ -92,6 +146,10 @@ class _CommunityFeedPageState extends ConsumerState<CommunityFeedPage> {
     }
   }
 
+  Future<void> openCommentsSheet(Post post) async {
+    await showPostCommentsSheet(context, post);
+  }
+
   @override
   Widget build(BuildContext context) {
     final feedAsync = ref.watch(feedProvider);
@@ -129,7 +187,7 @@ class _CommunityFeedPageState extends ConsumerState<CommunityFeedPage> {
                       ),
                     ),
                     actions: [
-                      if (kIsWeb & !web_utils.isStandalonePwa())
+                      if (kIsWeb && !web_utils.isStandalonePwa())
                         IconButton(
                           icon: const Icon(
                             Icons.refresh,
@@ -211,7 +269,7 @@ class _CommunityFeedPageState extends ConsumerState<CommunityFeedPage> {
                             isLiked: isLiked,
                             likes: likes,
                             comments: comments,
-                            onCommentTap: () => openPostDetails(index, posts),
+                            onCommentTap: () => openCommentsSheet(post),
                             allPosts: posts,
                           ),
                         );
@@ -386,12 +444,25 @@ class _CommunityFeedPageState extends ConsumerState<CommunityFeedPage> {
                           context: context,
                           builder: (context) {
                             return AlertDialog(
+                              backgroundColor: Colors.white,
+                              insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
                               title: const Text("Edit Post"),
-                              content: TextField(
-                                controller: controller,
-                                maxLines: null,
-                                decoration: const InputDecoration(
-                                  hintText: "Update your post...",
+                              content: SizedBox(
+                                width: MediaQuery.of(context).size.width * 0.8,
+                                child: TextField(
+                                  controller: controller,
+                                  keyboardType: TextInputType.multiline,
+                                  minLines: 3,
+                                  maxLines: 6,
+                                  decoration: const InputDecoration(
+                                    hintText: "Update your post...",
+                                    filled: true,
+                                    fillColor: Colors.white,
+                                    border: OutlineInputBorder(),
+                                  ),
                                 ),
                               ),
                               actions: [
@@ -401,10 +472,7 @@ class _CommunityFeedPageState extends ConsumerState<CommunityFeedPage> {
                                 ),
                                 TextButton(
                                   onPressed: () {
-                                    Navigator.pop(
-                                      context,
-                                      controller.text.trim(),
-                                    );
+                                    Navigator.pop(context, controller.text.trim());
                                   },
                                   child: const Text("Save"),
                                 ),
@@ -436,27 +504,9 @@ class _CommunityFeedPageState extends ConsumerState<CommunityFeedPage> {
 
                       if (value == "delete") {
                         if (!mounted) return;
-                        final confirm = await showDialog(
-                          context: context,
-                          builder: (context) => AlertDialog(
-                            title: const Text("Delete Post"),
-                            content: const Text(
-                              "Are you sure you want to delete this post?",
-                            ),
-                            actions: [
-                              TextButton(
-                                onPressed: () => Navigator.pop(context, false),
-                                child: const Text("Cancel"),
-                              ),
-                              TextButton(
-                                onPressed: () => Navigator.pop(context, true),
-                                child: const Text(
-                                  "Delete",
-                                  style: TextStyle(color: Colors.red),
-                                ),
-                              ),
-                            ],
-                          ),
+                        final confirm = await _showDeleteConfirmation(
+                          title: 'Delete Post',
+                          message: 'Are you sure you want to delete this post?',
                         );
 
                         if (confirm == true) {
@@ -476,57 +526,63 @@ class _CommunityFeedPageState extends ConsumerState<CommunityFeedPage> {
             ),
           ),
           const SizedBox(height: 15),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 19),
-              child: Text(
-                post.content,
-                style: const TextStyle(fontSize: 15, color: Colors.black87),
+            GestureDetector(
+              onTap: () => openPostDetails(index, allPosts),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 19),
+                child: Text(
+                  post.content,
+                  style: const TextStyle(fontSize: 15, color: Colors.black87),
+                ),
               ),
             ),
           if (post.content.isNotEmpty)
             const SizedBox(height: 10),
           if (post.mediaUrl != null && post.mediaUrl!.isNotEmpty)
-            Padding(
-              padding: const EdgeInsets.only(top: 10),
-              child: AspectRatio(
-                aspectRatio: post.mediaAspectRatio ?? 4 / 5,
-                child: Image.network(
-                  post.mediaUrl!,
-                  fit: BoxFit.cover,
-                  errorBuilder: (context, error, stackTrace) {
-                    return Container(
-                      color: Colors.grey[200],
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        crossAxisAlignment: CrossAxisAlignment.center,
-                        children: [
-                          Icon(
-                            Icons.image_not_supported_outlined,
-                            color: Colors.grey[600],
-                            size: 48,
-                          ),
-                          const SizedBox(height: 8),
-                          Text(
-                            'Image failed to load',
-                            style: TextStyle(
+            GestureDetector(
+              onTap: () => openPostDetails(index, allPosts),
+              child: Padding(
+                padding: const EdgeInsets.only(top: 10),
+                child: AspectRatio(
+                  aspectRatio: post.mediaAspectRatio ?? 4 / 5,
+                  child: Image.network(
+                    post.mediaUrl!,
+                    fit: BoxFit.cover,
+                    errorBuilder: (context, error, stackTrace) {
+                      return Container(
+                        color: Colors.grey[200],
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          crossAxisAlignment: CrossAxisAlignment.center,
+                          children: [
+                            Icon(
+                              Icons.image_not_supported_outlined,
                               color: Colors.grey[600],
-                              fontSize: 14,
+                              size: 48,
                             ),
-                          ),
-                          const SizedBox(height: 8),
-                          IconButton(
-                            icon: Icon(
-                              Icons.refresh,
-                              color: Colors.grey[600],
+                            const SizedBox(height: 8),
+                            Text(
+                              'Image failed to load',
+                              style: TextStyle(
+                                color: Colors.grey[600],
+                                fontSize: 14,
+                              ),
                             ),
-                            onPressed: () {
-                              setState(() {});
-                            },
-                          ),
-                        ],
-                      ),
-                    );
-                  },
+                            const SizedBox(height: 8),
+                            IconButton(
+                              icon: Icon(
+                                Icons.refresh,
+                                color: Colors.grey[600],
+                              ),
+                              onPressed: () {
+                                setState(() {});
+                              },
+                            ),
+                          ],
+                        ),
+                      );
+                    },
+                  ),
                 ),
               ),
             ),

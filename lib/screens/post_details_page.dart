@@ -36,6 +36,59 @@ class _PostDetailsPageState extends ConsumerState<PostDetailsPage> {
     currentUserId = authService.value.firebaseAuth.currentUser?.uid;
   }
 
+  Future<bool?> _showDeleteConfirmation({
+    required String title,
+    required String message,
+  }) {
+    return showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        backgroundColor: Colors.white,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+        ),
+        title: Text(
+          title,
+          style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 18),
+        ),
+        content: Text(
+          message,
+          style: const TextStyle(fontSize: 14, color: Colors.grey),
+        ),
+        actionsAlignment: MainAxisAlignment.spaceBetween,
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            style: TextButton.styleFrom(
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+            ),
+            child: const Text(
+              'Cancel',
+              style: TextStyle(color: Colors.grey, fontWeight: FontWeight.w500),
+            ),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 10),
+            ),
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text(
+              'Delete',
+              style: TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   void dispose() {
     commentController.dispose();
@@ -106,7 +159,6 @@ class _PostDetailsPageState extends ConsumerState<PostDetailsPage> {
     ref.read(feedProvider.notifier).updatePostLocally(post);
     ref.read(profileFeedProvider(post.authorId).notifier).syncPostUpdate(post);
   }
-
   /// ---------------- LIKE ----------------
   void toggleLike() async {
     if (currentUserId == null) return;
@@ -171,7 +223,7 @@ class _PostDetailsPageState extends ConsumerState<PostDetailsPage> {
       appBar: AppBar(
         title: Center(
           child: const Text(
-            "Comments",
+            "Post",
             style: TextStyle(
               color: Colors.black,
               fontSize: AppStyle.appBarTitleSize,
@@ -457,92 +509,95 @@ class _PostDetailsPageState extends ConsumerState<PostDetailsPage> {
                   comment.username.toLowerCase() != "Unknown"
               ? comment.username
               : "User");
-    return ListTile(
-      leading: GestureDetector(
-        onTap: () => openProfile(comment.userId),
-        child: CircleAvatar(
-          backgroundColor: Colors.grey.shade300,
-          backgroundImage:
-              comment.picture != null && comment.picture!.isNotEmpty
-                  ? CachedNetworkImageProvider(comment.picture!)
-                  : null,
-          child:
-              comment.picture != null && comment.picture!.isNotEmpty
+    final hasPicture = comment.picture != null && comment.picture!.isNotEmpty;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          GestureDetector(
+            onTap: () => openProfile(comment.userId),
+            child: CircleAvatar(
+              radius: 18,
+              backgroundColor: Colors.grey.shade300,
+              backgroundImage:
+                  hasPicture ? CachedNetworkImageProvider(comment.picture!) : null,
+              child: hasPicture
                   ? null
                   : Text(
-                      displayName[0],
+                      displayName.isNotEmpty ? displayName[0] : '?',
                       style: const TextStyle(
-                        fontWeight: FontWeight.bold,
+                        fontWeight: FontWeight.w700,
                         color: Colors.black,
-                        fontSize: 15
+                        fontSize: 13,
                       ),
                     ),
-        ),
-      ),
-
-      title: GestureDetector(
-        onTap: () => openProfile(comment.userId),
-        child: Text(
-          displayName,
-          style: const TextStyle(fontWeight: FontWeight.w600),
-        ),
-      ),
-
-        subtitle: Text(
-          comment.text,
-          softWrap: true,
-          style: const TextStyle(fontSize: 14),
-        ),
-
-      trailing: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Text(
-            formatTime(comment.timestamp),
-            style: const TextStyle(color: Colors.grey, fontSize: 12),
+            ),
           ),
-
-          if (isOwner)
-            PopupMenuButton(
-              icon: const Icon(Icons.more_vert, size: 20),
-              itemBuilder: (context) => const [
-                PopupMenuItem(value: "delete", child: Text("Delete")),
-              ],
-              onSelected: (value) async {
-                if (value == "delete") {
-                  final confirm = await showDialog(
-                    context: context,
-                    builder: (context) => AlertDialog(
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      title: const Text("Delete Comment"),
-                      content: const Text(
-                        "Are you sure you want to delete this comment?",
-                      ),
-                      actions: [
-                        TextButton(
-                          onPressed: () => Navigator.pop(context, false),
-                          child: const Text("Cancel"),
-                        ),
-
-                        TextButton(
-                          onPressed: () => Navigator.pop(context, true),
-                          child: const Text(
-                            "Delete",
-                            style: TextStyle(color: Colors.red),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(
+                      child: GestureDetector(
+                        onTap: () => openProfile(comment.userId),
+                        child: Text(
+                          displayName,
+                          style: const TextStyle(
+                            fontWeight: FontWeight.w600,
+                            fontSize: 14,
                           ),
                         ),
-                      ],
+                      ),
                     ),
-                  );
-
-                  if (confirm == true) {
-                    deleteComment(comment);
-                  }
-                }
-              },
+                    if (isOwner)
+                      SizedBox(
+                        height: 20,
+                        width: 28,
+                        child: PopupMenuButton(
+                          padding: EdgeInsets.zero,
+                          constraints: const BoxConstraints(),
+                          icon: const Icon(Icons.more_vert, size: 20),
+                          itemBuilder: (context) => const [
+                            PopupMenuItem(value: 'delete', child: Text('Delete')),
+                          ],
+                          onSelected: (value) async {
+                            if (value == 'delete') {
+                              final confirm = await _showDeleteConfirmation(
+                                title: 'Delete Comment',
+                                message: 'Are you sure you want to delete this comment?',
+                              );
+                              if (confirm == true) {
+                                await deleteComment(comment);
+                              }
+                            }
+                          },
+                        ),
+                      ),
+                  ],
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  formatTime(comment.timestamp),
+                  style: const TextStyle(color: Colors.grey, fontSize: 12),
+                ),
+                const SizedBox(height: 4),
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 10.0),
+                  child: Text(
+                    comment.text,
+                    softWrap: true,
+                    style: const TextStyle(fontSize: 14, color: Colors.black87),
+                  ),
+                ),
+                
+              ],
             ),
+          ),
         ],
       ),
     );
