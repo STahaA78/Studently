@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:studently/app_style.dart';
 import 'package:studently/models/notifications.dart';
 import 'package:studently/models/post.dart';
 import 'package:studently/providers/feed_provider.dart';
@@ -41,7 +42,11 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
         surfaceTintColor: Colors.transparent,
         title: const Text(
           "Inbox",
-          style: TextStyle(fontWeight: FontWeight.w700, letterSpacing: 0.2),
+          style: TextStyle(
+            color: Colors.black,
+            fontWeight: FontWeight.w700,
+            fontSize: AppStyle.appBarTitleSize,
+          ),
         ),
       ),
       body: SafeArea(

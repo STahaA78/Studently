@@ -61,6 +61,7 @@ class User {
   String name;
   final String email;
   int? friendsCount;
+  int? postsCount;
   int? resourcesCount;
   String? password;
   String? birthday; // MM/DD/YYYY
@@ -78,6 +79,7 @@ class User {
     required this.name,
     required this.email,
     this.friendsCount,
+    this.postsCount,
     this.resourcesCount,
     this.password,
     this.birthday,
@@ -97,6 +99,7 @@ class User {
       name: json['name'] ?? '',
       email: json['email'] ?? '',
       friendsCount: json['friends_count'] ?? 0,
+      postsCount: json['posts_count'] ?? 0,
       resourcesCount: json['resources_count'] ?? 0,
       password: json['password'],
       birthday: json['birthday'],
@@ -125,6 +128,7 @@ class User {
       'name': name,
       'email': email,
       'friendsCount': friendsCount,
+      'postsCount': postsCount,
       'resourcesCount': resourcesCount,
       'password': password,
       'birthday': birthday,

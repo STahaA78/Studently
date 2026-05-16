@@ -95,7 +95,14 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Settings'),
+        title: const Text(
+          'Settings',
+          style: TextStyle(
+            color: Colors.black,
+            fontSize: AppStyle.appBarTitleSize,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
       ),
       body: ListView(
         children: [

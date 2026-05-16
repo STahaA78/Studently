@@ -296,10 +296,10 @@ class AuthNotifier extends AsyncNotifier<User?> {
             // Continue - backend will validate domain
           },
         );
-      } catch (e) {
+      } catch (e, stack) {
         logger.e("[$runtimeType] Email validation error", error: e);
         await authService.value.signOut();
-        state = AsyncValue.error("Failed to validate email. Please try again.", StackTrace.current);
+        state = AsyncValue.error("Failed to validate email. Please try again.", stack);
         return;
       }
 
@@ -338,7 +338,10 @@ class AuthNotifier extends AsyncNotifier<User?> {
       } catch (_) {}
       logger.e("[$runtimeType] Something went wrong during sign-in: $e");
       // Keep UI out of loading state without surfacing a generic error.
-      state = const AsyncValue.data(null);
+      state = AsyncValue.error(
+        "An error occurred during sign-in. Please try again.",
+        stack,
+      );
     }
   }
 
@@ -385,7 +388,7 @@ class AuthNotifier extends AsyncNotifier<User?> {
       }
     } catch (e, stack) {
       logger.e("[$runtimeType] SignUp failed", error: e, stackTrace: stack);
-      state = AsyncValue.error(e, stack);
+      state = AsyncValue.error("Failed to sign up. Please try again.", stack);
     }
   }
 
@@ -475,6 +478,8 @@ class AuthNotifier extends AsyncNotifier<User?> {
             ? List<Interest>.from(updatedData['interests'])
             : currentUser.interests,
         friendsCount: currentUser.friendsCount,
+        postsCount: currentUser.postsCount,
+        resourcesCount: currentUser.resourcesCount,
         university: currentUser.university,
         isPrivate: updatedData['is_private'] ?? currentUser.isPrivate,
       );
@@ -604,6 +609,8 @@ class AuthNotifier extends AsyncNotifier<User?> {
         picture: '', // Wipe the photo locally
         thumbnail: '',
         friendsCount: currentUser.friendsCount,
+        postsCount: currentUser.postsCount,
+        resourcesCount: currentUser.resourcesCount,
         university: currentUser.university,
         isPrivate: currentUser.isPrivate,
       );
@@ -663,6 +670,8 @@ class AuthNotifier extends AsyncNotifier<User?> {
         interests: currentUser.interests,
         picture: currentUser.picture,
         friendsCount: (currentUser.friendsCount ?? 0) + 1, // Instantly +1
+        postsCount: currentUser.postsCount,
+        resourcesCount: currentUser.resourcesCount,
         university: currentUser.university,
         isPrivate: currentUser.isPrivate,
       );

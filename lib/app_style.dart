@@ -34,6 +34,7 @@ class AppStyle {
   static const double signUpPageHeadingFontSize = 35.0; // Headings
 
   // Font Sizes
+  static const double appBarTitleSize = 17.0;
   static const double heading1Size = 28.0;
   static const double heading2Size = 22.0;
   static const double bodyTextSize = 16.0;

@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:studently/app_style.dart';
 import 'package:studently/models/knowledge_hub.dart';
 import 'package:studently/providers/knowledge_hub_provider.dart';
 import 'package:studently/services/storage.dart';
@@ -64,8 +65,8 @@ class _PdfGalleryScreenState extends ConsumerState<PdfGalleryScreen> {
               "${currentItem.course.name} (${currentItem.course.code})",
               style: const TextStyle(
                 color: Colors.black,
-                fontWeight: FontWeight.w700,
-                fontSize: 17,
+                fontWeight: FontWeight.w600,
+                fontSize: AppStyle.appBarTitleSize,
               ),
               maxLines: 2,
               overflow: TextOverflow.ellipsis,

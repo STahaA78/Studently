@@ -67,160 +67,220 @@ class _ConnectDiscoverPageState extends ConsumerState<ConnectDiscoverPage> with 
     String? tempDept = discoverState.selectedDepartmentName;
     String? tempBatch = discoverState.selectedBatchYear;
 
-    showModalBottomSheet(
+    showModalBottomSheet<void>(
       context: context,
       backgroundColor: Colors.white,
-      builder: (context) => StatefulBuilder(
-        builder: (context, setSheetState) => Consumer(
-          builder: (context, ref, child) => ref
-              .watch(backendConfigProvider)
-              .when(
-                loading: () => const Center(child: CircularProgressIndicator()),
-                error: (e, _) =>
-                    Center(child: Text("Error loading config: $e")),
+      isScrollControlled: true,
+      useSafeArea: true,
+      builder: (context) {
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+            child: Consumer(builder: (context, ref, _) {
+              return ref.watch(backendConfigProvider).when(
+                loading: () => const SizedBox(height: 120, child: Center(child: CircularProgressIndicator())),
+                error: (e, _) => Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 20),
+                  child: Center(child: Text('Error loading config: $e')),
+                ),
                 data: (config) {
                   final batchYears = List<String>.generate(
                     config.batchRange.end - config.batchRange.start + 1,
                     (i) => (config.batchRange.start + i).toString(),
                   );
-                  return Container(
-                    color: Colors.white,
-                    child: Padding(
-                      padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-                      child: ScrollConfiguration(
-                        behavior: ScrollConfiguration.of(
-                          context,
-                        ).copyWith(scrollbars: false),
-                        child: SingleChildScrollView(
-                          child: Column(
-                            mainAxisSize: MainAxisSize.min,
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Row(
-                                mainAxisAlignment:
-                                    MainAxisAlignment.spaceBetween,
-                                children: [
-                                  Text(
-                                    "Filter",
-                                    style: Theme.of(context)
-                                        .textTheme
-                                        .titleLarge
-                                        ?.copyWith(fontWeight: FontWeight.bold),
-                                  ),
-                                  IconButton(
-                                    icon: const Icon(Icons.close),
-                                    onPressed: () => Navigator.pop(context),
-                                    padding: EdgeInsets.zero,
-                                    constraints: const BoxConstraints(),
-                                  ),
-                                ],
-                              ),
-                              const SizedBox(height: 24),
-                              Text(
-                                "Department",
-                                style: Theme.of(context).textTheme.bodyMedium
-                                    ?.copyWith(fontWeight: FontWeight.w600),
-                              ),
-                              const SizedBox(height: 12),
-                              Wrap(
-                                spacing: 8,
-                                runSpacing: 8,
-                                children: config.departments.map((dept) {
-                                  return FilterChip(
-                                    label: Text(dept.name),
-                                    selected: tempDept == dept.name,
-                                    showCheckmark: false,
-                                    backgroundColor: Colors.white,
-                                    selectedColor: const Color(0xFF0F74C5),
-                                    checkmarkColor: Colors.white,
-                                    labelStyle: TextStyle(
-                                      color: tempDept == dept.name
-                                          ? Colors.white
-                                          : Colors.black,
-                                    ),
-                                    onSelected: (selected) => setSheetState(() {
-                                      tempDept = selected ? dept.name : null;
-                                    }),
-                                  );
-                                }).toList(),
-                              ),
-                              const SizedBox(height: 24),
-                              Text(
-                                "Batch Year",
-                                style: Theme.of(context).textTheme.bodyMedium
-                                    ?.copyWith(fontWeight: FontWeight.w600),
-                              ),
-                              const SizedBox(height: 12),
-                              Wrap(
-                                spacing: 8,
-                                runSpacing: 8,
-                                children: batchYears.map((batch) {
-                                  return FilterChip(
-                                    label: Text(batch),
-                                    selected: tempBatch == batch,
-                                    showCheckmark: false,
-                                    backgroundColor: Colors.white,
-                                    selectedColor: const Color(0xFF0F74C5),
-                                    checkmarkColor: Colors.white,
-                                    labelStyle: TextStyle(
-                                      color: tempBatch == batch
-                                          ? Colors.white
-                                          : Colors.black,
-                                    ),
-                                    onSelected: (selected) => setSheetState(() {
-                                      tempBatch = selected ? batch : null;
-                                    }),
-                                  );
-                                }).toList(),
-                              ),
-                              const SizedBox(height: 24),
-                              Row(
-                                children: [
-                                  Expanded(
-                                    child: OutlinedButton(
-                                      onPressed: () {
-                                        Navigator.pop(context);
-                                        _swipeProgressNotifier.value = 0.0;
-                                        ref
-                                            .read(
-                                              discoverConnectProvider.notifier,
-                                            )
-                                            .resetFilters();
-                                      },
-                                      child: const Text("Reset"),
-                                    ),
-                                  ),
-                                  const SizedBox(width: 12),
-                                  Expanded(
-                                    child: ElevatedButton(
-                                      onPressed: () {
-                                        Navigator.pop(context);
-                                        _swipeProgressNotifier.value = 0.0;
-                                        ref
-                                            .read(
-                                              discoverConnectProvider.notifier,
-                                            )
-                                            .applyFilters(
-                                              departmentName: tempDept,
-                                              batchYear: tempBatch,
-                                            );
-                                      },
-                                      child: const Text("Apply"),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                              const SizedBox(height: 16),
-                            ],
+
+                  return Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text(
+                            'Filter',
+                            style: const TextStyle(
+                              fontSize: 40,
+                              fontWeight: FontWeight.w800,
+                              color: Colors.black,
+                            ),
                           ),
+                          IconButton(
+                            icon: const Icon(Icons.close),
+                            onPressed: () => Navigator.pop(context),
+                            padding: EdgeInsets.zero,
+                            constraints: const BoxConstraints(),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 24),
+                const Text(
+                        'Department',
+                        style: TextStyle(
+                          fontWeight: FontWeight.w500,
+                          fontSize: 15,
                         ),
                       ),
-                    ),
+                      const SizedBox(height: 6),
+
+                      Container(
+                        height: 50,
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(
+                            color: const Color(0xFFD0D0D0),
+                            width: 1.2,
+                          ),
+                        ),
+                        child: DropdownButtonFormField<String>(
+                          initialValue: tempDept,
+                          hint: const Text('Select Department'),
+                          style: const TextStyle(
+                            fontSize: 15,
+                            color: Colors.black87,
+                          ),
+                          decoration: const InputDecoration(
+                            filled: false,
+                            contentPadding: EdgeInsets.symmetric(
+                              horizontal: 18,
+                              vertical: 8,
+                            ),
+                            border: InputBorder.none,
+                            enabledBorder: InputBorder.none,
+                            focusedBorder: InputBorder.none,
+                          ),
+                          isExpanded: true,
+                          dropdownColor: Colors.white,
+                          icon: const Icon(
+                            Icons.keyboard_arrow_down_rounded,
+                            color: Colors.grey,
+                          ),
+                          items: config.departments
+                              .map(
+                                (dept) => DropdownMenuItem(
+                                  value: dept.name,
+                                  child: Text(dept.name),
+                                ),
+                              )
+                              .toList(),
+                          onChanged: (val) {
+                            setState(() {
+                              tempDept = val;
+                            });
+                          },
+                          borderRadius: BorderRadius.circular(20),
+                          menuMaxHeight: 220,
+                        ),
+                      ),
+
+                      const SizedBox(height: 16),
+
+                      const Text(
+                        'Batch Year',
+                        style: TextStyle(
+                          fontWeight: FontWeight.w500,
+                          fontSize: 15,
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+
+                      Container(
+                        height: 50,
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(
+                            color: const Color(0xFFD0D0D0),
+                            width: 1.2,
+                          ),
+                        ),
+                        child: DropdownButtonFormField<String>(
+                          initialValue: tempBatch,
+                          hint: const Text('Select Batch'),
+                          style: const TextStyle(
+                            fontSize: 15,
+                            color: Colors.black87,
+                          ),
+                          decoration: const InputDecoration(
+                            filled: false,
+                            contentPadding: EdgeInsets.symmetric(
+                              horizontal: 18,
+                              vertical: 8,
+                            ),
+                            border: InputBorder.none,
+                            enabledBorder: InputBorder.none,
+                            focusedBorder: InputBorder.none,
+                          ),
+                          isExpanded: true,
+                          dropdownColor: Colors.white,
+                          icon: const Icon(
+                            Icons.keyboard_arrow_down_rounded,
+                            color: Colors.grey,
+                          ),
+                          items: batchYears
+                              .map(
+                                (b) => DropdownMenuItem(
+                                  value: b,
+                                  child: Text(b),
+                                ),
+                              )
+                              .toList(),
+                          onChanged: (val) {
+                            setState(() {
+                              tempBatch = val;
+                            });
+                          },
+                          borderRadius: BorderRadius.circular(20),
+                          menuMaxHeight: 220,
+                        ),
+                      ),
+                      const SizedBox(height: 20),
+                      Row(
+                        children: [
+
+                          Expanded(
+                            child: SizedBox(
+                              height:40,
+                              child: OutlinedButton(
+                                onPressed: () {
+                                  Navigator.pop(context);
+                                  _swipeProgressNotifier.value = 0.0;
+                                  ref.read(discoverConnectProvider.notifier).resetFilters();
+                                },
+                                child: const Text('Reset'),
+                              )
+                            )
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: SizedBox(
+                              height: 40,
+                              child: ElevatedButton(
+                                onPressed: () {
+                                  Navigator.pop(context);
+                                  _swipeProgressNotifier.value = 0.0;
+                                  ref
+                                      .read(discoverConnectProvider.notifier)
+                                      .applyFilters(
+                                        departmentName: tempDept,
+                                        batchYear: tempBatch,
+                                      );
+                                },
+                                child: const Text('Apply'),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 16),
+                    ],
                   );
                 },
-              ),
-        ),
-      ),
+              );
+            }),
+          ),
+        );
+      },
     );
   }
 
@@ -239,7 +299,7 @@ class _ConnectDiscoverPageState extends ConsumerState<ConnectDiscoverPage> with 
           style: TextStyle(
             color: Colors.black,
             fontWeight: FontWeight.w600,
-            fontSize: 20,
+            fontSize: AppStyle.appBarTitleSize,
           ),
         ),
         actions: [
@@ -549,21 +609,10 @@ class _ConnectDiscoverPageState extends ConsumerState<ConnectDiscoverPage> with 
     }
     if (state.topCardIndex >= state.students.length) {
       return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(
-              Icons.check_circle_outline,
-              size: 80,
-              color: Colors.grey[300],
-            ),
-            const SizedBox(height: 16),
-            Text(
-              "You've seen everyone!",
-              style: Theme.of(context).textTheme.titleMedium,
-            ),
-          ],
-        ),
+        child: Text(
+         "You've seen everyone!",
+         style: Theme.of(context).textTheme.titleMedium,
+        )
       );
     }
 
@@ -789,10 +838,7 @@ class _ConnectDiscoverPageState extends ConsumerState<ConnectDiscoverPage> with 
   }
 
   Widget _buildCardBackground(User student) {
-    final backgroundUrl =
-        (student.thumbnail != null && student.thumbnail!.isNotEmpty)
-            ? student.thumbnail!
-            : student.picture;
+    final backgroundUrl = student.thumbnail;
 
     if (backgroundUrl != null && backgroundUrl.isNotEmpty) {
       return Stack(
@@ -803,7 +849,7 @@ class _ConnectDiscoverPageState extends ConsumerState<ConnectDiscoverPage> with 
             fit: BoxFit.cover,
             errorBuilder: (context, error, stackTrace) =>
                 _buildDefaultBackground(),
-          ),
+          ),  
           Container(
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(24),

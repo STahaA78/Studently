@@ -15,6 +15,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:studently/providers/feed_provider.dart';
 import 'package:studently/providers/notifications_provider.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import 'package:studently/utils/web_utils.dart' as web_utils;
 
 class CommunityFeedPage extends ConsumerStatefulWidget {
@@ -529,7 +530,8 @@ class _CommunityFeedPageState extends ConsumerState<CommunityFeedPage> {
                 ),
               ),
             ),
-          const SizedBox(height: 10),
+          if (post.mediaUrl == null || post.mediaUrl!.isEmpty)
+            const SizedBox(height: 10),
           const Padding(
             padding: EdgeInsets.symmetric(horizontal: 16),
             child: Divider(
@@ -559,10 +561,16 @@ class _CommunityFeedPageState extends ConsumerState<CommunityFeedPage> {
                           .syncPostUpdate(updatedPost);
                     }
                   },
-                  child: Icon(
-                    isLiked ? Icons.favorite : Icons.favorite_border,
-                    color: isLiked ? Colors.red : Colors.black,
-                    size: 23,
+                  child: SvgPicture.asset(
+                    isLiked
+                        ? 'assets/images/like-active.svg'
+                        : 'assets/images/like-inactive.svg',
+                    width: 22,
+                    height: 22,
+                    colorFilter: ColorFilter.mode(
+                      isLiked ? Colors.red : Colors.black,
+                      BlendMode.srcIn,
+                    ),
                   ),
                 ),
                 const SizedBox(width: 6),
@@ -573,10 +581,14 @@ class _CommunityFeedPageState extends ConsumerState<CommunityFeedPage> {
                 const SizedBox(width: 18),
                 GestureDetector(
                   onTap: onCommentTap,
-                  child: const Icon(
-                    Icons.chat_bubble_outline,
-                    size: 22,
-                    color: Colors.black,
+                  child: SvgPicture.asset(
+                    'assets/images/comment.svg',
+                    width: 22,
+                    height: 22,
+                    colorFilter: const ColorFilter.mode(
+                      Colors.black,
+                      BlendMode.srcIn,
+                    ),
                   ),
                 ),
                 const SizedBox(width: 6),

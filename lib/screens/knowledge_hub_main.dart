@@ -287,8 +287,8 @@ class _KnowledgeHubPageState extends ConsumerState<KnowledgeHubPage> {
                   "Knowledge Hub",
                   style: TextStyle(
                     color: Colors.black,
-                    fontWeight: FontWeight.w700,
-                    fontSize: 20,
+                    fontWeight: FontWeight.w600,
+                    fontSize: AppStyle.appBarTitleSize,
                   ),
                 ),
                 actions: kIsWeb & !web_utils.isStandalonePwa()

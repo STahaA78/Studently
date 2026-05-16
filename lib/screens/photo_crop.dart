@@ -1,7 +1,9 @@
 import 'package:studently/app_style.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:image_picker/image_picker.dart';
 import 'package:studently/logger.dart';
+import 'package:studently/utils/web_utils.dart' as web_utils;
 import 'dart:math' as math;
 import 'dart:typed_data';
 import 'dart:ui' as ui;
@@ -12,14 +14,12 @@ class PhotoCropScreen extends StatefulWidget {
   final XFile initialImage;
   final PhotoCropMode mode;
   final String title;
-  final String helperText;
 
   const PhotoCropScreen({
     super.key,
     required this.initialImage,
     required this.mode,
     required this.title,
-    this.helperText = 'Pinch to zoom · Drag to reposition',
   });
 
   @override
@@ -159,6 +159,22 @@ class _PhotoCropScreenState extends State<PhotoCropScreen> {
     return Size(width, height);
   }
 
+  Size _resolveViewportForConstraints(
+    BoxConstraints constraints, {
+    required bool includeWebZoomBar,
+  }) {
+    final double reservedHeight = includeWebZoomBar ? 96.0 : 0.0;
+    final double maxHeight = math.max(0.0, constraints.maxHeight - reservedHeight);
+    final adjustedConstraints = BoxConstraints(
+      maxWidth: constraints.maxWidth,
+      maxHeight: maxHeight,
+    );
+
+    return _isCircle
+        ? Size.square(_resolveViewportSize(adjustedConstraints))
+        : _resolveRectViewport(adjustedConstraints);
+  }
+
   Size _resolveCircleCropSize({
     required double viewportSize,
     required double availableWidth,
@@ -202,9 +218,17 @@ class _PhotoCropScreenState extends State<PhotoCropScreen> {
     final double minY = halfHeight;
     final double maxY = img.height.toDouble() - halfHeight;
 
+    double clampValue(double value, double min, double max) {
+      if (min > max) {
+        return (min + max) / 2;
+      }
+
+      return value.clamp(min, max).toDouble();
+    }
+
     return Offset(
-      center.dx.clamp(minX, maxX).toDouble(),
-      center.dy.clamp(minY, maxY).toDouble(),
+      clampValue(center.dx, minX, maxX),
+      clampValue(center.dy, minY, maxY),
     );
   }
 
@@ -327,10 +351,16 @@ class _PhotoCropScreenState extends State<PhotoCropScreen> {
       backgroundColor: backgroundColor,
       appBar: AppBar(
         title: Center(
-          child:Text(widget.title)
+          child: Text(
+            widget.title,
+            style: const TextStyle(
+              color: Colors.black,
+              fontWeight: FontWeight.w600,
+              fontSize: AppStyle.appBarTitleSize),
+          ),
         ),
         backgroundColor: Colors.white,
-        foregroundColor: Colors.white,
+        foregroundColor: Colors.black,
         elevation: 0,
         leading: IconButton(
           icon: const Icon(Icons.close),
@@ -376,10 +406,11 @@ class _PhotoCropScreenState extends State<PhotoCropScreen> {
                 Expanded(
                   child: LayoutBuilder(
                     builder: (context, constraints) {
-                      final viewportRect =
-                          _isCircle
-                              ? Size.square(_resolveViewportSize(constraints))
-                              : _resolveRectViewport(constraints);
+                      final showWebZoomBar = kIsWeb && !web_utils.isStandalonePwa();
+                      final viewportRect = _resolveViewportForConstraints(
+                        constraints,
+                        includeWebZoomBar: showWebZoomBar,
+                      );
                       final cropSize =
                           _isCircle
                               ? _resolveCircleCropSize(
@@ -395,92 +426,122 @@ class _PhotoCropScreenState extends State<PhotoCropScreen> {
                         zoom: _zoomScale,
                       );
 
-                      return Center(
-                        child: GestureDetector(
-                          onScaleStart: _handleScaleStart,
-                          onScaleUpdate: _handleScaleUpdate,
-                          child: SizedBox(
-                            width: viewportRect.width,
-                            height: viewportRect.height,
-                            child: Stack(
-                              alignment: Alignment.center,
-                              children: [
-                                Container(color: backgroundColor),
-                                SizedBox(
-                                  width: viewportRect.width,
-                                  height: viewportRect.height,
-                                  child: CustomPaint(
-                                    painter: CropPreviewPainter(
-                                      image: _decodedImage!,
-                                      sourceRect: _previewSourceRectFor(
-                                        center: clampedCenter,
-                                        zoom: _zoomScale,
-                                        viewportSize: viewportRect,
+                      return Column(
+                        mainAxisSize: MainAxisSize.min,
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Center(
+                            child: GestureDetector(
+                              onScaleStart: _handleScaleStart,
+                              onScaleUpdate: _handleScaleUpdate,
+                              child: SizedBox(
+                                width: viewportRect.width,
+                                height: viewportRect.height,
+                                child: Stack(
+                                  alignment: Alignment.center,
+                                  children: [
+                                    Container(color: backgroundColor),
+                                    SizedBox(
+                                      width: viewportRect.width,
+                                      height: viewportRect.height,
+                                      child: CustomPaint(
+                                        painter: CropPreviewPainter(
+                                          image: _decodedImage!,
+                                          sourceRect: _previewSourceRectFor(
+                                            center: clampedCenter,
+                                            zoom: _zoomScale,
+                                            viewportSize: viewportRect,
+                                          ),
+                                        ),
                                       ),
                                     ),
-                                  ),
-                                ),
-                                if (_isCircle)
-                                  IgnorePointer(
-                                    child: CustomPaint(
-                                      painter: CircularOverlayPainter(
-                                        circleRadius: _cropHalfWidth,
-                                        overlayColor: Colors.grey
-                                            .withValues(alpha: _maskOpacity),
+                                    if (_isCircle)
+                                      IgnorePointer(
+                                        child: CustomPaint(
+                                          painter: CircularOverlayPainter(
+                                            circleRadius: _cropHalfWidth,
+                                            overlayColor: Colors.grey
+                                                .withValues(alpha: _maskOpacity),
+                                          ),
+                                          size: viewportRect,
+                                        ),
                                       ),
-                                      size: viewportRect,
-                                    ),
-                                  ),
-                                if (_isCircle)
-                                  IgnorePointer(
-                                    child: Container(
-                                      width: _cropWidth,
-                                      height: _cropHeight,
-                                      decoration: const BoxDecoration(
-                                        shape: BoxShape.circle,
+                                    if (_isCircle)
+                                      IgnorePointer(
+                                        child: Container(
+                                          width: _cropWidth,
+                                          height: _cropHeight,
+                                          decoration: const BoxDecoration(
+                                            shape: BoxShape.circle,
+                                          ),
+                                        ),
                                       ),
-                                    ),
-                                  ),
-                                if (!_isCircle)
-                                  Positioned(
-                                    left: 16,
-                                    bottom: 16,
-                                    child: IconButton(
-                                      onPressed: _toggleAspectRatio,
-                                      icon: Icon(
-                                        _isLandscape
-                                            ? Icons.crop_portrait
-                                            : Icons.crop_landscape,
-                                      ),
-                                      tooltip:
-                                          _isLandscape
+                                    if (!_isCircle)
+                                      Positioned(
+                                        left: 16,
+                                        bottom: 16,
+                                        child: IconButton(
+                                          onPressed: _toggleAspectRatio,
+                                          icon: Icon(
+                                            _isLandscape
+                                                ? Icons.crop_portrait
+                                                : Icons.crop_landscape,
+                                          ),
+                                          tooltip: _isLandscape
                                               ? 'Switch to 4:5 portrait'
                                               : 'Switch to 1.91:1 landscape',
-                                      style: IconButton.styleFrom(
-                                        backgroundColor: Colors.black87,
-                                        foregroundColor: Colors.white,
+                                          style: IconButton.styleFrom(
+                                            backgroundColor: Colors.black87,
+                                            foregroundColor: Colors.white,
+                                          ),
+                                        ),
                                       ),
-                                    ),
-                                  ),
-                              ],
+                                  ],
+                                ),
+                              ),
                             ),
                           ),
-                        ),
+                          // Web-only zoom bar (not PWA) aligned to viewport width
+                          if (showWebZoomBar)
+                            Padding(
+                              padding: const EdgeInsets.only(top: 12),
+                              child: SizedBox(
+                                width: viewportRect.width,
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Center(
+                                      child: Text(
+                                        'Zoom: ${(_zoomScale * 100).toStringAsFixed(0)}%',
+                                        style: const TextStyle(fontSize: 12, color: Colors.grey),
+                                      ),
+                                    ),
+                                    const SizedBox(height: 5),
+                                    Slider(
+                                      value: _zoomScale,
+                                      min: _minZoom,
+                                      max: _maxZoom,
+                                      divisions: 40,
+                                      onChanged: (value) {
+                                        setState(() {
+                                          _zoomScale = value;
+                                          _cropCenter = _clampCenterForZoom(
+                                            center: _cropCenter,
+                                            zoom: _zoomScale,
+                                          );
+                                        });
+                                      },
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                        ],
                       );
                     },
                   ),
                 ),
-                Padding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 20,
-                    vertical: 10,
-                  ),
-                  child: Text(
-                    widget.helperText,
-                    textAlign: TextAlign.center,
-                    style: TextStyle(fontSize: 14, color: Colors.grey[400]),
-                  ),
-                ),
+                
                 Padding(
                   padding: const EdgeInsets.all(20),
                   child: SizedBox(

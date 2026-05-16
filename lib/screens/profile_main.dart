@@ -277,7 +277,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
           style: TextStyle(
             color: Colors.black,
             fontWeight: FontWeight.w600,
-            fontSize: 20,
+            fontSize: AppStyle.appBarTitleSize,
           ),
         ),
         leading: widget.userId != null
@@ -354,18 +354,12 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                                       displayUser.friendsCount.toString(),
                                     ),
                                     const SizedBox(width: 35),
-                                    profileFeedAsync.when(
-                                      data: (posts) => _buildStatColumn(
-                                        "Posts",
-                                        posts.length.toString(),
-                                      ),
-                                      loading: () =>
-                                          _buildStatColumn("Posts", "..."),
-                                      error: (_, _) =>
-                                          _buildStatColumn("Posts", "0"),
+                                    _buildStatColumn(
+                                      "Posts",
+                                      (displayUser.postsCount ?? 0).toString(),
                                     ),
                                     const SizedBox(width: 35),
-                                    _buildStatColumn("Resources", displayUser.resourcesCount.toString()),
+                                    _buildStatColumn("Resources", (displayUser.resourcesCount ?? 0).toString()),
                                   ],
                                 ),
                               ],
@@ -406,7 +400,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                       )
                     else if (connectionStatus == "friends")
                       SizedBox(
-                        height: 40,
+                        height: 46,
                         width: double.infinity,
                         child: ElevatedButton(
                           onPressed: !isMyProfile
@@ -417,12 +411,13 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                           ),
                           child: const Text(
                             "Unfriend",
-                            style: TextStyle(color: Colors.white, fontSize: 13),
+                            style: TextStyle(color: Colors.white, fontSize: 14),
                           ),
                         ),
                       )
                     else if (connectionStatus == "outgoing_request")
                       SizedBox(
+                        height: 46,
                         width: double.infinity,
                         child: OutlinedButton(
                           onPressed: _cancelConnectionRequest,
@@ -438,7 +433,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                             style: TextStyle(
                               color: blue,
                               fontWeight: FontWeight.w600,
-                              fontSize: 13,
+                              fontSize: 14,
                             ),
                           ),
                         ),
@@ -446,6 +441,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                     else if (!isMyProfile &&
                         connectionStatus != "incoming_request")
                       SizedBox(
+                        height: 46,
                         width: double.infinity,
                         child: ElevatedButton(
                           onPressed: _sendConnectionRequest,
@@ -455,7 +451,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                           ),
                           child: const Text(
                             "Add Friend",
-                            style: TextStyle(color: Colors.white, fontSize: 13),
+                            style: TextStyle(color: Colors.white, fontSize: 14),
                           ),
                         ),
                       ),

@@ -63,7 +63,7 @@ class _RepositoryUserPageState extends ConsumerState<RepositoryUserPage>
                       style: const TextStyle(
                         color: Colors.black,
                         fontWeight: FontWeight.w600,
-                        fontSize: 18,
+                        fontSize: AppStyle.appBarTitleSize,
                       ),
                     ),
                     Text(

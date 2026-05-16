@@ -118,7 +118,13 @@ class _CreatePostPageState extends ConsumerState<CreatePostPage> {
           icon: const Icon(Icons.close, color: Colors.black),
           onPressed: () => Navigator.pop(context),
         ),
-        title: const Text("Create Post", style: TextStyle(color: Colors.black)),
+        title: const Text(
+          "Create Post",
+          style: TextStyle(
+            color: Colors.black,
+            fontSize: AppStyle.appBarTitleSize,
+            fontWeight: FontWeight.w600,
+          ),),
         actions: [
           TextButton(
             onPressed: isPosting ? null : submitPost,
@@ -143,74 +149,82 @@ class _CreatePostPageState extends ConsumerState<CreatePostPage> {
       ),
 
       body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              /// POST TEXT
-              TextField(
-                controller: controller,
-                minLines: 6,
-                maxLines: null,
-                keyboardType: TextInputType.multiline,
-                textAlignVertical: TextAlignVertical.top,
-                decoration: const InputDecoration(
-                  hintText: "What's on your mind?",
-                  fillColor: Colors.white,
-                  filled: true,
-                  border: InputBorder.none,
-                  enabledBorder: InputBorder.none,
-                  focusedBorder: InputBorder.none,
-                  disabledBorder: InputBorder.none,
-                  contentPadding: EdgeInsets.zero,
+        child: Column(
+          children: [
+            Expanded(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    /// POST TEXT
+                    TextField(
+                      controller: controller,
+                      minLines: 6,
+                      maxLines: null,
+                      keyboardType: TextInputType.multiline,
+                      textAlignVertical: TextAlignVertical.top,
+                      decoration: const InputDecoration(
+                        hintText: "What's on your mind?",
+                        fillColor: Colors.white,
+                        filled: true,
+                        border: InputBorder.none,
+                        enabledBorder: InputBorder.none,
+                        focusedBorder: InputBorder.none,
+                        disabledBorder: InputBorder.none,
+                        contentPadding: EdgeInsets.zero,
+                      ),
+                      style: const TextStyle(fontSize: 16),
+                    ),
+                    const SizedBox(height: 12),
+
+                    /// IMAGE PREVIEW
+                    if (selectedImageBytes != null)
+                      Center(
+                        child: ConstrainedBox(
+                          constraints: BoxConstraints(
+                            maxWidth: kIsWeb ? 640 : double.infinity,
+                          ),
+                          child: Card(
+                            margin: const EdgeInsets.only(bottom: 12),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(16),
+                            ),
+                            clipBehavior: Clip.antiAlias,
+                            child: Stack(
+                              children: [
+                                AspectRatio(
+                                  aspectRatio: selectedImageAspectRatio ?? 4 / 5,
+                                  child: Image.memory(
+                                    selectedImageBytes!,
+                                    width: double.infinity,
+                                    fit: BoxFit.cover,
+                                  ),
+                                ),
+                                Positioned(
+                                  left: 8,
+                                  top: 8,
+                                  child: IconButton(
+                                    onPressed: clearImage,
+                                    icon: const Icon(Icons.close, color: Colors.white),
+                                    style: IconButton.styleFrom(
+                                      backgroundColor: Colors.black54,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                  ],
                 ),
-                style: const TextStyle(fontSize: 16),
               ),
-              const SizedBox(height: 12),
-
-              /// IMAGE PREVIEW
-              if (selectedImageBytes != null)
-                Center(
-                  child: ConstrainedBox(
-                    constraints: BoxConstraints(
-                      maxWidth: kIsWeb ? 640 : double.infinity,
-                    ),
-                    child: Card(
-                      margin: const EdgeInsets.only(bottom: 12),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(16),
-                      ),
-                      clipBehavior: Clip.antiAlias,
-                      child: Stack(
-                        children: [
-                          AspectRatio(
-                            aspectRatio: selectedImageAspectRatio ?? 4 / 5,
-                            child: Image.memory(
-                              selectedImageBytes!,
-                              width: double.infinity,
-                              fit: BoxFit.cover,
-                            ),
-                          ),
-                          Positioned(
-                            left: 8,
-                            top: 8,
-                            child: IconButton(
-                              onPressed: clearImage,
-                              icon: const Icon(Icons.close, color: Colors.white),
-                              style: IconButton.styleFrom(
-                                backgroundColor: Colors.black54,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
-
-              /// IMAGE PICK BUTTON
-              Align(
+            ),
+            /// IMAGE PICK BUTTON AT BOTTOM
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
+              child: Align(
                 alignment: Alignment.centerLeft,
                 child: IconButton(
                   icon: const Icon(
@@ -221,8 +235,8 @@ class _CreatePostPageState extends ConsumerState<CreatePostPage> {
                   onPressed: pickImage,
                 ),
               ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );

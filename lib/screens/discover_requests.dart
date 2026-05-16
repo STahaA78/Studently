@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:studently/app_style.dart';
 import 'package:studently/models/user.dart';
 import 'package:studently/providers/discover_provider.dart';
 import 'package:studently/screens/profile_main.dart';
@@ -53,7 +54,10 @@ class _RequestsPageState extends ConsumerState<RequestsPage> {
           centerTitle: true,
           title: const Text(
             'Pending Requests',
-            style: TextStyle(color: Colors.black, fontWeight: FontWeight.w600),
+            style: TextStyle(
+              color: Colors.black,
+              fontWeight: FontWeight.w600,
+              fontSize: AppStyle.appBarTitleSize),
           ),
         ),
         body: Builder(

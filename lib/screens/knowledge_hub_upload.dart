@@ -411,7 +411,7 @@ class _AddResourcePageState extends ConsumerState<AddResourcePage> {
           style: TextStyle(
             color: Colors.black,
             fontWeight: FontWeight.w600,
-            fontSize: 20,
+            fontSize: AppStyle.appBarTitleSize,
           ),
         ),
         centerTitle: true,

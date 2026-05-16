@@ -179,7 +179,7 @@ class _DirectMessagesPageState extends ConsumerState<DirectMessagesPage> {
           style: TextStyle(
             color: Colors.black,
             fontWeight: FontWeight.w700,
-            fontSize: 20,
+            fontSize: AppStyle.appBarTitleSize,
           ),
         ),
         actions: [

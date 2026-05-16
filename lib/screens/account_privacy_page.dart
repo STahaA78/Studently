@@ -61,7 +61,14 @@ class _AccountPrivacyPageState extends ConsumerState<AccountPrivacyPage> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Account Privacy'),
+        title: const Text(
+          'Privacy',
+          style: TextStyle(
+            color: Colors.black,
+            fontSize: AppStyle.appBarTitleSize,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
         actions: [
           if (hasChanges)
             TextButton(

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:studently/app_style.dart';
 import 'dart:typed_data';
 import 'package:studently/models/user.dart';
 import 'package:studently/models/backend_config.dart';
@@ -220,7 +221,7 @@ class _EditProfilePageState extends ConsumerState<EditProfilePage> {
           style: TextStyle(
             color: Colors.black,
             fontWeight: FontWeight.w600,
-            fontSize: 20,
+            fontSize: AppStyle.appBarTitleSize,
           ),
         ),
         leading: IconButton(
@@ -243,86 +244,57 @@ class _EditProfilePageState extends ConsumerState<EditProfilePage> {
                   children: [
                     // Profile Photo
                     Center(
-                      child: Column(
-                        children: [
-                          Stack(
-                            alignment: Alignment.bottomRight,
-                            children: [
-                              CircleAvatar(
-                                key: ValueKey<String?>(
-                                  (_croppedPreviewBytes != null || _originalPhotoBytes != null)
-                                      ? 'cropped'
-                                      : currentUser.picture,
-                                ),
-                                radius: 52,
-                                backgroundColor: Colors.grey.shade300,
-                                backgroundImage: _croppedPreviewBytes != null
-                                    ? MemoryImage(_croppedPreviewBytes!)
-                                    : _originalPhotoBytes != null
-                                    ? MemoryImage(_originalPhotoBytes!)
-                                    : (hasPhoto
-                                          ? NetworkImage(currentUser.picture!)
-                                          : null),
-                                onBackgroundImageError:
-                                    _croppedPreviewBytes == null && _originalPhotoBytes == null && hasPhoto
-                                    ? (exception, stackTrace) {
-                                        // Defer setState to avoid calling it during paint phase
-                                        SchedulerBinding.instance
-                                            .addPostFrameCallback((_) {
-                                              if (mounted) {
-                                                setState(
-                                                  () => _profileImageFailed =
-                                                      true,
-                                                );
-                                              }
-                                            });
-                                      }
-                                    : null,
-                                child:
-                                    ((_croppedPreviewBytes == null && _originalPhotoBytes == null) &&
-                                            (!hasPhoto || _profileImageFailed))
-                                    ? const Icon(
-                                        Icons.person,
-                                        size: 48,
-                                        color: Colors.white,
-                                      )
-                                    : null,
-                              ),
-                              GestureDetector(
-                                onTap: _showEditPhotoOptions,
-                                child: Container(
-                                  padding: const EdgeInsets.all(6),
-                                  decoration: BoxDecoration(
+                      child: GestureDetector(
+                        onTap: _showEditPhotoOptions,
+                        child: Column(
+                          children: [
+                          CircleAvatar(
+                            key: ValueKey<String?>(
+                              (_croppedPreviewBytes != null || _originalPhotoBytes != null)
+                                  ? 'cropped'
+                                  : currentUser.picture,
+                            ),
+                            radius: 52,
+                            backgroundColor: Colors.grey.shade300,
+                            backgroundImage: _croppedPreviewBytes != null
+                                ? MemoryImage(_croppedPreviewBytes!)
+                                : _originalPhotoBytes != null
+                                ? MemoryImage(_originalPhotoBytes!)
+                                : (hasPhoto
+                                      ? NetworkImage(currentUser.picture!)
+                                      : null),
+                            onBackgroundImageError:
+                                _croppedPreviewBytes == null && _originalPhotoBytes == null && hasPhoto
+                                ? (exception, stackTrace) {
+                                    // Defer setState to avoid calling it during paint phase
+                                    SchedulerBinding.instance
+                                        .addPostFrameCallback((_) {
+                                          if (mounted) {
+                                            setState(
+                                              () => _profileImageFailed =
+                                                  true,
+                                            );
+                                          }
+                                        });
+                                  }
+                                : null,
+                            child:
+                                ((_croppedPreviewBytes == null && _originalPhotoBytes == null) &&
+                                        (!hasPhoto || _profileImageFailed))
+                                ? const Icon(
+                                    Icons.person,
+                                    size: 48,
                                     color: Colors.white,
-                                    shape: BoxShape.circle,
-                                    border: Border.all(
-                                      color: Colors.grey.shade300,
-                                    ),
-                                    boxShadow: [
-                                      BoxShadow(
-                                        color: Colors.black.withValues(
-                                          alpha: 0.08,
-                                        ),
-                                        blurRadius: 4,
-                                        offset: const Offset(0, 2),
-                                      ),
-                                    ],
-                                  ),
-                                  child: const Icon(
-                                    Icons.edit,
-                                    size: 16,
-                                    color: Colors.black87,
-                                  ),
-                                ),
-                              ),
-                            ],
+                                  )
+                                : null,
                           ),
                           const SizedBox(height: 8),
                           TextButton(
                             onPressed: _showEditPhotoOptions,
                             child: const Text('Change Profile Photo'),
                           ),
-                        ],
+                          ],
+                        ),
                       ),
                     ),
                     const SizedBox(height: 12),
@@ -349,7 +321,10 @@ class _EditProfilePageState extends ConsumerState<EditProfilePage> {
                         nameController.text,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: TextStyle(color: Colors.grey.shade700),
+                        style: TextStyle(
+                          color: Colors.grey.shade700,
+                          fontSize: 15,
+                        ),
                       ),
                     ),
                     const SizedBox(height: 20),
@@ -440,7 +415,10 @@ class _EditProfilePageState extends ConsumerState<EditProfilePage> {
                         effectiveBatchValue ?? '',
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: TextStyle(color: Colors.grey.shade700),
+                        style: TextStyle(
+                          color: Colors.grey.shade700,
+                          fontSize: 15,
+                        ),
                       ),
                     ),
                     if (_batchError != null)
@@ -476,7 +454,10 @@ class _EditProfilePageState extends ConsumerState<EditProfilePage> {
                         widget.user.gender?.displayName ?? 'Not specified',
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: TextStyle(color: Colors.grey.shade700),
+                        style: TextStyle(
+                          color: Colors.grey.shade700,
+                          fontSize: 15,
+                        ),
                       ),
                     ),
                     const SizedBox(height: 28),
@@ -696,57 +677,79 @@ class _EditProfilePageState extends ConsumerState<EditProfilePage> {
   }
 
   void _showEditPhotoOptions() async {
-    // NEW: Quickly check the provider state to see if the user currently has a photo
     final currentUser = ref.read(authProvider).value ?? widget.user;
     final bool hasPhoto = currentUser.picture?.isNotEmpty ?? false;
 
     final action = await showModalBottomSheet<String>(
       context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      clipBehavior: Clip.antiAlias,
       shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
+      backgroundColor: Colors.white,
       builder: (context) {
-        return SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.symmetric(vertical: 12),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Container(
-                  width: 40,
-                  height: 4,
-                  margin: const EdgeInsets.only(bottom: 16),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(2),
+        return Material(
+          color: Colors.white,
+          child: SafeArea(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 14),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Center(
+                    child: Container(
+                      width: 40,
+                      height: 4,
+                      decoration: BoxDecoration(
+                        color: Colors.black,
+                        borderRadius: BorderRadius.circular(2),
+                      ),
+                    ),
                   ),
-                ),
-                ListTile(
-                  leading: const Icon(Icons.camera_alt_outlined),
-                  title: const Text('Take Photo'),
-                  onTap: () => Navigator.pop(context, 'take'),
-                ),
-                ListTile(
-                  leading: const Icon(Icons.photo_library_outlined),
-                  title: const Text('Choose from Gallery'),
-                  onTap: () => Navigator.pop(context, 'gallery'),
-                ),
-                if (hasPhoto) ...[
-                  // FIXED: Using the local 'hasPhoto' variable we just created
-                  const Divider(height: 1, indent: 16, endIndent: 16),
+                  const SizedBox(height: 14),
                   ListTile(
-                    leading: const Icon(
-                      Icons.delete_outline,
-                      color: Colors.red,
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 4),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
                     ),
-                    title: const Text(
-                      'Remove Photo',
-                      style: TextStyle(color: Colors.red),
-                    ),
-                    onTap: () => Navigator.pop(context, 'remove'),
+                    leading: const Icon(Icons.camera_alt_outlined),
+                    title: const Text('Take Photo'),
+                    onTap: () => Navigator.pop(context, 'take'),
                   ),
+                  ListTile(
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 4),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    leading: const Icon(Icons.photo_library_outlined),
+                    title: const Text('Choose from Gallery'),
+                    onTap: () => Navigator.pop(context, 'gallery'),
+                  ),
+                  if (hasPhoto) ...[
+                    const SizedBox(height: 6),
+                    const Divider(height: 1),
+                    const SizedBox(height: 6),
+                    ListTile(
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 4),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      leading: const Icon(
+                        Icons.delete_outline,
+                        color: Colors.red,
+                      ),
+                      title: const Text(
+                        'Remove Photo',
+                        style: TextStyle(color: Colors.red),
+                      ),
+                      onTap: () => Navigator.pop(context, 'remove'),
+                    ),
+                  ],
                 ],
-              ],
+              ),
             ),
           ),
         );

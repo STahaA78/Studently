@@ -151,7 +151,7 @@ class _LoginGooglePageState extends ConsumerState<LoginGooglePage> {
 
                            // Info Block
                             Text(
-                              'Login with university account to continue.',
+                              'Login with your university account to continue.',
                               textAlign: TextAlign.center,
                               style: TextStyle(
                                 fontSize: 14,
@@ -161,26 +161,23 @@ class _LoginGooglePageState extends ConsumerState<LoginGooglePage> {
                             ),
 
                             const SizedBox(height: 10),
-                             // Error Message
-                            if (_googleSignInError.isNotEmpty)
-                              Padding(
-                                padding: const EdgeInsets.only(top: 16),
-                                child: Container(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 12,
-                                    vertical: 5,
-                                  ),
-                                  child: Text(
-                                    _googleSignInError,
-                                    style: TextStyle(
-                                      color: Colors.red[800],
-                                      fontSize: 13,
-                                      fontWeight: FontWeight.w500,
-                                    ),
-                                    textAlign: TextAlign.center,
-                                  ),
-                                ),
+                            // Error Message
+                            SizedBox(
+                              height: 40,
+                              child: Center(
+                                child: _googleSignInError.isNotEmpty
+                                    ? Text(
+                                        _googleSignInError,
+                                        textAlign: TextAlign.center,
+                                        style: TextStyle(
+                                          color: Colors.red[800],
+                                          fontSize: 13,
+                                          fontWeight: FontWeight.w500,
+                                        ),
+                                      )
+                                    : const SizedBox.shrink(),
                               ),
+                            ),
                           ],
                         ),
                       ),

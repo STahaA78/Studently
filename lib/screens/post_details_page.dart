@@ -1,10 +1,12 @@
 import 'package:studently/app_style.dart';
 import 'package:flutter/material.dart';
 import 'package:studently/services/firebase_auth.dart';
-import '../models/post.dart';
-import 'profile_main.dart';
+import 'package:studently/models/post.dart';
+import 'package:studently/screens/profile_main.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../providers/feed_provider.dart';
+import 'package:studently/providers/feed_provider.dart';
+import 'package:cached_network_image/cached_network_image.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 
 class PostDetailsPage extends ConsumerStatefulWidget {
   final Post postData;
@@ -162,7 +164,10 @@ class _PostDetailsPageState extends ConsumerState<PostDetailsPage> {
       appBar: AppBar(
         title: const Text(
           "Comments",
-          style: TextStyle(color: Colors.black, fontWeight: FontWeight.w600),
+          style: TextStyle(
+            color: Colors.black,
+            fontSize: AppStyle.appBarTitleSize,
+            fontWeight: FontWeight.w600),
         ),
         elevation: 0,
         backgroundColor: Colors.white,
@@ -202,7 +207,15 @@ class _PostDetailsPageState extends ConsumerState<PostDetailsPage> {
                       decoration: InputDecoration(
                         hintText: "Add a comment...",
                         border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(25),
+                          borderRadius: BorderRadius.circular(50),
+                        ),
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(50),
+                          borderSide: BorderSide(color: Colors.grey.shade300),
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(50),
+                          borderSide: const BorderSide(color: AppStyle.primaryBlue),
                         ),
                         contentPadding: const EdgeInsets.symmetric(
                           vertical: 10,
@@ -233,6 +246,8 @@ class _PostDetailsPageState extends ConsumerState<PostDetailsPage> {
 
   /// ---------------- POST CARD ----------------
   Widget _buildPostCard() {
+    final String? pic = post.authorPic;
+    final bool hasPic = pic != null && pic.isNotEmpty;
     return Container(
       width: double.infinity,
       decoration: const BoxDecoration(color: Colors.white),
@@ -250,11 +265,13 @@ class _PostDetailsPageState extends ConsumerState<PostDetailsPage> {
                 children: [
                   CircleAvatar(
                     backgroundColor: Colors.grey.shade300,
+                    backgroundImage: hasPic ? CachedNetworkImageProvider(pic) : null,
                     child: Text(
                       post.authorName.isNotEmpty ? post.authorName[0] : "?",
                       style: const TextStyle(
-                        fontWeight: FontWeight.bold,
+                        fontWeight: FontWeight.w500,
                         color: Colors.black,
+                        fontSize: 14
                       ),
                     ),
                   ),
@@ -346,14 +363,16 @@ class _PostDetailsPageState extends ConsumerState<PostDetailsPage> {
               children: [
                 GestureDetector(
                   onTap: toggleLike,
-                  child: Icon(
+                  child: SvgPicture.asset(
                     post.likes.contains(currentUserId)
-                        ? Icons.favorite
-                        : Icons.favorite_border,
-                    color: post.likes.contains(currentUserId)
-                        ? Colors.red
-                        : Colors.black,
-                    size: 23,
+                        ? 'assets/images/like-active.svg'
+                        : 'assets/images/like-inactive.svg',
+                    width: 22,
+                    height: 22,
+                    colorFilter: ColorFilter.mode(
+                      post.likes.contains(currentUserId) ? Colors.red : Colors.black,
+                      BlendMode.srcIn,
+                    ),
                   ),
                 ),
 
@@ -362,10 +381,14 @@ class _PostDetailsPageState extends ConsumerState<PostDetailsPage> {
 
                 const SizedBox(width: 12),
 
-                const Icon(
-                  Icons.chat_bubble_outline,
-                  size: 22,
-                  color: Colors.black,
+                SvgPicture.asset(
+                  'assets/images/comment.svg',
+                  width: 22,
+                  height: 22,
+                  colorFilter: const ColorFilter.mode(
+                    Colors.black,
+                    BlendMode.srcIn,
+                  ),
                 ),
 
                 const SizedBox(width: 6),
@@ -387,10 +410,9 @@ class _PostDetailsPageState extends ConsumerState<PostDetailsPage> {
     final displayName = isOwner
         ? "You"
         : (comment.username.trim().isNotEmpty &&
-                  comment.username.toLowerCase() != "unknown"
+                  comment.username.toLowerCase() != "Unknown"
               ? comment.username
               : "User");
-
     return ListTile(
       leading: GestureDetector(
         onTap: () => openProfile(comment.userId),
