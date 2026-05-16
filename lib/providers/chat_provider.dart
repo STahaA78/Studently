@@ -19,6 +19,7 @@ class ChatState {
   final bool isLoading;
   final Map<String, String> userNames;
   final Map<String, String> userPics;
+  final bool isBootstrapping;
 
   ChatState({
     this.conversations = const [],
@@ -27,6 +28,7 @@ class ChatState {
     this.isLoading = false,
     this.userNames = const {},
     this.userPics = const {},
+    this.isBootstrapping = false,
   });
 
   ChatState copyWith({
@@ -36,6 +38,7 @@ class ChatState {
     bool? isLoading,
     Map<String, String>? userNames,
     Map<String, String>? userPics,
+    bool? isBootstrapping,
   }) {
     return ChatState(
       conversations: conversations ?? this.conversations,
@@ -44,6 +47,7 @@ class ChatState {
       isLoading: isLoading ?? this.isLoading,
       userNames: userNames ?? this.userNames,
       userPics: userPics ?? this.userPics,
+      isBootstrapping: isBootstrapping ?? this.isBootstrapping,
     );
   }
 }
@@ -113,16 +117,18 @@ class ChatNotifier extends Notifier<ChatState> {
     return ChatState();
   }
 
-  void _init() {
+  Future<void> _init() async {
+    state = state.copyWith(isBootstrapping: true);
     _loadNamesFromHive();
-    _loadConversationsFromHive();
-    fetchConversations();
+    await _loadConversationsFromHive();
+    await fetchConversations();
 
     socketService.connect();
     _initSocketListener();
     
     // Start periodic refresh of user pictures (similar to feed's silentRefresh)
     _startUserPicsRefreshTimer();
+    state = state.copyWith(isBootstrapping: false);
   }
 
   void _listenToCacheEvents() {
@@ -281,11 +287,11 @@ class ChatNotifier extends Notifier<ChatState> {
 
   // --- API & CACHING FOR CONVERSATIONS ---
 
-  void _loadConversationsFromHive() {
+  Future<void> _loadConversationsFromHive() async {
     final convos = _chatStorage.getCachedConversations();
     if (convos.isNotEmpty) {
       state = state.copyWith(conversations: convos);
-      _fetchMissingNames(convos);
+      await _fetchMissingNames(convos);
     }
   }
 
@@ -329,7 +335,7 @@ class ChatNotifier extends Notifier<ChatState> {
       _chatStorage.saveConversations(mergedConvos);
       ref.read(cacheCoordinatorProvider).markFresh(CacheDomain.chatConversations);
 
-      _fetchMissingNames(mergedConvos);
+      await _fetchMissingNames(mergedConvos);
     } catch (e) {
       logger.e("[ChatProvider] Error fetching conversations: $e");
     }

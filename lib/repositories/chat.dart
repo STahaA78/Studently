@@ -47,10 +47,14 @@ class ChatRepository {
 
   Future<Map<String, String>> getUserProfileBasic(String userId) async {
     final response = await _apiService.get('/users/$userId/profile');
-    final data = jsonDecode(response.body);
+    final decoded = jsonDecode(response.body);
+    final data = decoded is Map<String, dynamic> ? decoded : <String, dynamic>{};
+    final profile = data['data'] is Map<String, dynamic>
+        ? data['data'] as Map<String, dynamic>
+        : data;
     return {
-      'name': data['name']?.toString() ?? "Student User",
-      'picture': data['picture']?.toString() ?? "",
+      'name': profile['name']?.toString() ?? "Student User",
+      'picture': profile['picture']?.toString() ?? "",
     };
   }
 

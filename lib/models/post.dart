@@ -1,12 +1,14 @@
 class Comment {
   final String userId;
   final String username;
+  final String? picture;
   final String text;
   final DateTime timestamp;
 
   Comment({
     required this.userId,
     required this.username,
+    this.picture,
     required this.text,
     required this.timestamp,
   });
@@ -15,6 +17,7 @@ class Comment {
     return Comment(
       userId: json["user_id"] ?? "",
       username: json["username"] ?? "",
+      picture: json["picture"]?.toString(),
       // Support both payload shapes:
       // - backend/API: "content"
       // - legacy local cache: "text"
@@ -27,6 +30,7 @@ class Comment {
     return {
       "user_id": userId,
       "username": username,
+      "picture": picture,
       // Keep cache shape aligned with backend/API contract.
       "content": text,
       "timestamp": timestamp.toIso8601String(),

@@ -209,7 +209,13 @@ class _DirectMessagesPageState extends ConsumerState<DirectMessagesPage> {
           _buildSearchBar(),
           _buildFilterChips(),
           Expanded(
-            child: _filteredConversations.isEmpty
+            child: chatState.isBootstrapping
+                ? const Center(
+                    child: CircularProgressIndicator(
+                      color: AppStyle.primaryBlue,
+                    ),
+                  )
+                : _filteredConversations.isEmpty
                 ? Center(
                     child: Text(
                       chatState.conversations.isEmpty
@@ -239,7 +245,7 @@ class _DirectMessagesPageState extends ConsumerState<DirectMessagesPage> {
                       // Instant name and pic lookup from the Provider cache!
                       final String displayName = isGroup
                           ? (chat.title ?? "Group Chat")
-                          : (chatState.userNames[otherUserId] ?? "Loading...");
+                          : (chatState.userNames[otherUserId] ?? "Unknown User");
                       final String userPic = isGroup
                           ? ""
                           : (chatState.userPics[otherUserId] ?? "");
@@ -357,9 +363,9 @@ class _DirectMessagesPageState extends ConsumerState<DirectMessagesPage> {
                   : null,
               child: isGroup
                   ? const Icon(Icons.groups, color: Colors.white, size: 26)
-                  : (userPic.isEmpty
+                : (userPic.isEmpty
                       ? Text(
-                          displayName != "Loading..." && displayName.isNotEmpty
+                    displayName.isNotEmpty
                               ? displayName[0].toUpperCase()
                               : "?",
                           style: const TextStyle(

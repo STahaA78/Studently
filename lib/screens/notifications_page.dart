@@ -4,6 +4,7 @@ import 'package:studently/app_style.dart';
 import 'package:studently/models/notifications.dart';
 import 'package:studently/models/post.dart';
 import 'package:studently/providers/feed_provider.dart';
+import 'package:studently/providers/chat_provider.dart';
 import 'package:studently/providers/notifications_provider.dart';
 // import 'package:studently/repositories/chat.dart';
 import 'package:studently/screens/chat_page.dart';
@@ -40,12 +41,14 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
         backgroundColor: Colors.transparent,
         shadowColor: Colors.transparent,
         surfaceTintColor: Colors.transparent,
-        title: const Text(
-          "Inbox",
-          style: TextStyle(
-            color: Colors.black,
-            fontWeight: FontWeight.w700,
-            fontSize: AppStyle.appBarTitleSize,
+        title: Center(
+          child: const Text(
+            "Notifications",
+            style: TextStyle(
+              color: Colors.black,
+              fontWeight: FontWeight.w700,
+              fontSize: AppStyle.appBarTitleSize,
+            ),
           ),
         ),
       ),
@@ -54,11 +57,6 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
             ? const Center(child: CircularProgressIndicator())
             : Column(
                 children: [
-                  _buildHeader(
-                    unreadCount: state.unreadCount,
-                    totalCount: state.notifications.length,
-                    onMarkAllRead: controller.markAllAsRead,
-                  ),
                   const SizedBox(height: 10),
                   Expanded(
                     child: state.notifications.isEmpty
@@ -119,89 +117,85 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
     );
   }
 
-  Widget _buildHeader({
-    required int unreadCount,
-    required int totalCount,
-    required VoidCallback onMarkAllRead,
-  }) {
-    final bool hasUnread = unreadCount > 0;
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 16),
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
-      decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          colors: [Color(0xFF0F4C97), Color(0xFF2D7CCF)],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: const [
-          BoxShadow(
-            color: Color(0x330F4C97),
-            blurRadius: 18,
-            offset: Offset(0, 10),
-          ),
-        ],
-      ),
-      child: Row(
-        children: [
-          Container(
-            width: 48,
-            height: 48,
-            decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.22),
-              borderRadius: BorderRadius.circular(14),
-            ),
-            child: const Icon(
-              Icons.notifications_none_rounded,
-              color: Colors.white,
-            ),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  hasUnread ? "$unreadCount unread" : "All caught up",
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 18,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  "$totalCount notifications in your inbox",
-                  style: const TextStyle(
-                    color: Color(0xE6FFFFFF),
-                    fontSize: 13,
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          TextButton(
-            onPressed: hasUnread ? onMarkAllRead : null,
-            style: TextButton.styleFrom(
-              foregroundColor: Colors.white,
-              disabledForegroundColor: const Color(0xA6FFFFFF),
-              backgroundColor: Colors.white.withValues(alpha: 0.18),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
-              ),
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-            ),
-            child: const Text(
-              "Mark all read",
-              style: TextStyle(fontWeight: FontWeight.w600),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
+  // Widget _buildHeader({
+  //   required int unreadCount,
+  //   required int totalCount,
+  //   required VoidCallback onMarkAllRead,
+  // }) {
+  //   final bool hasUnread = unreadCount > 0;
+  //   return Container(
+  //     margin: const EdgeInsets.symmetric(horizontal: 16),
+  //     padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
+  //     decoration: BoxDecoration(
+  //       color: const Color(0xFF1976D2),
+  //       borderRadius: BorderRadius.circular(20),
+  //       boxShadow: const [
+  //         BoxShadow(
+  //           color: Color(0x330F4C97),
+  //           blurRadius: 18,
+  //           offset: Offset(0, 10),
+  //         ),
+  //       ],
+  //     ),
+  //     child: Row(
+  //       children: [
+  //         Container(
+  //           width: 48,
+  //           height: 48,
+  //           decoration: BoxDecoration(
+  //             color: Colors.white.withValues(alpha: 0.22),
+  //             borderRadius: BorderRadius.circular(14),
+  //           ),
+  //           child: const Icon(
+  //             Icons.notifications_none_rounded,
+  //             color: Colors.white,
+  //           ),
+  //         ),
+  //         const SizedBox(width: 12),
+  //         Expanded(
+  //           child: Column(
+  //             crossAxisAlignment: CrossAxisAlignment.start,
+  //             children: [
+  //               Text(
+  //                 hasUnread ? "$unreadCount unread" : "All caught up",
+  //                 style: const TextStyle(
+  //                   color: Colors.white,
+  //                   fontSize: 18,
+  //                   fontWeight: FontWeight.w700,
+  //                 ),
+  //               ),
+  //               const SizedBox(height: 2),
+  //               Text(
+  //                 "$totalCount notifications in your inbox",
+  //                 style: const TextStyle(
+  //                   color: Color(0xE6FFFFFF),
+  //                   fontSize: 13,
+  //                   fontWeight: FontWeight.w500,
+  //                 ),
+  //               ),
+  //             ],
+  //           ),
+  //         ),
+  //         TextButton(
+  //           onPressed: hasUnread ? onMarkAllRead : null,
+  //           style: TextButton.styleFrom(
+  //             foregroundColor: Colors.white,
+  //             disabledForegroundColor: const Color(0xA6FFFFFF),
+  //             backgroundColor: Colors.white.withValues(alpha: 0.18),
+  //             shape: RoundedRectangleBorder(
+  //               borderRadius: BorderRadius.circular(12),
+  //             ),
+  //             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+  //           ),
+  //           child: const Text(
+  //             "Mark all read",
+  //             style: TextStyle(fontWeight: FontWeight.w600),
+  //           ),
+  //         ),
+  //       ],
+  //     ),
+  //   );
+  // }
 
   Widget _buildEmpty() {
     return Center(
@@ -249,7 +243,8 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
       case 'NEW_MESSAGE':
         if (notification.entityId.isEmpty) return;
         final otherUserId = notification.actorId;
-        String otherUserName = 'Chat';
+        final chatState = ref.read(chatProvider);
+        final otherUserName = chatState.userNames[otherUserId] ?? 'Chat';
         if (!context.mounted) return;
         await Navigator.push(
           context,
@@ -414,30 +409,13 @@ class _NotificationCard extends StatelessWidget {
                     const SizedBox(height: 6),
                     Row(
                       children: [
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 8,
-                            vertical: 3,
+                        Padding(
+                          padding: const EdgeInsets.only(bottom: 2.0),
+                          child: const Icon(
+                            Icons.schedule_rounded,
+                            size: 13,
+                            color: Color(0xFF94A3B8),
                           ),
-                          decoration: BoxDecoration(
-                            color: style.badgeColor,
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          child: Text(
-                            style.label,
-                            style: TextStyle(
-                              color: style.badgeTextColor,
-                              fontSize: 11,
-                              fontWeight: FontWeight.w700,
-                              letterSpacing: 0.2,
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 10),
-                        const Icon(
-                          Icons.schedule_rounded,
-                          size: 13,
-                          color: Color(0xFF94A3B8),
                         ),
                         const SizedBox(width: 4),
                         Text(
@@ -471,7 +449,6 @@ class _NotificationCard extends StatelessWidget {
       case "POST_LIKE":
         return const _NotificationVisualStyle(
           icon: Icons.favorite_rounded,
-          label: "LIKE",
           foregroundColor: Color(0xFFC62828),
           backgroundColor: Color(0xFFFFEBEE),
           badgeColor: Color(0xFFFFEBEE),
@@ -480,7 +457,6 @@ class _NotificationCard extends StatelessWidget {
       case "NEW_COMMENT":
         return const _NotificationVisualStyle(
           icon: Icons.mode_comment_rounded,
-          label: "COMMENT",
           foregroundColor: Color(0xFF6A1B9A),
           backgroundColor: Color(0xFFF3E5F5),
           badgeColor: Color(0xFFF3E5F5),
@@ -489,7 +465,6 @@ class _NotificationCard extends StatelessWidget {
       case "NEW_MESSAGE":
         return const _NotificationVisualStyle(
           icon: Icons.chat_bubble_rounded,
-          label: "MESSAGE",
           foregroundColor: Color(0xFF0277BD),
           backgroundColor: Color(0xFFE1F5FE),
           badgeColor: Color(0xFFE1F5FE),
@@ -498,7 +473,6 @@ class _NotificationCard extends StatelessWidget {
       case "FRIEND_REQUEST":
         return const _NotificationVisualStyle(
           icon: Icons.person_add_alt_1_rounded,
-          label: "REQUEST",
           foregroundColor: Color(0xFF2E7D32),
           backgroundColor: Color(0xFFE8F5E9),
           badgeColor: Color(0xFFE8F5E9),
@@ -507,7 +481,6 @@ class _NotificationCard extends StatelessWidget {
       default:
         return const _NotificationVisualStyle(
           icon: Icons.notifications_rounded,
-          label: "UPDATE",
           foregroundColor: Color(0xFF1565C0),
           backgroundColor: Color(0xFFE3F2FD),
           badgeColor: Color(0xFFE3F2FD),
@@ -579,7 +552,6 @@ List<_NotificationSection> _groupNotifications(List<AppNotification> items) {
 
 class _NotificationVisualStyle {
   final IconData icon;
-  final String label;
   final Color foregroundColor;
   final Color backgroundColor;
   final Color badgeColor;
@@ -587,7 +559,6 @@ class _NotificationVisualStyle {
 
   const _NotificationVisualStyle({
     required this.icon,
-    required this.label,
     required this.foregroundColor,
     required this.backgroundColor,
     required this.badgeColor,

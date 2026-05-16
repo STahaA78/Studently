@@ -1,9 +1,12 @@
 import 'package:studently/app_style.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:studently/services/firebase_auth.dart';
 import 'package:studently/models/post.dart';
 import 'package:studently/screens/profile_main.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:studently/utils/web_utils.dart' as web_utils;
+import 'package:studently/providers/auth_provider.dart';
 import 'package:studently/providers/feed_provider.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter_svg/flutter_svg.dart';
@@ -20,6 +23,7 @@ class PostDetailsPage extends ConsumerStatefulWidget {
 class _PostDetailsPageState extends ConsumerState<PostDetailsPage> {
   late Post post;
   String? currentUserId;
+  bool _isRefreshing = false;
 
   final TextEditingController commentController = TextEditingController();
 
@@ -52,10 +56,13 @@ class _PostDetailsPageState extends ConsumerState<PostDetailsPage> {
 
       setState(() {
         final uid = authService.value.currentUser?.uid ?? "";
+        final currentUser = ref.read(authProvider).value;
+        final currentUserPicture = currentUser?.picture;
 
         final newComment = Comment(
           userId: uid,
           username: "You",
+          picture: currentUserPicture,
           text: text,
           timestamp: DateTime.now().toUtc(),
         );
@@ -162,12 +169,14 @@ class _PostDetailsPageState extends ConsumerState<PostDetailsPage> {
       backgroundColor: Colors.white,
 
       appBar: AppBar(
-        title: const Text(
-          "Comments",
-          style: TextStyle(
-            color: Colors.black,
-            fontSize: AppStyle.appBarTitleSize,
-            fontWeight: FontWeight.w600),
+        title: Center(
+          child: const Text(
+            "Comments",
+            style: TextStyle(
+              color: Colors.black,
+              fontSize: AppStyle.appBarTitleSize,
+              fontWeight: FontWeight.w600),
+          ),
         ),
         elevation: 0,
         backgroundColor: Colors.white,
@@ -177,6 +186,33 @@ class _PostDetailsPageState extends ConsumerState<PostDetailsPage> {
           icon: const Icon(Icons.arrow_back_ios, color: Colors.black),
           onPressed: () => Navigator.pop(context, post),
         ),
+        actions: [
+          if (kIsWeb && !web_utils.isStandalonePwa())
+            IconButton(
+              icon: _isRefreshing
+                  ? const SizedBox(
+                      height: 20,
+                      width: 20,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Icon(Icons.refresh, color: Colors.black),
+              onPressed: _isRefreshing
+                  ? null
+                  : () async {
+                      setState(() => _isRefreshing = true);
+                      try {
+                        final repository = ref.read(postRepositoryProvider);
+                        final fresh = await repository.getPostById(post.id);
+                        setState(() => post = fresh);
+                        _syncPostGlobally();
+                      } catch (e) {
+                        debugPrint('Refresh post error: $e');
+                      }
+                      setState(() => _isRefreshing = false);
+                    },
+            ),
+          const SizedBox(width: 8),
+        ],
       ),
 
       body: Column(
@@ -204,6 +240,10 @@ class _PostDetailsPageState extends ConsumerState<PostDetailsPage> {
                   Expanded(
                     child: TextField(
                       controller: commentController,
+                      minLines: 1,
+                      maxLines: 4,
+                      keyboardType: TextInputType.multiline,
+                      textInputAction: TextInputAction.newline,
                       decoration: InputDecoration(
                         hintText: "Add a comment...",
                         border: OutlineInputBorder(
@@ -213,12 +253,13 @@ class _PostDetailsPageState extends ConsumerState<PostDetailsPage> {
                           borderRadius: BorderRadius.circular(50),
                           borderSide: BorderSide(color: Colors.grey.shade300),
                         ),
+                        // Use neutral border on focus to avoid blue accent while typing
                         focusedBorder: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(50),
-                          borderSide: const BorderSide(color: AppStyle.primaryBlue),
+                          borderSide: BorderSide(color: Colors.grey.shade300),
                         ),
                         contentPadding: const EdgeInsets.symmetric(
-                          vertical: 10,
+                          vertical: 12,
                           horizontal: 16,
                         ),
                       ),
@@ -291,7 +332,10 @@ class _PostDetailsPageState extends ConsumerState<PostDetailsPage> {
 
                       Text(
                         formatTime(post.timestamp),
-                        style: const TextStyle(color: Colors.grey),
+                        style: const TextStyle(
+                          color: Colors.grey,
+                          fontSize: 12,
+                        ),
                       ),
                     ],
                   ),
@@ -418,13 +462,21 @@ class _PostDetailsPageState extends ConsumerState<PostDetailsPage> {
         onTap: () => openProfile(comment.userId),
         child: CircleAvatar(
           backgroundColor: Colors.grey.shade300,
-          child: Text(
-            displayName[0],
-            style: const TextStyle(
-              fontWeight: FontWeight.bold,
-              color: Colors.black,
-            ),
-          ),
+          backgroundImage:
+              comment.picture != null && comment.picture!.isNotEmpty
+                  ? CachedNetworkImageProvider(comment.picture!)
+                  : null,
+          child:
+              comment.picture != null && comment.picture!.isNotEmpty
+                  ? null
+                  : Text(
+                      displayName[0],
+                      style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        color: Colors.black,
+                        fontSize: 15
+                      ),
+                    ),
         ),
       ),
 
@@ -436,7 +488,11 @@ class _PostDetailsPageState extends ConsumerState<PostDetailsPage> {
         ),
       ),
 
-      subtitle: Text(comment.text),
+        subtitle: Text(
+          comment.text,
+          softWrap: true,
+          style: const TextStyle(fontSize: 14),
+        ),
 
       trailing: Row(
         mainAxisSize: MainAxisSize.min,
