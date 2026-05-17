@@ -6,6 +6,7 @@ import 'package:studently/screens/discover_main.dart';
 import 'package:studently/screens/profile_main.dart';
 import 'package:studently/screens/knowledge_hub_main.dart';
 import 'package:studently/screens/create_post_page.dart';
+import 'package:studently/screens/carpool_feed_page.dart';
 
 class CustomNavBar extends StatelessWidget {
   final int currentIndex;
@@ -54,10 +55,14 @@ class CustomNavBar extends StatelessWidget {
           return;
 
         case 3:
-          destination = const KnowledgeHubPage();
+          destination = const CarpoolFeedPage();
           break;
 
         case 4:
+          destination = const KnowledgeHubPage();
+          break;
+
+        case 5:
           destination = const ProfilePage();
           break;
       }
@@ -113,8 +118,21 @@ class CustomNavBar extends StatelessWidget {
           unselectedItemColor: Colors.grey,
           showUnselectedLabels: false,
           showSelectedLabels: false,
-          items: List.generate(5, (index) {
-            final assetPath = getSvgAssetPath(index, currentIndex == index);
+          items: List.generate(6, (index) {
+            if (index == 3) {
+              return BottomNavigationBarItem(
+                icon: Icon(
+                  Icons.directions_car_outlined,
+                  color: currentIndex == index ? blue : Colors.grey,
+                  size: 26,
+                ),
+                activeIcon: Icon(Icons.directions_car, color: blue, size: 26),
+                label: "",
+              );
+            }
+            
+            int svgIndex = index > 3 ? index - 1 : index;
+            final assetPath = getSvgAssetPath(svgIndex, currentIndex == index);
             return BottomNavigationBarItem(
               icon: SvgPicture.asset(
                 assetPath,

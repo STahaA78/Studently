@@ -198,7 +198,7 @@ class _KnowledgeHubPageState extends ConsumerState<KnowledgeHubPage> {
           ),
         ),
       ),
-      bottomNavigationBar: const CustomNavBar(currentIndex: 3),
+      bottomNavigationBar: const CustomNavBar(currentIndex: 4),
     );
   }
 

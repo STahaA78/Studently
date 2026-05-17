@@ -121,7 +121,7 @@ class _RepositoryUserPageState extends ConsumerState<RepositoryUserPage>
             data: (resourceGroup) => _buildResourcesView(resourceGroup, blue),
           ),
         ),
-        bottomNavigationBar: const CustomNavBar(currentIndex: 3),
+        bottomNavigationBar: const CustomNavBar(currentIndex: 4),
       ),
     );
   }

@@ -587,7 +587,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
               ),
             ),
       bottomNavigationBar: isMyProfile
-          ? const CustomNavBar(currentIndex: 4)
+          ? const CustomNavBar(currentIndex: 5)
           : null,
     );
   }
