@@ -32,23 +32,21 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
   Widget build(BuildContext context) {
     final state = ref.watch(notificationProvider);
     final controller = ref.read(notificationProvider.notifier);
-    final sections = _groupNotifications(state.notifications);
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF5F7FB),
+      backgroundColor: Colors.white,
       appBar: AppBar(
+        centerTitle: true,
         elevation: 0,
-        backgroundColor: Colors.transparent,
+        backgroundColor: Colors.white,
         shadowColor: Colors.transparent,
         surfaceTintColor: Colors.transparent,
-        title: Center(
-          child: const Text(
-            "Notifications",
-            style: TextStyle(
-              color: Colors.black,
-              fontWeight: FontWeight.w700,
-              fontSize: AppStyle.appBarTitleSize,
-            ),
+        title: const Text(
+          "Notifications",
+          style: TextStyle(
+            color: Colors.black,
+            fontWeight: FontWeight.w700,
+            fontSize: AppStyle.appBarTitleSize,
           ),
         ),
       ),
@@ -57,54 +55,25 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
             ? const Center(child: CircularProgressIndicator())
             : Column(
                 children: [
-                  const SizedBox(height: 10),
                   Expanded(
                     child: state.notifications.isEmpty
                         ? _buildEmpty()
                         : RefreshIndicator(
                             onRefresh: controller.refreshFromServer,
-                            child: ListView.builder(
-                              padding: const EdgeInsets.fromLTRB(16, 0, 16, 20),
-                              itemCount: sections.length,
-                              itemBuilder: (context, sectionIndex) {
-                                final section = sections[sectionIndex];
-                                return Padding(
-                                  padding: const EdgeInsets.only(bottom: 14),
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      Padding(
-                                        padding: const EdgeInsets.fromLTRB(
-                                          2,
-                                          2,
-                                          2,
-                                          8,
-                                        ),
-                                        child: Text(
-                                          section.title,
-                                          style: const TextStyle(
-                                            color: Color(0xFF4B5563),
-                                            fontSize: 12,
-                                            fontWeight: FontWeight.w700,
-                                            letterSpacing: 0.6,
-                                          ),
-                                        ),
-                                      ),
-                                      ...section.items.map(
-                                        (notification) => Padding(
-                                          padding:
-                                              const EdgeInsets.only(bottom: 10),
-                                          child: _NotificationCard(
-                                            notification: notification,
-                                            onTap: () => _handleNotificationTap(
-                                              context: context,
-                                              notification: notification,
-                                            ),
-                                          ),
-                                        ),
-                                      ),
-                                    ],
+                            child: ListView.separated(
+                              padding: const EdgeInsets.symmetric(horizontal: 16),
+                              itemCount: state.notifications.length,
+                              separatorBuilder: (_, _) => Divider(
+                                color: const Color(0xFFE6EBF3),
+                                height: 1,
+                              ),
+                              itemBuilder: (context, index) {
+                                final notification = state.notifications[index];
+                                return _NotificationCard(
+                                  notification: notification,
+                                  onTap: () => _handleNotificationTap(
+                                    context: context,
+                                    notification: notification,
                                   ),
                                 );
                               },
@@ -266,7 +235,9 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
           final currentFeed = ref.read(feedProvider).value ?? [];
           Post? targetPost;
           try {
-            targetPost = currentFeed.firstWhere((p) => p.id == notification.entityId);
+            targetPost = currentFeed.firstWhere(
+              (p) => p.id == notification.entityId,
+            );
           } catch (_) {}
 
           // 2. Fallback to the API if not found locally
@@ -286,7 +257,9 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
           // Fallback UI indication instead of failing silently on 500 error
           if (context.mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text("Unable to load post. It may have been deleted.")),
+              const SnackBar(
+                content: Text("Unable to load post. It may have been deleted."),
+              ),
             );
           }
         }
@@ -333,33 +306,15 @@ class _NotificationCard extends StatelessWidget {
     return Material(
       color: Colors.transparent,
       child: InkWell(
-        borderRadius: BorderRadius.circular(18),
         onTap: onTap,
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 180),
-          padding: const EdgeInsets.fromLTRB(14, 14, 12, 14),
-          decoration: BoxDecoration(
-            color: notification.isRead ? Colors.white : const Color(0xFFF1F7FF),
-            borderRadius: BorderRadius.circular(18),
-            border: Border.all(
-              color: notification.isRead
-                  ? const Color(0xFFE6EBF3)
-                  : const Color(0xFFBFD9FF),
-            ),
-            boxShadow: const [
-              BoxShadow(
-                color: Color(0x12000000),
-                blurRadius: 10,
-                offset: Offset(0, 4),
-              ),
-            ],
-          ),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 0),
           child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
+            crossAxisAlignment: CrossAxisAlignment.center,
             children: [
               Container(
-                width: 42,
-                height: 42,
+                width: 36,
+                height: 36,
                 decoration: BoxDecoration(
                   gradient: LinearGradient(
                     colors: [
@@ -369,70 +324,33 @@ class _NotificationCard extends StatelessWidget {
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
                   ),
-                  borderRadius: BorderRadius.circular(13),
+                  borderRadius: BorderRadius.circular(10),
                 ),
-                child: Icon(style.icon, color: style.foregroundColor, size: 21),
+                child: Icon(style.icon, color: style.foregroundColor, size: 18),
               ),
               const SizedBox(width: 12),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Row(
-                      children: [
-                        Expanded(
-                          child: Text(
-                            notification.message,
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
-                            style: TextStyle(
-                              fontWeight: notification.isRead
-                                  ? FontWeight.w500
-                                  : FontWeight.w700,
-                              fontSize: 14.5,
-                              color: const Color(0xFF1F2937),
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        if (!notification.isRead)
-                          Container(
-                            width: 9,
-                            height: 9,
-                            decoration: const BoxDecoration(
-                              color: Color(0xFF1976D2),
-                              shape: BoxShape.circle,
-                            ),
-                          ),
-                      ],
+                    Text(
+                      notification.message,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w500,
+                        fontSize: 14,
+                        color: Color(0xFF1F2937),
+                      ),
                     ),
-                    const SizedBox(height: 6),
-                    Row(
-                      children: [
-                        Padding(
-                          padding: const EdgeInsets.only(bottom: 2.0),
-                          child: const Icon(
-                            Icons.schedule_rounded,
-                            size: 13,
-                            color: Color(0xFF94A3B8),
-                          ),
-                        ),
-                        const SizedBox(width: 4),
-                        Text(
-                          formatTimeAgo(notification.createdAt),
-                          style: const TextStyle(
-                            color: Color(0xFF6B7280),
-                            fontSize: 12.5,
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
-                        const Spacer(),
-                        const Icon(
-                          Icons.chevron_right_rounded,
-                          size: 20,
-                          color: Color(0xFF9CA3AF),
-                        ),
-                      ],
+                    const SizedBox(height: 4),
+                    Text(
+                      formatTimeAgo(notification.createdAt),
+                      style: const TextStyle(
+                        color: Color(0xFF9CA3B8),
+                        fontSize: 12,
+                        fontWeight: FontWeight.w400,
+                      ),
                     ),
                   ],
                 ),
@@ -488,66 +406,6 @@ class _NotificationCard extends StatelessWidget {
         );
     }
   }
-}
-
-class _NotificationSection {
-  final String title;
-  final List<AppNotification> items;
-
-  const _NotificationSection({
-    required this.title,
-    required this.items,
-  });
-}
-
-List<_NotificationSection> _groupNotifications(List<AppNotification> items) {
-  final now = DateTime.now();
-  final today = <AppNotification>[];
-  final yesterday = <AppNotification>[];
-  final earlier = <AppNotification>[];
-
-  bool isSameDay(DateTime a, DateTime b) {
-    return a.year == b.year && a.month == b.month && a.day == b.day;
-  }
-
-  final nowDate = DateTime(now.year, now.month, now.day);
-  final yesterdayDate = nowDate.subtract(const Duration(days: 1));
-
-  for (final item in items) {
-    final itemDate = DateTime(
-      item.createdAt.year,
-      item.createdAt.month,
-      item.createdAt.day,
-    );
-    if (isSameDay(itemDate, nowDate)) {
-      today.add(item);
-    } else if (isSameDay(itemDate, yesterdayDate)) {
-      yesterday.add(item);
-    } else {
-      earlier.add(item);
-    }
-  }
-
-  final sections = <_NotificationSection>[];
-  if (today.isNotEmpty) {
-    sections.add(_NotificationSection(
-      title: "TODAY",
-      items: today,
-    ));
-  }
-  if (yesterday.isNotEmpty) {
-    sections.add(_NotificationSection(
-      title: "YESTERDAY",
-      items: yesterday,
-    ));
-  }
-  if (earlier.isNotEmpty) {
-    sections.add(_NotificationSection(
-      title: "EARLIER",
-      items: earlier,
-    ));
-  }
-  return sections;
 }
 
 class _NotificationVisualStyle {

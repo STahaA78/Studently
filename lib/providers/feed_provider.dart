@@ -95,7 +95,9 @@ class FeedNotifier extends AsyncNotifier<List<Post>> {
 
   Future<void> _fetchFreshFeed({required bool showError}) async {
     final cache = ref.read(cacheCoordinatorProvider);
-    if (_isFetchingMore || !cache.tryBeginRefresh(CacheDomain.feedPosts)) return;
+    if (_isFetchingMore || !cache.tryBeginRefresh(CacheDomain.feedPosts)){
+      return;
+    }
     _isFetchingMore = true;
     try {
       _skip = 0;
@@ -213,9 +215,9 @@ class FeedNotifier extends AsyncNotifier<List<Post>> {
       final repo = ref.read(postRepositoryProvider);
       await repo.likePost(postId);
       _feedStorage.saveFeed(updatedList);
-      ref.read(cacheInvalidationBusProvider.notifier).publish(
-        const CacheInvalidationEvent(type: 'post_state_changed'),
-      );
+      ref
+          .read(cacheInvalidationBusProvider.notifier)
+          .publish(const CacheInvalidationEvent(type: 'post_state_changed'));
     } catch (e) {
       state = AsyncValue.data(currentPosts);
     }
@@ -237,9 +239,9 @@ class FeedNotifier extends AsyncNotifier<List<Post>> {
       final repo = ref.read(postRepositoryProvider);
       await repo.deletePost(postId);
       _feedStorage.saveFeed(updatedList);
-      ref.read(cacheInvalidationBusProvider.notifier).publish(
-        const CacheInvalidationEvent(type: 'post_state_changed'),
-      );
+      ref
+          .read(cacheInvalidationBusProvider.notifier)
+          .publish(const CacheInvalidationEvent(type: 'post_state_changed'));
     } catch (e) {
       state = AsyncValue.data(originalPosts);
     }
@@ -254,9 +256,9 @@ class FeedNotifier extends AsyncNotifier<List<Post>> {
     newList[index] = updatedPost;
     state = AsyncValue.data(newList);
     _feedStorage.saveFeed(newList);
-    ref.read(cacheInvalidationBusProvider.notifier).publish(
-      const CacheInvalidationEvent(type: 'post_state_changed'),
-    );
+    ref
+        .read(cacheInvalidationBusProvider.notifier)
+        .publish(const CacheInvalidationEvent(type: 'post_state_changed'));
   }
 
   void updateAuthorNameLocally(String userId, String newName) {
@@ -421,7 +423,7 @@ class ProfileFeedNotifier extends AsyncNotifier<List<Post>> {
     state = const AsyncLoading();
     await _fetchProfilePosts(reset: true);
   }
-  
+
   /// Fetches profile posts in the background without showing a loading spinner
   Future<void> silentRefresh() async {
     await _fetchProfilePosts(reset: true);

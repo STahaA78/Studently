@@ -101,7 +101,9 @@ class NotificationController extends Notifier<NotificationState> {
       final event = ref.read(cacheInvalidationBusProvider.notifier).latest();
       if (event == null) return;
       if (event.type == 'notification_state_changed') {
-        ref.read(cacheCoordinatorProvider).invalidate(CacheDomain.notifications);
+        ref
+            .read(cacheCoordinatorProvider)
+            .invalidate(CacheDomain.notifications);
         refreshFromServer();
       }
     });
@@ -149,9 +151,11 @@ class NotificationController extends Notifier<NotificationState> {
     await _storage.markAsReadLocally(id);
     await _repository.markAsRead(id);
     await _clearSystemNotificationsIfSupported();
-    ref.read(cacheInvalidationBusProvider.notifier).publish(
-      const CacheInvalidationEvent(type: 'notification_state_changed'),
-    );
+    ref
+        .read(cacheInvalidationBusProvider.notifier)
+        .publish(
+          const CacheInvalidationEvent(type: 'notification_state_changed'),
+        );
   }
 
   Future<void> clearForLogout() async {
@@ -190,9 +194,11 @@ class NotificationController extends Notifier<NotificationState> {
       return;
     }
     await _clearSystemNotificationsIfSupported();
-    ref.read(cacheInvalidationBusProvider.notifier).publish(
-      const CacheInvalidationEvent(type: 'notification_state_changed'),
-    );
+    ref
+        .read(cacheInvalidationBusProvider.notifier)
+        .publish(
+          const CacheInvalidationEvent(type: 'notification_state_changed'),
+        );
   }
 
   Future<void> _configureMessaging(String uid) async {
@@ -226,7 +232,9 @@ class NotificationController extends Notifier<NotificationState> {
     // 2. SUBSCRIBE TO TOPIC ASYNCHRONOUSLY (Don't await, so it doesn't block listeners if it fails)
     if (!kIsWeb) {
       _messaging.subscribeToTopic("global_feed").catchError((e) {
-        logger.w('[NotificationController] Failed to subscribe to global_feed: $e');
+        logger.w(
+          '[NotificationController] Failed to subscribe to global_feed: $e',
+        );
       });
     }
 
@@ -259,7 +267,7 @@ class NotificationController extends Notifier<NotificationState> {
       if (messageType == 'NEW_POST' ||
           messageType == 'NEW_COMMENT' ||
           messageType == 'POST_LIKE') {
-        ref.read(feedProvider.notifier).silentRefresh(); 
+        ref.read(feedProvider.notifier).silentRefresh();
       }
 
       await refreshFromServer();
@@ -520,10 +528,7 @@ class NotificationController extends Notifier<NotificationState> {
           cache.invalidate(CacheDomain.knowledgeCourseResources);
         }
         bus.publish(
-          CacheInvalidationEvent(
-            type: type.toLowerCase(),
-            courseId: courseId,
-          ),
+          CacheInvalidationEvent(type: type.toLowerCase(), courseId: courseId),
         );
         break;
       default:
@@ -568,9 +573,11 @@ class NotificationController extends Notifier<NotificationState> {
       if (appNotification != null) {
         unawaited(markAsRead(payloadNotificationId));
       } else {
-        unawaited(refreshFromServer().then((_) async {
-          await markAsRead(payloadNotificationId);
-        }));
+        unawaited(
+          refreshFromServer().then((_) async {
+            await markAsRead(payloadNotificationId);
+          }),
+        );
       }
     }
 
@@ -601,11 +608,11 @@ class NotificationController extends Notifier<NotificationState> {
             _lastHandledTapSignature = signature;
             return true;
           }
-          var otherUserName = 'Chat'; // 
+          var otherUserName = 'Chat'; //
           // if (actorId.isNotEmpty) {
-            // try {
-              // otherUserName = await ChatRepository().getUserName(actorId);
-            // } catch (_) {}
+          // try {
+          // otherUserName = await ChatRepository().getUserName(actorId);
+          // } catch (_) {}
           // }
           await navigator.push(
             MaterialPageRoute(

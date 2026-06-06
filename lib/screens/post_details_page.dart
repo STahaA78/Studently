@@ -44,9 +44,7 @@ class _PostDetailsPageState extends ConsumerState<PostDetailsPage> {
       context: context,
       builder: (_) => AlertDialog(
         backgroundColor: Colors.white,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16),
-        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         title: Text(
           title,
           style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 18),
@@ -159,6 +157,7 @@ class _PostDetailsPageState extends ConsumerState<PostDetailsPage> {
     ref.read(feedProvider.notifier).updatePostLocally(post);
     ref.read(profileFeedProvider(post.authorId).notifier).syncPostUpdate(post);
   }
+
   /// ---------------- LIKE ----------------
   void toggleLike() async {
     if (currentUserId == null) return;
@@ -227,7 +226,8 @@ class _PostDetailsPageState extends ConsumerState<PostDetailsPage> {
             style: TextStyle(
               color: Colors.black,
               fontSize: AppStyle.appBarTitleSize,
-              fontWeight: FontWeight.w600),
+              fontWeight: FontWeight.w600,
+            ),
           ),
         ),
         elevation: 0,
@@ -358,13 +358,15 @@ class _PostDetailsPageState extends ConsumerState<PostDetailsPage> {
                 children: [
                   CircleAvatar(
                     backgroundColor: Colors.grey.shade300,
-                    backgroundImage: hasPic ? CachedNetworkImageProvider(pic) : null,
+                    backgroundImage: hasPic
+                        ? CachedNetworkImageProvider(pic)
+                        : null,
                     child: Text(
                       post.authorName.isNotEmpty ? post.authorName[0] : "?",
                       style: const TextStyle(
                         fontWeight: FontWeight.w500,
                         color: Colors.black,
-                        fontSize: 14
+                        fontSize: 14,
                       ),
                     ),
                   ),
@@ -435,10 +437,7 @@ class _PostDetailsPageState extends ConsumerState<PostDetailsPage> {
                           ),
                           const SizedBox(height: 8),
                           IconButton(
-                            icon: Icon(
-                              Icons.refresh,
-                              color: Colors.grey[600],
-                            ),
+                            icon: Icon(Icons.refresh, color: Colors.grey[600]),
                             onPressed: () {
                               setState(() {});
                             },
@@ -466,7 +465,9 @@ class _PostDetailsPageState extends ConsumerState<PostDetailsPage> {
                     width: 22,
                     height: 22,
                     colorFilter: ColorFilter.mode(
-                      post.likes.contains(currentUserId) ? Colors.red : Colors.black,
+                      post.likes.contains(currentUserId)
+                          ? Colors.red
+                          : Colors.black,
                       BlendMode.srcIn,
                     ),
                   ),
@@ -520,8 +521,9 @@ class _PostDetailsPageState extends ConsumerState<PostDetailsPage> {
             child: CircleAvatar(
               radius: 18,
               backgroundColor: Colors.grey.shade300,
-              backgroundImage:
-                  hasPicture ? CachedNetworkImageProvider(comment.picture!) : null,
+              backgroundImage: hasPicture
+                  ? CachedNetworkImageProvider(comment.picture!)
+                  : null,
               child: hasPicture
                   ? null
                   : Text(
@@ -563,13 +565,17 @@ class _PostDetailsPageState extends ConsumerState<PostDetailsPage> {
                           constraints: const BoxConstraints(),
                           icon: const Icon(Icons.more_vert, size: 20),
                           itemBuilder: (context) => const [
-                            PopupMenuItem(value: 'delete', child: Text('Delete')),
+                            PopupMenuItem(
+                              value: 'delete',
+                              child: Text('Delete'),
+                            ),
                           ],
                           onSelected: (value) async {
                             if (value == 'delete') {
                               final confirm = await _showDeleteConfirmation(
                                 title: 'Delete Comment',
-                                message: 'Are you sure you want to delete this comment?',
+                                message:
+                                    'Are you sure you want to delete this comment?',
                               );
                               if (confirm == true) {
                                 await deleteComment(comment);
@@ -594,7 +600,6 @@ class _PostDetailsPageState extends ConsumerState<PostDetailsPage> {
                     style: const TextStyle(fontSize: 14, color: Colors.black87),
                   ),
                 ),
-                
               ],
             ),
           ),

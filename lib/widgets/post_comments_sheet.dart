@@ -8,10 +8,7 @@ import 'package:studently/providers/feed_provider.dart';
 import 'package:studently/screens/profile_main.dart';
 import 'package:studently/services/firebase_auth.dart';
 
-Future<void> showPostCommentsSheet(
-  BuildContext context,
-  Post post,
-) {
+Future<void> showPostCommentsSheet(BuildContext context, Post post) {
   return showModalBottomSheet<void>(
     context: context,
     isScrollControlled: true,
@@ -61,9 +58,7 @@ class _PostCommentsSheetState extends ConsumerState<PostCommentsSheet> {
       context: context,
       builder: (_) => AlertDialog(
         backgroundColor: Colors.white,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16),
-        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         title: Text(
           title,
           style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 18),
@@ -266,13 +261,21 @@ class _PostCommentsSheetState extends ConsumerState<PostCommentsSheet> {
                                   ? const SizedBox(
                                       height: 18,
                                       width: 18,
-                                      child: CircularProgressIndicator(strokeWidth: 2),
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                      ),
                                     )
-                                  : const Icon(Icons.refresh, color: Colors.black),
+                                  : const Icon(
+                                      Icons.refresh,
+                                      color: Colors.black,
+                                    ),
                               onPressed: _isRefreshing ? null : _refreshPost,
                             ),
                             IconButton(
-                              icon: const Icon(Icons.close, color: Colors.black),
+                              icon: const Icon(
+                                Icons.close,
+                                color: Colors.black,
+                              ),
                               onPressed: () => Navigator.pop(context, post),
                             ),
                           ],
@@ -287,7 +290,6 @@ class _PostCommentsSheetState extends ConsumerState<PostCommentsSheet> {
                 child: ListView(
                   padding: const EdgeInsets.only(bottom: 8),
                   children: [
-
                     if (post.comments.isEmpty)
                       const Padding(
                         padding: EdgeInsets.all(16),
@@ -371,9 +373,9 @@ class _PostCommentsSheetState extends ConsumerState<PostCommentsSheet> {
     final displayName = isOwner
         ? 'You'
         : (comment.username.trim().isNotEmpty &&
-                comment.username.toLowerCase() != 'unknown'
-            ? comment.username
-            : 'User');
+                  comment.username.toLowerCase() != 'unknown'
+              ? comment.username
+              : 'User');
     final hasPicture = comment.picture != null && comment.picture!.isNotEmpty;
 
     return Padding(
@@ -386,8 +388,9 @@ class _PostCommentsSheetState extends ConsumerState<PostCommentsSheet> {
             child: CircleAvatar(
               radius: 18,
               backgroundColor: Colors.grey.shade300,
-              backgroundImage:
-                  hasPicture ? CachedNetworkImageProvider(comment.picture!) : null,
+              backgroundImage: hasPicture
+                  ? CachedNetworkImageProvider(comment.picture!)
+                  : null,
               child: hasPicture
                   ? null
                   : Text(
@@ -429,7 +432,10 @@ class _PostCommentsSheetState extends ConsumerState<PostCommentsSheet> {
                           constraints: const BoxConstraints(),
                           icon: const Icon(Icons.more_vert, size: 20),
                           itemBuilder: (context) => const [
-                            PopupMenuItem(value: 'delete', child: Text('Delete')),
+                            PopupMenuItem(
+                              value: 'delete',
+                              child: Text('Delete'),
+                            ),
                           ],
                           onSelected: (value) async {
                             if (value == 'delete') {

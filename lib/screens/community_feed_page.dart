@@ -39,9 +39,7 @@ class _CommunityFeedPageState extends ConsumerState<CommunityFeedPage> {
       context: context,
       builder: (_) => AlertDialog(
         backgroundColor: Colors.white,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16),
-        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         title: Text(
           title,
           style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 18),
@@ -189,15 +187,11 @@ class _CommunityFeedPageState extends ConsumerState<CommunityFeedPage> {
                     actions: [
                       if (kIsWeb && !web_utils.isStandalonePwa())
                         IconButton(
-                          icon: const Icon(
-                            Icons.refresh,
-                            color: Colors.black,
-                          ),
+                          icon: const Icon(Icons.refresh, color: Colors.black),
                           iconSize: 25,
                           tooltip: 'Refresh feed',
-                          onPressed: () => ref
-                              .read(feedProvider.notifier)
-                              .refresh(),
+                          onPressed: () =>
+                              ref.read(feedProvider.notifier).refresh(),
                         ),
                       NotificationBadgeIcon(
                         unreadCount: unreadCount,
@@ -214,10 +208,7 @@ class _CommunityFeedPageState extends ConsumerState<CommunityFeedPage> {
                         },
                       ),
                       IconButton(
-                        icon: const Icon(
-                          Icons.inbox,
-                          color: Colors.black,
-                        ),
+                        icon: const Icon(Icons.inbox, color: Colors.black),
                         iconSize: 24,
                         onPressed: () {
                           Navigator.push(
@@ -245,7 +236,7 @@ class _CommunityFeedPageState extends ConsumerState<CommunityFeedPage> {
                           'No Posts Found',
                           style: const TextStyle(
                             color: Colors.grey,
-                          fontWeight: FontWeight.w500,
+                            fontWeight: FontWeight.w500,
                           ),
                         ),
                       ),
@@ -313,7 +304,8 @@ class _CommunityFeedPageState extends ConsumerState<CommunityFeedPage> {
                   SizedBox(
                     width: double.infinity,
                     child: ElevatedButton.icon(
-                      onPressed: () => ref.read(feedProvider.notifier).refresh(),
+                      onPressed: () =>
+                          ref.read(feedProvider.notifier).refresh(),
                       icon: const Icon(Icons.refresh, color: Colors.white),
                       label: const Text(
                         "Refresh",
@@ -365,14 +357,13 @@ class _CommunityFeedPageState extends ConsumerState<CommunityFeedPage> {
         );
       }
     }
+
     final String? pic = post.authorPic;
     final bool hasPic = pic != null && pic.isNotEmpty;
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.only(top: 12, bottom: 12),
-      decoration: BoxDecoration(
-        color: Colors.white,
-      ),
+      decoration: BoxDecoration(color: Colors.white),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -388,14 +379,16 @@ class _CommunityFeedPageState extends ConsumerState<CommunityFeedPage> {
                       children: [
                         CircleAvatar(
                           backgroundColor: Colors.grey.shade300,
-                          backgroundImage: hasPic ? CachedNetworkImageProvider(pic) : null,
+                          backgroundImage: hasPic
+                              ? CachedNetworkImageProvider(pic)
+                              : null,
                           child: hasPic
                               ? null
                               : Text(
                                   name.isNotEmpty ? name[0] : "?",
                                   style: const TextStyle(
                                     fontSize: 14,
-                                    color:  Colors.black,
+                                    color: Colors.black,
                                     fontWeight: FontWeight.w500,
                                   ),
                                 ),
@@ -445,7 +438,10 @@ class _CommunityFeedPageState extends ConsumerState<CommunityFeedPage> {
                           builder: (context) {
                             return AlertDialog(
                               backgroundColor: Colors.white,
-                              insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+                              insetPadding: const EdgeInsets.symmetric(
+                                horizontal: 20,
+                                vertical: 24,
+                              ),
                               shape: RoundedRectangleBorder(
                                 borderRadius: BorderRadius.circular(12),
                               ),
@@ -472,7 +468,10 @@ class _CommunityFeedPageState extends ConsumerState<CommunityFeedPage> {
                                 ),
                                 TextButton(
                                   onPressed: () {
-                                    Navigator.pop(context, controller.text.trim());
+                                    Navigator.pop(
+                                      context,
+                                      controller.text.trim(),
+                                    );
                                   },
                                   child: const Text("Save"),
                                 ),
@@ -526,18 +525,17 @@ class _CommunityFeedPageState extends ConsumerState<CommunityFeedPage> {
             ),
           ),
           const SizedBox(height: 15),
-            GestureDetector(
-              onTap: () => openPostDetails(index, allPosts),
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 19),
-                child: Text(
-                  post.content,
-                  style: const TextStyle(fontSize: 15, color: Colors.black87),
-                ),
+          GestureDetector(
+            onTap: () => openPostDetails(index, allPosts),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 19),
+              child: Text(
+                post.content,
+                style: const TextStyle(fontSize: 15, color: Colors.black87),
               ),
             ),
-          if (post.content.isNotEmpty)
-            const SizedBox(height: 10),
+          ),
+          if (post.content.isNotEmpty) const SizedBox(height: 10),
           if (post.mediaUrl != null && post.mediaUrl!.isNotEmpty)
             GestureDetector(
               onTap: () => openPostDetails(index, allPosts),
@@ -590,11 +588,7 @@ class _CommunityFeedPageState extends ConsumerState<CommunityFeedPage> {
             const SizedBox(height: 10),
           const Padding(
             padding: EdgeInsets.symmetric(horizontal: 16),
-            child: Divider(
-              height: 1,
-              thickness: 0.8,
-              color: Color(0x14000000),
-            ),
+            child: Divider(height: 1, thickness: 0.8, color: Color(0x14000000)),
           ),
           const SizedBox(height: 12),
           Padding(

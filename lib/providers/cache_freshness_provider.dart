@@ -43,21 +43,28 @@ class CacheCoordinator {
     CacheDomain.feedPosts: CachePolicy(ttl: Duration(seconds: 60)),
     CacheDomain.notifications: CachePolicy(ttl: Duration(seconds: 20)),
     CacheDomain.knowledgeCourses: CachePolicy(ttl: Duration(seconds: 60)),
-    CacheDomain.knowledgeCourseResources: CachePolicy(ttl: Duration(seconds: 45)),
+    CacheDomain.knowledgeCourseResources: CachePolicy(
+      ttl: Duration(seconds: 45),
+    ),
   };
 
-  String _key(CacheDomain domain, String? scopeId) => '${domain.name}:${scopeId ?? "_"}';
+  String _key(CacheDomain domain, String? scopeId) =>
+      '${domain.name}:${scopeId ?? "_"}';
 
   bool isStale(CacheDomain domain, {String? scopeId}) {
     final key = _key(domain, scopeId);
     final last = _lastFreshAt[key];
     if (last == null) {
-      logger.d('[CacheCoordinator] isStale key=$key result=true reason=missing');
+      logger.d(
+        '[CacheCoordinator] isStale key=$key result=true reason=missing',
+      );
       return true;
     }
     final ttl = policies[domain]?.ttl ?? const Duration(seconds: 30);
     final stale = DateTime.now().difference(last) > ttl;
-    logger.d('[CacheCoordinator] isStale key=$key result=$stale ttl=${ttl.inSeconds}s');
+    logger.d(
+      '[CacheCoordinator] isStale key=$key result=$stale ttl=${ttl.inSeconds}s',
+    );
     return stale;
   }
 
@@ -82,7 +89,9 @@ class CacheCoordinator {
   bool tryBeginRefresh(CacheDomain domain, {String? scopeId}) {
     final key = _key(domain, scopeId);
     if (_inFlight.contains(key)) {
-      logger.d('[CacheCoordinator] tryBeginRefresh key=$key result=false reason=in_flight');
+      logger.d(
+        '[CacheCoordinator] tryBeginRefresh key=$key result=false reason=in_flight',
+      );
       return false;
     }
     _inFlight.add(key);
@@ -120,7 +129,9 @@ class CacheInvalidationBus extends Notifier<int> {
   void publish(CacheInvalidationEvent event) {
     _events.add(event);
     state++;
-    logger.d('[CacheInvalidationBus] event=${event.type} user=${event.userId} course=${event.courseId}');
+    logger.d(
+      '[CacheInvalidationBus] event=${event.type} user=${event.userId} course=${event.courseId}',
+    );
   }
 
   CacheInvalidationEvent? latest() => _events.isEmpty ? null : _events.last;

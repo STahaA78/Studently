@@ -36,7 +36,9 @@ class _AccountPrivacyPageState extends ConsumerState<AccountPrivacyPage> {
       });
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Privacy settings updated successfully')),
+          const SnackBar(
+            content: Text('Privacy settings updated successfully'),
+          ),
         );
         Navigator.pop(context);
       }

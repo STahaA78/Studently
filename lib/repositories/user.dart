@@ -131,7 +131,9 @@ class UserRepository {
     try {
       final response = await _apiService.post(
         '/users/0/status',
-        body: {"target_ids": [targetId]},
+        body: {
+          "target_ids": [targetId],
+        },
       );
       final List<dynamic> data = jsonDecode(response.body);
       if (data.isEmpty) {
@@ -226,11 +228,13 @@ class UserRepository {
     final response = await _apiService.get('/users/0/friends_list');
     final List<dynamic> data = jsonDecode(response.body);
     return data
-        .map((f) => {
-              "id": f['_id']?.toString() ?? f['id']?.toString() ?? "",
-              "Name": f['name']?.toString() ?? "",
-              "picture": f['picture']?.toString() ?? ""
-            })
+        .map(
+          (f) => {
+            "id": f['_id']?.toString() ?? f['id']?.toString() ?? "",
+            "Name": f['name']?.toString() ?? "",
+            "picture": f['picture']?.toString() ?? "",
+          },
+        )
         .toList();
   }
 
@@ -239,10 +243,7 @@ class UserRepository {
     required String description,
   }) async {
     logger.i("[$runtimeType] Submit Error Report Initiated");
-    final payload = {
-      "subject": subject,
-      "description": description,
-    };
+    final payload = {"subject": subject, "description": description};
     try {
       final response = await _apiService.post('/users/0/report', body: payload);
       if (response.statusCode == 200 || response.statusCode == 201) {

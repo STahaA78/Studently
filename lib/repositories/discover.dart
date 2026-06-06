@@ -9,12 +9,12 @@ class DiscoverRepository {
   final UserRepository _userRepository;
 
   DiscoverRepository({UserRepository? userRepository})
-      : _userRepository = userRepository ?? UserRepository();
+    : _userRepository = userRepository ?? UserRepository();
 
-  Future<List<User>> discoverUsers() async {
+  Future<List<User>> discoverUsers({int index = 0}) async {
     logger.i('[DiscoverRepository] Discover Users Initiated');
     try {
-      final response = await _apiService.get('/users/discover');
+      final response = await _apiService.get('/users/discover?index=$index');
       final List<dynamic> data = jsonDecode(response.body);
       logger.d('[DiscoverRepository] Raw API Response: $data');
       logger.i('[DiscoverRepository] Discover Users Completed Successfully');
@@ -77,10 +77,14 @@ class DiscoverRepository {
     try {
       final response = await _apiService.get('/users/0/requests');
       final List<dynamic> data = jsonDecode(response.body);
-      logger.i('[DiscoverRepository] Fetch Pending Requests Completed Successfully');
+      logger.i(
+        '[DiscoverRepository] Fetch Pending Requests Completed Successfully',
+      );
       return data.map((item) => User.fromJson(item)).toList();
     } catch (e) {
-      logger.e('[DiscoverRepository] Fetch Pending Requests Failed with error: $e');
+      logger.e(
+        '[DiscoverRepository] Fetch Pending Requests Failed with error: $e',
+      );
       rethrow;
     }
   }

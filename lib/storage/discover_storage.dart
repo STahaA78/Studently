@@ -12,6 +12,7 @@ class DiscoverStorage {
   static const _pendingLastFetchKey = 'discover_pending_last_fetch';
   static const _swipedLeftKey = 'discover_swiped_left_ids';
   static const _recentSearchesKey = 'discover_recent_searches';
+  static const _discoverIndexKey = 'discover_index';
 
   DiscoverStorage(this._box);
 
@@ -59,6 +60,14 @@ class DiscoverStorage {
 
   void setDiscoverLastFetchTime(int timeMs) {
     _box.put(_discoverLastFetchKey, timeMs);
+  }
+
+  int getDiscoverIndex() {
+    return (_box.get(_discoverIndexKey) as int?) ?? 0;
+  }
+
+  void setDiscoverIndex(int index) {
+    _box.put(_discoverIndexKey, index);
   }
 
   List<User> getCachedPendingRequests() {

@@ -75,7 +75,7 @@ class _LoginGooglePageState extends ConsumerState<LoginGooglePage> {
                               'Studently',
                               style: GoogleFonts.poppins(
                                 color: AppStyle.primaryBlue,
-                                fontSize: AppStyle.titleFontSize *1.2,
+                                fontSize: AppStyle.titleFontSize * 1.2,
                                 fontWeight: FontWeight.w700,
                                 letterSpacing: 0.5,
                               ),
@@ -146,10 +146,9 @@ class _LoginGooglePageState extends ConsumerState<LoginGooglePage> {
                               ),
                             ),
 
-                           
                             const SizedBox(height: 10),
 
-                           // Info Block
+                            // Info Block
                             Text(
                               'Login with your university account to continue.',
                               textAlign: TextAlign.center,
@@ -251,10 +250,7 @@ class _LoginGooglePageState extends ConsumerState<LoginGooglePage> {
 
   Future<void> _openLinkedIn(String url) async {
     if (await canLaunchUrl(Uri.parse(url))) {
-      await launchUrl(
-        Uri.parse(url),
-        mode: LaunchMode.externalApplication,
-      );
+      await launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
     } else {
       logger.e("Could not launch $url");
     }

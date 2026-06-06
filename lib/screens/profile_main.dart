@@ -359,7 +359,11 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                                       (displayUser.postsCount ?? 0).toString(),
                                     ),
                                     const SizedBox(width: 35),
-                                    _buildStatColumn("Resources", (displayUser.resourcesCount ?? 0).toString()),
+                                    _buildStatColumn(
+                                      "Resources",
+                                      (displayUser.resourcesCount ?? 0)
+                                          .toString(),
+                                    ),
                                   ],
                                 ),
                               ],
@@ -394,7 +398,10 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                           },
                           child: Text(
                             "Edit Profile",
-                            style: TextStyle(color: AppStyle.primaryBlue, fontSize: 14),
+                            style: TextStyle(
+                              color: AppStyle.primaryBlue,
+                              fontSize: 14,
+                            ),
                           ),
                         ),
                       )
@@ -626,7 +633,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
               child: Transform.translate(
                 // x: positive moves right, negative moves left
                 // y: positive moves down, negative moves up
-                offset: const Offset(1.0, 0.0), 
+                offset: const Offset(1.0, 0.0),
                 child: Image(
                   image: CachedNetworkImageProvider(user.picture!),
                   fit: BoxFit.cover,
@@ -637,7 +644,11 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                         setState(() => failedProfileImages.add(user.picture!));
                       }
                     });
-                    return const Icon(Icons.person, size: 40, color: Colors.white);
+                    return const Icon(
+                      Icons.person,
+                      size: 40,
+                      color: Colors.white,
+                    );
                   },
                 ),
               ),

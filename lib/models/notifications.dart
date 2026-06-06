@@ -2,9 +2,9 @@ import 'package:hive/hive.dart';
 
 part 'notifications.g.dart';
 
-// Make sure typeId is unique! If you have other Hive models (like User=0, Post=1), 
+// Make sure typeId is unique! If you have other Hive models (like User=0, Post=1),
 // adjust this number so it doesn't clash with existing typeIds. Let's use 10 to be safe.
-@HiveType(typeId: 10) 
+@HiveType(typeId: 10)
 class AppNotification {
   @HiveField(0)
   final String id;
@@ -51,8 +51,12 @@ class AppNotification {
       entityId: json['entity_id'] ?? '',
       message: json['message'] ?? '',
       isRead: json['is_read'] ?? false,
-      createdAt: json['created_at'] != null 
-          ? DateTime.parse(json['created_at'].toString().endsWith('Z') ? json['created_at'] : '${json['created_at']}Z').toLocal() 
+      createdAt: json['created_at'] != null
+          ? DateTime.parse(
+              json['created_at'].toString().endsWith('Z')
+                  ? json['created_at']
+                  : '${json['created_at']}Z',
+            ).toLocal()
           : DateTime.now(),
     );
   }
