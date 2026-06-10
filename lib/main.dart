@@ -41,7 +41,7 @@ class MyApp extends ConsumerWidget {
       next.whenData((user) async {
         if (user == null) {
           await ref.read(notificationProvider.notifier).clearForLogout();
-          
+
           // Reset all core providers to clear in-memory cache
           ref.invalidate(discoverConnectProvider);
           ref.invalidate(discoverRequestsProvider);
@@ -50,16 +50,23 @@ class MyApp extends ConsumerWidget {
           ref.invalidate(allCoursesProvider);
           ref.invalidate(allResourceGroupsProvider);
           ref.invalidate(backendConfigProvider);
-          
+
           // Reset navigation stack to root on logout and ensure we are on the base route
           if (appNavigatorKey.currentState != null) {
-            appNavigatorKey.currentState!.pushNamedAndRemoveUntil('/', (route) => false);
+            appNavigatorKey.currentState!.pushNamedAndRemoveUntil(
+              '/',
+              (route) => false,
+            );
           }
           return;
         }
-        await ref.read(notificationProvider.notifier).initializeForCurrentUser();
+        await ref
+            .read(notificationProvider.notifier)
+            .initializeForCurrentUser();
         WidgetsBinding.instance.addPostFrameCallback((_) async {
-          await ref.read(notificationProvider.notifier).processPendingTapIfAny();
+          await ref
+              .read(notificationProvider.notifier)
+              .processPendingTapIfAny();
         });
       });
     });

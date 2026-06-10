@@ -6,6 +6,7 @@ import 'package:studently/services/firebase_auth.dart';
 import 'package:studently/logger.dart';
 import 'package:http/http.dart' as http;
 import 'package:http_parser/http_parser.dart';
+
 class ApiService {
   /// Base URL from configuration
   static const String _baseUrl = AppConfig.apiBaseUrl;
@@ -253,8 +254,6 @@ class ApiService {
     }
   }
 
-
-
   /// ===============================
   /// MULTIPART WITH BYTES (Web-compatible)
   /// ===============================
@@ -299,7 +298,7 @@ class ApiService {
       if (formFields != null) {
         request.fields.addAll(formFields);
       }
-      
+
       // Extract and add crop_data if present in metadata
       if (metadata != null && metadata.containsKey('cropData')) {
         request.fields['crop_data'] = metadata['cropData'].toString();

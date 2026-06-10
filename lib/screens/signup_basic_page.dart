@@ -507,8 +507,10 @@ class _SignupBasicPageState extends ConsumerState<SignupBasicPage> {
                         .watch(backendConfigProvider)
                         .when(
                           data: (config) {
-                            return SizedBox(
+                            return Container(
                               height: 50,
+                              decoration:
+                                  AppStyle.dropdownContainerDecoration(),
                               child: DropdownButtonFormField<String>(
                                 initialValue: _departmentCode,
                                 style: const TextStyle(
@@ -533,15 +535,17 @@ class _SignupBasicPageState extends ConsumerState<SignupBasicPage> {
                                     setState(() => _departmentCode = value);
                                   }
                                 },
-                                decoration: InputDecoration(
-                                  contentPadding: const EdgeInsets.symmetric(
-                                    horizontal: 18,
-                                    vertical: 14,
-                                  ),
-                                  border: OutlineInputBorder(
-                                    borderRadius: BorderRadius.circular(16),
-                                  ),
+                                decoration: AppStyle.dropdownInputDecoration(
+                                  hintText: 'Select Department',
                                 ),
+                                isExpanded: true,
+                                dropdownColor: Colors.white,
+                                icon: const Icon(
+                                  Icons.keyboard_arrow_down_rounded,
+                                  color: Colors.grey,
+                                ),
+                                borderRadius: BorderRadius.circular(20),
+                                menuMaxHeight: 220,
                               ),
                             );
                           },
@@ -612,8 +616,10 @@ class _SignupBasicPageState extends ConsumerState<SignupBasicPage> {
                                     1,
                                 (i) => config.batchRange.start + i,
                               );
-                              return SizedBox(
+                              return Container(
                                 height: 50,
+                                decoration:
+                                    AppStyle.dropdownContainerDecoration(),
                                 child: DropdownButtonFormField<String>(
                                   initialValue: _batchController.text.isNotEmpty
                                       ? _batchController.text
@@ -632,15 +638,17 @@ class _SignupBasicPageState extends ConsumerState<SignupBasicPage> {
                                       );
                                     }
                                   },
-                                  decoration: InputDecoration(
-                                    contentPadding: const EdgeInsets.symmetric(
-                                      horizontal: 18,
-                                      vertical: 14,
-                                    ),
-                                    border: OutlineInputBorder(
-                                      borderRadius: BorderRadius.circular(16),
-                                    ),
+                                  decoration: AppStyle.dropdownInputDecoration(
+                                    hintText: 'Select Batch',
                                   ),
+                                  isExpanded: true,
+                                  dropdownColor: Colors.white,
+                                  icon: const Icon(
+                                    Icons.keyboard_arrow_down_rounded,
+                                    color: Colors.grey,
+                                  ),
+                                  borderRadius: BorderRadius.circular(20),
+                                  menuMaxHeight: 220,
                                 ),
                               );
                             },

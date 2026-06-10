@@ -9,7 +9,9 @@ import 'package:pdf/widgets.dart' as pw;
 import 'package:path_provider/path_provider.dart';
 import 'package:mime/mime.dart';
 import 'package:studently/logger.dart';
+import 'package:studently/models/backend_config.dart';
 import 'package:studently/models/knowledge_hub.dart';
+import 'package:studently/providers/backend_config_provider.dart';
 import 'package:studently/providers/knowledge_hub_provider.dart';
 
 class AddResourcePage extends ConsumerStatefulWidget {
@@ -39,6 +41,7 @@ class UploadImage {
 
 class _AddResourcePageState extends ConsumerState<AddResourcePage> {
   final Color blue = AppStyle.primaryBlue;
+  static const List<String> _semesterOrder = ['Spring', 'Summer', 'Fall'];
 
   // Uploaded File
   File? _selectedPdf;
@@ -59,6 +62,39 @@ class _AddResourcePageState extends ConsumerState<AddResourcePage> {
   @override
   void dispose() {
     super.dispose();
+  }
+
+  List<String> _semesterOptionsFromConfig(BackendConfig? config) {
+    final options = <String>[];
+    final seen = <String>{};
+
+    void addSemester(String? value) {
+      if (value == null) return;
+      final normalized = value.trim();
+      if (normalized.isEmpty) return;
+      if (seen.add(normalized)) {
+        options.add(normalized);
+      }
+    }
+
+    addSemester(config?.currentTerm.term);
+    for (final semester in _semesterOrder) {
+      addSemester(semester);
+    }
+
+    return options;
+  }
+
+  List<int> _yearOptionsFromConfig(BackendConfig? config) {
+    final now = DateTime.now().year;
+    final start = config?.batchRange.start ?? (now - 6);
+    final end = config?.batchRange.end ?? now;
+
+    if (end < start) {
+      return [now];
+    }
+
+    return List<int>.generate(end - start + 1, (i) => end - i);
   }
 
   // Compress Images before PDF conversion (to reduce file size)
@@ -289,11 +325,6 @@ class _AddResourcePageState extends ConsumerState<AddResourcePage> {
         }
       }
 
-      if (_selectedType == "Mid" && _selectedMidNumber == null) {
-        logger.i("File Upload Ended - No Mid Number");
-        throw Exception("Please select mid number");
-      }
-
       final resourceItemRequest = ResourceItemRequest(
         course: widget.course,
         type: _selectedType!,
@@ -371,15 +402,7 @@ class _AddResourcePageState extends ConsumerState<AddResourcePage> {
   }
 
   bool get _canShowUpload {
-    if (_selectedType == null) return false;
-
-    // Mid requires mid number selection
-    if (_selectedType == "Mid") {
-      return _selectedMidNumber != null;
-    }
-
-    // Final can be submitted once type is selected
-    return true;
+    return _selectedType != null;
   }
 
   bool get _canSubmit {
@@ -392,6 +415,10 @@ class _AddResourcePageState extends ConsumerState<AddResourcePage> {
     final String courseDisplay =
         "${widget.course.code} - ${widget.course.name}";
     final isUploading = _isUploading;
+    final configAsync = ref.watch(backendConfigProvider);
+    final config = configAsync.asData?.value;
+    final semesterOptions = _semesterOptionsFromConfig(config);
+    final yearOptions = _yearOptionsFromConfig(config);
 
     return Scaffold(
       backgroundColor: Colors.white,
@@ -464,24 +491,112 @@ class _AddResourcePageState extends ConsumerState<AddResourcePage> {
               style: TextStyle(fontWeight: FontWeight.w600),
             ),
             const SizedBox(height: 8),
-            DropdownButtonFormField<String>(
-              initialValue: _selectedType,
-              items: const [
-                DropdownMenuItem(value: "Mid", child: Text("Midterm")),
-                DropdownMenuItem(value: "Final", child: Text("Final")),
-              ],
-              onChanged: (value) {
-                setState(() {
-                  _selectedType = value;
-                  _selectedMidNumber =
-                      null; // Reset mid number when type changes
-                });
-              },
-              decoration: const InputDecoration(
-                hintText: "Select Resource Type",
+            Container(
+              height: 50,
+              decoration: AppStyle.dropdownContainerDecoration(),
+              child: DropdownButtonFormField<String>(
+                initialValue: _selectedType,
+                items: const [
+                  DropdownMenuItem(value: "Mid", child: Text("Midterm")),
+                  DropdownMenuItem(value: "Final", child: Text("Final")),
+                ],
+                onChanged: (value) {
+                  setState(() {
+                    _selectedType = value;
+                    _selectedMidNumber = null;
+                  });
+                },
+                style: const TextStyle(fontSize: 15, color: Colors.black87),
+                isExpanded: true,
+                dropdownColor: Colors.white,
+                icon: const Icon(
+                  Icons.keyboard_arrow_down_rounded,
+                  color: Colors.grey,
+                ),
+                borderRadius: BorderRadius.circular(20),
+                menuMaxHeight: 220,
+                decoration: AppStyle.dropdownInputDecoration(
+                  hintText: "Select Resource Type",
+                ),
               ),
             ),
             const SizedBox(height: 20),
+
+            if (_selectedType != null) ...[
+              const Text(
+                "Semester",
+                style: TextStyle(fontWeight: FontWeight.w600),
+              ),
+              const SizedBox(height: 8),
+              Container(
+                height: 50,
+                decoration: AppStyle.dropdownContainerDecoration(),
+                child: DropdownButtonFormField<String>(
+                  initialValue: _selectedSemester,
+                  items: semesterOptions
+                      .map(
+                        (semester) => DropdownMenuItem<String>(
+                          value: semester,
+                          child: Text(semester),
+                        ),
+                      )
+                      .toList(),
+                  onChanged: (value) {
+                    setState(() {
+                      _selectedSemester = value;
+                    });
+                  },
+                  style: const TextStyle(fontSize: 15, color: Colors.black87),
+                  isExpanded: true,
+                  dropdownColor: Colors.white,
+                  icon: const Icon(
+                    Icons.keyboard_arrow_down_rounded,
+                    color: Colors.grey,
+                  ),
+                  borderRadius: BorderRadius.circular(20),
+                  menuMaxHeight: 220,
+                  decoration: AppStyle.dropdownInputDecoration(
+                    hintText: "Select Semester",
+                  ),
+                ),
+              ),
+              const SizedBox(height: 20),
+              const Text("Year", style: TextStyle(fontWeight: FontWeight.w600)),
+              const SizedBox(height: 8),
+              Container(
+                height: 50,
+                decoration: AppStyle.dropdownContainerDecoration(),
+                child: DropdownButtonFormField<int>(
+                  initialValue: _selectedYear,
+                  items: yearOptions
+                      .map(
+                        (year) => DropdownMenuItem<int>(
+                          value: year,
+                          child: Text(year.toString()),
+                        ),
+                      )
+                      .toList(),
+                  onChanged: (value) {
+                    setState(() {
+                      _selectedYear = value;
+                    });
+                  },
+                  style: const TextStyle(fontSize: 15, color: Colors.black87),
+                  isExpanded: true,
+                  dropdownColor: Colors.white,
+                  icon: const Icon(
+                    Icons.keyboard_arrow_down_rounded,
+                    color: Colors.grey,
+                  ),
+                  borderRadius: BorderRadius.circular(20),
+                  menuMaxHeight: 220,
+                  decoration: AppStyle.dropdownInputDecoration(
+                    hintText: "Select Year",
+                  ),
+                ),
+              ),
+              const SizedBox(height: 20),
+            ],
 
             /// Mid Number — shown for Mid exams
             if (_selectedType == "Mid") ...[
@@ -490,19 +605,41 @@ class _AddResourcePageState extends ConsumerState<AddResourcePage> {
                 style: TextStyle(fontWeight: FontWeight.w600),
               ),
               const SizedBox(height: 8),
-              DropdownButtonFormField<int>(
-                initialValue: _selectedMidNumber,
-                items: const [
-                  DropdownMenuItem(value: 1, child: Text("Mid 1")),
-                  DropdownMenuItem(value: 2, child: Text("Mid 2")),
-                ],
-                onChanged: (value) {
-                  setState(() {
-                    _selectedMidNumber = value;
-                  });
-                },
-                decoration: const InputDecoration(
-                  hintText: "Select Mid Number",
+              Container(
+                height: 50,
+                decoration: AppStyle.dropdownContainerDecoration(),
+                child: DropdownButtonFormField<int>(
+                  initialValue: _selectedMidNumber,
+                  items: const [
+                    DropdownMenuItem(value: 1, child: Text("Mid 1")),
+                    DropdownMenuItem(value: 2, child: Text("Mid 2")),
+                  ],
+                  onChanged: (value) {
+                    setState(() {
+                      _selectedMidNumber = value;
+                    });
+                  },
+                  style: const TextStyle(fontSize: 15, color: Colors.black87),
+                  isExpanded: true,
+                  dropdownColor: Colors.white,
+                  icon: const Icon(
+                    Icons.keyboard_arrow_down_rounded,
+                    color: Colors.grey,
+                  ),
+                  borderRadius: BorderRadius.circular(20),
+                  menuMaxHeight: 220,
+                  decoration: AppStyle.dropdownInputDecoration(
+                    hintText: "Select Mid Number",
+                  ),
+                ),
+              ),
+              const SizedBox(height: 6),
+              const Text(
+                "Leave if this is a lab exam or mid number is unknown.",
+                style: TextStyle(
+                  color: AppStyle.textSecondary,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w500,
                 ),
               ),
               const SizedBox(height: 20),

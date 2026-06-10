@@ -31,11 +31,12 @@ class _CreatePostPageState extends ConsumerState<CreatePostPage> {
 
     if (picked == null || !mounted) return;
 
-    final croppedResult = await Navigator.of(context).push<Map<String, dynamic>>(
-      MaterialPageRoute(
-        builder: (context) => PostPhotoCropScreen(initialImage: picked),
-      ),
-    );
+    final croppedResult = await Navigator.of(context)
+        .push<Map<String, dynamic>>(
+          MaterialPageRoute(
+            builder: (context) => PostPhotoCropScreen(initialImage: picked),
+          ),
+        );
 
     if (croppedResult != null && mounted) {
       final croppedImageBytes = croppedResult['bytes'] as Uint8List?;
@@ -84,7 +85,11 @@ class _CreatePostPageState extends ConsumerState<CreatePostPage> {
 
     try {
       final repository = ref.read(postRepositoryProvider);
-      await repository.createPost(text, selectedImage, selectedImageAspectRatio);
+      await repository.createPost(
+        text,
+        selectedImage,
+        selectedImageAspectRatio,
+      );
 
       // Trigger global refresh to sync Feed and Profile
       ref.read(feedProvider.notifier).refresh();
@@ -124,7 +129,8 @@ class _CreatePostPageState extends ConsumerState<CreatePostPage> {
             color: Colors.black,
             fontSize: AppStyle.appBarTitleSize,
             fontWeight: FontWeight.w600,
-          ),),
+          ),
+        ),
         actions: [
           TextButton(
             onPressed: isPosting ? null : submitPost,
@@ -194,7 +200,8 @@ class _CreatePostPageState extends ConsumerState<CreatePostPage> {
                             child: Stack(
                               children: [
                                 AspectRatio(
-                                  aspectRatio: selectedImageAspectRatio ?? 4 / 5,
+                                  aspectRatio:
+                                      selectedImageAspectRatio ?? 4 / 5,
                                   child: Image.memory(
                                     selectedImageBytes!,
                                     width: double.infinity,
@@ -206,7 +213,10 @@ class _CreatePostPageState extends ConsumerState<CreatePostPage> {
                                   top: 8,
                                   child: IconButton(
                                     onPressed: clearImage,
-                                    icon: const Icon(Icons.close, color: Colors.white),
+                                    icon: const Icon(
+                                      Icons.close,
+                                      color: Colors.white,
+                                    ),
                                     style: IconButton.styleFrom(
                                       backgroundColor: Colors.black54,
                                     ),
@@ -221,6 +231,7 @@ class _CreatePostPageState extends ConsumerState<CreatePostPage> {
                 ),
               ),
             ),
+
             /// IMAGE PICK BUTTON AT BOTTOM
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),

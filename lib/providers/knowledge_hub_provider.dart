@@ -27,12 +27,15 @@ final allCoursesProvider = FutureProvider<List<Course>>((ref) async {
     refreshTimer?.cancel();
     refreshTimer = Timer.periodic(const Duration(seconds: 15), (_) {
       if (cache.isStale(CacheDomain.knowledgeCourses)) {
-        repository.fetchAllCourses(forceRefresh: true).then((_) {
-          cache.markFresh(CacheDomain.knowledgeCourses);
-          ref.invalidateSelf();
-        }).catchError((e) {
-          logger.w('[KnowledgeHub] Auto refresh for courses failed: $e');
-        });
+        repository
+            .fetchAllCourses(forceRefresh: true)
+            .then((_) {
+              cache.markFresh(CacheDomain.knowledgeCourses);
+              ref.invalidateSelf();
+            })
+            .catchError((e) {
+              logger.w('[KnowledgeHub] Auto refresh for courses failed: $e');
+            });
       }
     });
     ref.onDispose(() => refreshTimer?.cancel());
@@ -43,10 +46,13 @@ final allCoursesProvider = FutureProvider<List<Course>>((ref) async {
   final courses = await repository.fetchAllCourses();
   if (cache.isStale(CacheDomain.knowledgeCourses)) {
     // fire-and-forget refresh while returning cached-first result
-    repository.fetchAllCourses(forceRefresh: true).then((_) {
-      cache.markFresh(CacheDomain.knowledgeCourses);
-      ref.invalidateSelf();
-    }).catchError((_) {});
+    repository
+        .fetchAllCourses(forceRefresh: true)
+        .then((_) {
+          cache.markFresh(CacheDomain.knowledgeCourses);
+          ref.invalidateSelf();
+        })
+        .catchError((_) {});
   }
   return courses;
 });
@@ -80,16 +86,24 @@ final resourcesByCourseProvider = FutureProvider.family<ResourceGroup, String>((
   void scheduleRefreshChecks() {
     refreshTimer?.cancel();
     refreshTimer = Timer.periodic(const Duration(seconds: 15), (_) {
-      if (cache.isStale(CacheDomain.knowledgeCourseResources, scopeId: courseId)) {
-        repository.fetchResourcesByCourse(courseId, forceRefresh: true).then((_) {
-          cache.markFresh(
-            CacheDomain.knowledgeCourseResources,
-            scopeId: courseId,
-          );
-          ref.invalidateSelf();
-        }).catchError((e) {
-          logger.w('[KnowledgeHub] Auto refresh for course $courseId failed: $e');
-        });
+      if (cache.isStale(
+        CacheDomain.knowledgeCourseResources,
+        scopeId: courseId,
+      )) {
+        repository
+            .fetchResourcesByCourse(courseId, forceRefresh: true)
+            .then((_) {
+              cache.markFresh(
+                CacheDomain.knowledgeCourseResources,
+                scopeId: courseId,
+              );
+              ref.invalidateSelf();
+            })
+            .catchError((e) {
+              logger.w(
+                '[KnowledgeHub] Auto refresh for course $courseId failed: $e',
+              );
+            });
       }
     });
     ref.onDispose(() => refreshTimer?.cancel());
@@ -101,10 +115,16 @@ final resourcesByCourseProvider = FutureProvider.family<ResourceGroup, String>((
     courseId,
   ); // Uses default forceRefresh: false
   if (cache.isStale(CacheDomain.knowledgeCourseResources, scopeId: courseId)) {
-    repository.fetchResourcesByCourse(courseId, forceRefresh: true).then((_) {
-      cache.markFresh(CacheDomain.knowledgeCourseResources, scopeId: courseId);
-      ref.invalidateSelf();
-    }).catchError((_) {});
+    repository
+        .fetchResourcesByCourse(courseId, forceRefresh: true)
+        .then((_) {
+          cache.markFresh(
+            CacheDomain.knowledgeCourseResources,
+            scopeId: courseId,
+          );
+          ref.invalidateSelf();
+        })
+        .catchError((_) {});
   }
   return resources;
 });
@@ -130,7 +150,9 @@ final allResourceGroupsProvider = FutureProvider<List<ResourceGroup>>((
 ) async {
   final repository = ref.watch(knowledgeHubRepositoryProvider);
   final groups = await repository.fetchResourceGroups(forceRefresh: false);
-  ref.read(cacheCoordinatorProvider).markFresh(CacheDomain.knowledgeCourseResources);
+  ref
+      .read(cacheCoordinatorProvider)
+      .markFresh(CacheDomain.knowledgeCourseResources);
   return groups;
 });
 
@@ -206,16 +228,20 @@ final resourceUploadFunctionProvider =
             'Either filePath or (fileBytes + filename) must be provided',
           );
         }
-        ref.read(cacheCoordinatorProvider).invalidate(
-          CacheDomain.knowledgeCourseResources,
-          scopeId: resourceItemRequest.course.code,
-        );
-        ref.read(cacheInvalidationBusProvider.notifier).publish(
-          CacheInvalidationEvent(
-            type: 'knowledge_resource_uploaded',
-            courseId: resourceItemRequest.course.code,
-          ),
-        );
+        ref
+            .read(cacheCoordinatorProvider)
+            .invalidate(
+              CacheDomain.knowledgeCourseResources,
+              scopeId: resourceItemRequest.course.code,
+            );
+        ref
+            .read(cacheInvalidationBusProvider.notifier)
+            .publish(
+              CacheInvalidationEvent(
+                type: 'knowledge_resource_uploaded',
+                courseId: resourceItemRequest.course.code,
+              ),
+            );
       };
     });
 
@@ -239,10 +265,12 @@ final refreshAllCoursesProvider = Provider<Future<void> Function()>((ref) {
 final refreshResourcesForCourseProvider =
     Provider.family<Future<void> Function(), String>((ref, courseId) {
       return () async {
-        ref.read(cacheCoordinatorProvider).invalidate(
-          CacheDomain.knowledgeCourseResources,
-          scopeId: courseId,
-        );
+        ref
+            .read(cacheCoordinatorProvider)
+            .invalidate(
+              CacheDomain.knowledgeCourseResources,
+              scopeId: courseId,
+            );
         // ignore: unused_result
         ref.refresh(resourcesCourseFreshProvider(courseId));
         // Wait for fresh data to be fetched and cached

@@ -71,7 +71,11 @@ class PostRepository {
   }
 
   /// Creates a new post with optional image content
-  Future<void> createPost(String content, XFile? image, double? aspectRatio) async {
+  Future<void> createPost(
+    String content,
+    XFile? image,
+    double? aspectRatio,
+  ) async {
     logger.i("[$runtimeType] Create Post Initiated");
     try {
       if (image != null) {
@@ -101,22 +105,26 @@ class PostRepository {
           throw Exception("Failed to create post: ${response.statusCode}");
         }
 
-        logger.i("[$runtimeType] Create Post (with image) Completed Successfully");
+        logger.i(
+          "[$runtimeType] Create Post (with image) Completed Successfully",
+        );
       } else {
         // FIXED: Handle text-only posts
         final response = await _apiService.post(
-          "/feed/", 
-          body: {"content": content}
+          "/feed/",
+          body: {"content": content},
         );
-        
+
         if (response.statusCode != 200 && response.statusCode != 201) {
           logger.e(
             "[$runtimeType] Create text Post Request failed ${response.statusCode}",
           );
           throw Exception("Failed to create text post: ${response.statusCode}");
         }
-        
-        logger.i("[$runtimeType] Create Post (text-only) Completed Successfully");
+
+        logger.i(
+          "[$runtimeType] Create Post (text-only) Completed Successfully",
+        );
       }
     } catch (e) {
       logger.e("[$runtimeType] Create Post Failed with error: $e");

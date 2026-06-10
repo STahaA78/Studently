@@ -12,7 +12,6 @@ class SettingsPage extends ConsumerStatefulWidget {
 }
 
 class _SettingsPageState extends ConsumerState<SettingsPage> {
-
   void _showReportErrorDialog() {
     final subjectController = TextEditingController();
     final descriptionController = TextEditingController();
@@ -33,11 +32,10 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
               children: [
                 TextFormField(
                   controller: subjectController,
-                  decoration: const InputDecoration(
-                    hintText: 'Subject',
-                  ),
-                  validator: (value) =>
-                      value == null || value.isEmpty ? 'Please enter a subject' : null,
+                  decoration: const InputDecoration(hintText: 'Subject'),
+                  validator: (value) => value == null || value.isEmpty
+                      ? 'Please enter a subject'
+                      : null,
                 ),
                 const SizedBox(height: 16),
                 TextFormField(
@@ -47,8 +45,9 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                   ),
                   maxLines: 5,
                   minLines: 4,
-                  validator: (value) =>
-                      value == null || value.isEmpty ? 'Please enter a description' : null,
+                  validator: (value) => value == null || value.isEmpty
+                      ? 'Please enter a description'
+                      : null,
                 ),
               ],
             ),
@@ -62,11 +61,13 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
           ElevatedButton(
             onPressed: () async {
               if (formKey.currentState!.validate()) {
-                final success = await ref.read(userRepositoryProvider).submitErrorReport(
+                final success = await ref
+                    .read(userRepositoryProvider)
+                    .submitErrorReport(
                       subject: subjectController.text,
                       description: descriptionController.text,
                     );
-                    
+
                 if (context.mounted) {
                   Navigator.pop(context);
                   ScaffoldMessenger.of(context).showSnackBar(
@@ -124,7 +125,9 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
             onTap: () {
               Navigator.push(
                 context,
-                MaterialPageRoute(builder: (context) => const AccountPrivacyPage()),
+                MaterialPageRoute(
+                  builder: (context) => const AccountPrivacyPage(),
+                ),
               );
             },
           ),
@@ -169,7 +172,9 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                 context: context,
                 builder: (_) => AlertDialog(
                   backgroundColor: Colors.white,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16),
+                  ),
                   title: const Text(
                     "Logout",
                     style: TextStyle(fontWeight: FontWeight.w600, fontSize: 18),
@@ -183,11 +188,17 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                     TextButton(
                       onPressed: () => Navigator.pop(context, false),
                       style: TextButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 20,
+                          vertical: 10,
+                        ),
                       ),
                       child: const Text(
                         "Cancel",
-                        style: TextStyle(color: Colors.grey, fontWeight: FontWeight.w500),
+                        style: TextStyle(
+                          color: Colors.grey,
+                          fontWeight: FontWeight.w500,
+                        ),
                       ),
                     ),
                     ElevatedButton(
@@ -196,7 +207,10 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(8),
                         ),
-                        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 10),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 24,
+                          vertical: 10,
+                        ),
                       ),
                       onPressed: () => Navigator.pop(context, true),
                       child: const Text(

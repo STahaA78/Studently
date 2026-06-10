@@ -248,51 +248,55 @@ class _EditProfilePageState extends ConsumerState<EditProfilePage> {
                         onTap: _showEditPhotoOptions,
                         child: Column(
                           children: [
-                          CircleAvatar(
-                            key: ValueKey<String?>(
-                              (_croppedPreviewBytes != null || _originalPhotoBytes != null)
-                                  ? 'cropped'
-                                  : currentUser.picture,
+                            CircleAvatar(
+                              key: ValueKey<String?>(
+                                (_croppedPreviewBytes != null ||
+                                        _originalPhotoBytes != null)
+                                    ? 'cropped'
+                                    : currentUser.picture,
+                              ),
+                              radius: 52,
+                              backgroundColor: Colors.grey.shade300,
+                              backgroundImage: _croppedPreviewBytes != null
+                                  ? MemoryImage(_croppedPreviewBytes!)
+                                  : _originalPhotoBytes != null
+                                  ? MemoryImage(_originalPhotoBytes!)
+                                  : (hasPhoto
+                                        ? NetworkImage(currentUser.picture!)
+                                        : null),
+                              onBackgroundImageError:
+                                  _croppedPreviewBytes == null &&
+                                      _originalPhotoBytes == null &&
+                                      hasPhoto
+                                  ? (exception, stackTrace) {
+                                      // Defer setState to avoid calling it during paint phase
+                                      SchedulerBinding.instance
+                                          .addPostFrameCallback((_) {
+                                            if (mounted) {
+                                              setState(
+                                                () =>
+                                                    _profileImageFailed = true,
+                                              );
+                                            }
+                                          });
+                                    }
+                                  : null,
+                              child:
+                                  ((_croppedPreviewBytes == null &&
+                                          _originalPhotoBytes == null) &&
+                                      (!hasPhoto || _profileImageFailed))
+                                  ? const Icon(
+                                      Icons.person,
+                                      size: 48,
+                                      color: Colors.white,
+                                    )
+                                  : null,
                             ),
-                            radius: 52,
-                            backgroundColor: Colors.grey.shade300,
-                            backgroundImage: _croppedPreviewBytes != null
-                                ? MemoryImage(_croppedPreviewBytes!)
-                                : _originalPhotoBytes != null
-                                ? MemoryImage(_originalPhotoBytes!)
-                                : (hasPhoto
-                                      ? NetworkImage(currentUser.picture!)
-                                      : null),
-                            onBackgroundImageError:
-                                _croppedPreviewBytes == null && _originalPhotoBytes == null && hasPhoto
-                                ? (exception, stackTrace) {
-                                    // Defer setState to avoid calling it during paint phase
-                                    SchedulerBinding.instance
-                                        .addPostFrameCallback((_) {
-                                          if (mounted) {
-                                            setState(
-                                              () => _profileImageFailed =
-                                                  true,
-                                            );
-                                          }
-                                        });
-                                  }
-                                : null,
-                            child:
-                                ((_croppedPreviewBytes == null && _originalPhotoBytes == null) &&
-                                        (!hasPhoto || _profileImageFailed))
-                                ? const Icon(
-                                    Icons.person,
-                                    size: 48,
-                                    color: Colors.white,
-                                  )
-                                : null,
-                          ),
-                          const SizedBox(height: 8),
-                          TextButton(
-                            onPressed: _showEditPhotoOptions,
-                            child: const Text('Change Profile Photo'),
-                          ),
+                            const SizedBox(height: 8),
+                            TextButton(
+                              onPressed: _showEditPhotoOptions,
+                              child: const Text('Change Profile Photo'),
+                            ),
                           ],
                         ),
                       ),
@@ -339,23 +343,14 @@ class _EditProfilePageState extends ConsumerState<EditProfilePage> {
                     const SizedBox(height: 6),
                     Container(
                       height: 50,
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(25),
-                      ),
+                      decoration: AppStyle.dropdownContainerDecoration(),
                       child: DropdownButtonFormField<String>(
                         initialValue: effectiveDepartmentValue,
                         style: const TextStyle(
                           fontSize: 15,
                           color: Colors.black87,
                         ),
-                        decoration: InputDecoration(
-                          filled: false,
-                          contentPadding: const EdgeInsets.symmetric(
-                            horizontal: 18,
-                            vertical: 8,
-                          ),
-                          border: InputBorder.none,
+                        decoration: AppStyle.dropdownInputDecoration(
                           errorText: _departmentError,
                         ),
                         isExpanded: true,
@@ -774,16 +769,18 @@ class _EditProfilePageState extends ConsumerState<EditProfilePage> {
       if (pickedFile != null) {
         // Navigate to crop screen
         if (!mounted) return;
-        final croppedResult = await Navigator.of(context).push<Map<String, dynamic>>(
-          MaterialPageRoute(
-            builder: (context) =>
-                ProfilePhotoCropScreen(initialImage: pickedFile),
-          ),
-        );
+        final croppedResult = await Navigator.of(context)
+            .push<Map<String, dynamic>>(
+              MaterialPageRoute(
+                builder: (context) =>
+                    ProfilePhotoCropScreen(initialImage: pickedFile),
+              ),
+            );
 
         // Store the photo data locally (original bytes + crop info, no upload yet)
         if (croppedResult != null && mounted) {
-          final originalImageBytes = croppedResult['originalBytes'] as Uint8List?;
+          final originalImageBytes =
+              croppedResult['originalBytes'] as Uint8List?;
           final croppedPreviewBytes = croppedResult['bytes'] as Uint8List?;
           final cropData = croppedResult['cropData'] as Map<String, dynamic>?;
           if (originalImageBytes != null && cropData != null) {

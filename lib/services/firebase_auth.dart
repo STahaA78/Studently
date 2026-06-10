@@ -12,14 +12,10 @@ class AuthService {
 
   GoogleSignIn _googleSignIn() {
     if (kIsWeb) {
-      return GoogleSignIn(
-        clientId: AppConfig.googleClientId,
-      );
+      return GoogleSignIn(clientId: AppConfig.googleClientId);
     }
 
-    return GoogleSignIn(
-      serverClientId: AppConfig.googleClientId,
-    );
+    return GoogleSignIn(serverClientId: AppConfig.googleClientId);
   }
 
   User? get currentUser => firebaseAuth.currentUser;

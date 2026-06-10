@@ -110,7 +110,7 @@ class ResourceItem {
     final fileUrl = json['fileUrl'] ?? json['file_url'] ?? '';
     final uploadedAt = json['uploadedAt'] ?? json['uploaded_at'];
     final uploadedBy = json['uploadedBy'] ?? json['uploaded_by'] ?? '';
-    
+
     return ResourceItem(
       id: json['id'] ?? '',
       course: Course.fromJson(json['course'] ?? {}),
@@ -120,7 +120,9 @@ class ResourceItem {
       isSolved: json['isSolved'] ?? json['is_solved'],
       midNumber: json['midNumber'] ?? json['mid_number'],
       fileUrl: (fileUrl as String).replaceAll(' ', '%20'),
-      uploadedAt: uploadedAt != null ? DateTime.parse(uploadedAt) : DateTime.now(),
+      uploadedAt: uploadedAt != null
+          ? DateTime.parse(uploadedAt)
+          : DateTime.now(),
       uploadedBy: uploadedBy,
       approved: json['approved'] ?? false,
     );

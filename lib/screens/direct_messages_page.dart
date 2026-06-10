@@ -40,7 +40,9 @@ class _DirectMessagesPageState extends ConsumerState<DirectMessagesPage> {
   String _formatTimestamp(String? isoString) {
     if (isoString == null || isoString.isEmpty) return "";
     try {
-      final String safeTimestamp = isoString.endsWith('Z') ? isoString : '${isoString}Z';
+      final String safeTimestamp = isoString.endsWith('Z')
+          ? isoString
+          : '${isoString}Z';
       final date = DateTime.parse(safeTimestamp).toLocal();
       final now = DateTime.now();
       if (date.year == now.year &&
@@ -245,7 +247,8 @@ class _DirectMessagesPageState extends ConsumerState<DirectMessagesPage> {
                       // Instant name and pic lookup from the Provider cache!
                       final String displayName = isGroup
                           ? (chat.title ?? "Group Chat")
-                          : (chatState.userNames[otherUserId] ?? "Unknown User");
+                          : (chatState.userNames[otherUserId] ??
+                                "Unknown User");
                       final String userPic = isGroup
                           ? ""
                           : (chatState.userPics[otherUserId] ?? "");
@@ -363,18 +366,18 @@ class _DirectMessagesPageState extends ConsumerState<DirectMessagesPage> {
                   : null,
               child: isGroup
                   ? const Icon(Icons.groups, color: Colors.white, size: 26)
-                : (userPic.isEmpty
-                      ? Text(
-                    displayName.isNotEmpty
-                              ? displayName[0].toUpperCase()
-                              : "?",
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontWeight: FontWeight.bold,
-                            fontSize: 18,
-                          ),
-                        )
-                      : null),
+                  : (userPic.isEmpty
+                        ? Text(
+                            displayName.isNotEmpty
+                                ? displayName[0].toUpperCase()
+                                : "?",
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 18,
+                            ),
+                          )
+                        : null),
             ),
             const SizedBox(width: 13),
             Expanded(
@@ -483,7 +486,9 @@ class _DirectMessagesPageState extends ConsumerState<DirectMessagesPage> {
           builder: (BuildContext context, StateSetter setModalState) {
             // If the list is empty and we haven't started a fetch yet, kick one
             // off now and refresh the modal when it resolves.
-            if (allFriends.isEmpty && !isFetchingFriends && !hasAttemptedFetch) {
+            if (allFriends.isEmpty &&
+                !isFetchingFriends &&
+                !hasAttemptedFetch) {
               isFetchingFriends = true;
               hasAttemptedFetch = true;
               authNotifier.fetchFriendsList().then((_) {
@@ -535,7 +540,9 @@ class _DirectMessagesPageState extends ConsumerState<DirectMessagesPage> {
                               .toList();
                         });
                       },
-                      decoration: AppStyle.searchDecoration("Search friends..."),
+                      decoration: AppStyle.searchDecoration(
+                        "Search friends...",
+                      ),
                     ),
                   ),
                   const SizedBox(height: 10),

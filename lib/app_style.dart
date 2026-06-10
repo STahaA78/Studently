@@ -44,6 +44,7 @@ class AppStyle {
 
   static const double formFieldBorderSize = 1.0;
   static const double formFieldRadius = 12.0; // Modern slightly softer radius
+  static const double dropdownRadius = 16.0;
 
   // --- 3. Spacing ---
   static const double verticalSpacingNormal = 16.0;
@@ -54,7 +55,7 @@ class AppStyle {
   static const EdgeInsets normalVerticalPadding = EdgeInsets.symmetric(
     vertical: 12,
   );
-  
+
   // --- 4. Theme ---
   static ThemeData get theme {
     var baseTheme = ThemeData.light();
@@ -189,28 +190,56 @@ class AppStyle {
       ),
     );
   }
+
   // custom search decoration for search fields
   static InputDecoration searchDecoration(String hint) {
-  return InputDecoration(
-    hintText: hint,
-    prefixIcon: Icon(
-      Icons.search,
-      color: Colors.grey.shade700, // 👈 icon color
-    ),
-    filled: true,
-    fillColor: backgroundLight,
-    border: OutlineInputBorder(
-      borderRadius: BorderRadius.circular(30),
-      borderSide: BorderSide.none,
-    ),
-    enabledBorder: OutlineInputBorder(
-      borderRadius: BorderRadius.circular(30),
-      borderSide: BorderSide.none,
-    ),
-    focusedBorder: OutlineInputBorder(
-      borderRadius: BorderRadius.circular(30),
-      borderSide: BorderSide.none,
-    ),
-  );
-}
+    return InputDecoration(
+      hintText: hint,
+      prefixIcon: Icon(
+        Icons.search,
+        color: Colors.grey.shade700, // 👈 icon color
+      ),
+      filled: true,
+      fillColor: backgroundLight,
+      border: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(30),
+        borderSide: BorderSide.none,
+      ),
+      enabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(30),
+        borderSide: BorderSide.none,
+      ),
+      focusedBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(30),
+        borderSide: BorderSide.none,
+      ),
+    );
+  }
+
+  static BoxDecoration dropdownContainerDecoration({
+    Color backgroundColor = Colors.white,
+  }) {
+    return BoxDecoration(
+      color: backgroundColor,
+      borderRadius: BorderRadius.circular(dropdownRadius),
+      border: Border.all(color: const Color(0xFFD0D0D0), width: 1.2),
+    );
+  }
+
+  static InputDecoration dropdownInputDecoration({
+    String? hintText,
+    String? errorText,
+  }) {
+    return InputDecoration(
+      hintText: hintText,
+      filled: false,
+      contentPadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 8),
+      border: InputBorder.none,
+      enabledBorder: InputBorder.none,
+      focusedBorder: InputBorder.none,
+      errorBorder: InputBorder.none,
+      focusedErrorBorder: InputBorder.none,
+      errorText: errorText,
+    );
+  }
 }

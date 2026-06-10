@@ -144,10 +144,9 @@ class _PhotoCropScreenState extends State<PhotoCropScreen> {
   }
 
   Size _resolveRectViewport(BoxConstraints constraints) {
-    final double maxWidth =
-        constraints.maxWidth >= 900
-            ? math.min(constraints.maxWidth, _maxViewportWide)
-            : constraints.maxWidth;
+    final double maxWidth = constraints.maxWidth >= 900
+        ? math.min(constraints.maxWidth, _maxViewportWide)
+        : constraints.maxWidth;
     double width = maxWidth;
     double height = width / _rectAspectRatio;
 
@@ -164,7 +163,10 @@ class _PhotoCropScreenState extends State<PhotoCropScreen> {
     required bool includeWebZoomBar,
   }) {
     final double reservedHeight = includeWebZoomBar ? 96.0 : 0.0;
-    final double maxHeight = math.max(0.0, constraints.maxHeight - reservedHeight);
+    final double maxHeight = math.max(
+      0.0,
+      constraints.maxHeight - reservedHeight,
+    );
     final adjustedConstraints = BoxConstraints(
       maxWidth: constraints.maxWidth,
       maxHeight: maxHeight,
@@ -236,8 +238,7 @@ class _PhotoCropScreenState extends State<PhotoCropScreen> {
     if (_isCircle) return;
 
     setState(() {
-      _rectAspectRatio =
-          _isLandscape ? _portraitAspect : _landscapeAspect;
+      _rectAspectRatio = _isLandscape ? _portraitAspect : _landscapeAspect;
     });
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -273,13 +274,13 @@ class _PhotoCropScreenState extends State<PhotoCropScreen> {
     final src = _sourceRectFor(center: clampedCenter, zoom: _zoomScale);
 
     final int outWidth = _isCircle
-      ? 250
-      : _isLandscape
+        ? 250
+        : _isLandscape
         ? _landscapeOutputWidth
         : _portraitOutputWidth;
     final int outHeight = _isCircle
-      ? 250
-      : _isLandscape
+        ? 250
+        : _isLandscape
         ? _landscapeOutputHeight
         : _portraitOutputHeight;
 
@@ -356,7 +357,8 @@ class _PhotoCropScreenState extends State<PhotoCropScreen> {
             style: const TextStyle(
               color: Colors.black,
               fontWeight: FontWeight.w600,
-              fontSize: AppStyle.appBarTitleSize),
+              fontSize: AppStyle.appBarTitleSize,
+            ),
           ),
         ),
         backgroundColor: Colors.white,
@@ -406,18 +408,18 @@ class _PhotoCropScreenState extends State<PhotoCropScreen> {
                 Expanded(
                   child: LayoutBuilder(
                     builder: (context, constraints) {
-                      final showWebZoomBar = kIsWeb && !web_utils.isStandalonePwa();
+                      final showWebZoomBar =
+                          kIsWeb && !web_utils.isStandalonePwa();
                       final viewportRect = _resolveViewportForConstraints(
                         constraints,
                         includeWebZoomBar: showWebZoomBar,
                       );
-                      final cropSize =
-                          _isCircle
-                              ? _resolveCircleCropSize(
-                                  viewportSize: viewportRect.width,
-                                  availableWidth: constraints.maxWidth,
-                                )
-                              : viewportRect;
+                      final cropSize = _isCircle
+                          ? _resolveCircleCropSize(
+                              viewportSize: viewportRect.width,
+                              availableWidth: constraints.maxWidth,
+                            )
+                          : viewportRect;
                       _cropWidth = cropSize.width;
                       _cropHeight = cropSize.height;
 
@@ -461,7 +463,9 @@ class _PhotoCropScreenState extends State<PhotoCropScreen> {
                                           painter: CircularOverlayPainter(
                                             circleRadius: _cropHalfWidth,
                                             overlayColor: Colors.grey
-                                                .withValues(alpha: _maskOpacity),
+                                                .withValues(
+                                                  alpha: _maskOpacity,
+                                                ),
                                           ),
                                           size: viewportRect,
                                         ),
@@ -513,7 +517,10 @@ class _PhotoCropScreenState extends State<PhotoCropScreen> {
                                     Center(
                                       child: Text(
                                         'Zoom: ${(_zoomScale * 100).toStringAsFixed(0)}%',
-                                        style: const TextStyle(fontSize: 12, color: Colors.grey),
+                                        style: const TextStyle(
+                                          fontSize: 12,
+                                          color: Colors.grey,
+                                        ),
                                       ),
                                     ),
                                     const SizedBox(height: 5),
@@ -541,7 +548,7 @@ class _PhotoCropScreenState extends State<PhotoCropScreen> {
                     },
                   ),
                 ),
-                
+
                 Padding(
                   padding: const EdgeInsets.all(20),
                   child: SizedBox(

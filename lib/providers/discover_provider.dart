@@ -12,10 +12,15 @@ final discoverRepositoryProvider = Provider<DiscoverRepository>((ref) {
 });
 
 final discoverConnectProvider =
-    NotifierProvider.autoDispose<DiscoverConnectNotifier, DiscoverConnectState>(DiscoverConnectNotifier.new,);
+    NotifierProvider.autoDispose<DiscoverConnectNotifier, DiscoverConnectState>(
+      DiscoverConnectNotifier.new,
+    );
 
 final discoverRequestsProvider =
-    NotifierProvider.autoDispose<DiscoverRequestsNotifier, DiscoverRequestsState>(DiscoverRequestsNotifier.new,);
+    NotifierProvider.autoDispose<
+      DiscoverRequestsNotifier,
+      DiscoverRequestsState
+    >(DiscoverRequestsNotifier.new);
 
 // ── DiscoverConnectState ───────────────────────────────────────────────────
 
@@ -114,13 +119,17 @@ class DiscoverConnectNotifier extends Notifier<DiscoverConnectState> {
   late DiscoverStorage _storage;
   Timer? _searchDebounceTimer;
   bool _hasInitialized = false;
+  bool _isFetchingNext = false;
+  int _currentIndex = 0;
+  static const int _pageSize = 15;
 
   static const int _cacheDurationMs = 300000;
 
   Future<void> init() async {
     if (_hasInitialized) return;
     _hasInitialized = true;
-
+    // load saved index
+    _currentIndex = _storage.getDiscoverIndex();
     _hydrateFromCache();
     await _refreshIfStale();
     await refreshPendingRequests();
@@ -213,7 +222,7 @@ class DiscoverConnectNotifier extends Notifier<DiscoverConnectState> {
     );
 
     try {
-      final users = await _repository.discoverUsers();
+      final users = await _repository.discoverUsers(index: _currentIndex);
       final statuses = await _repository.fetchConnectionStatuses(
         users.map((user) => user.id).toList(),
       );
@@ -223,21 +232,35 @@ class DiscoverConnectNotifier extends Notifier<DiscoverConnectState> {
                 statuses.containsKey(user.id) && statuses[user.id] == 'none',
           )
           .toList();
+      // Merge with existing base students when fetching subsequent pages
+      List<User> newBase;
+      if (_currentIndex > 0) {
+        final combined = [...state.baseStudents, ...validUsers];
+        final Map<String, User> uniq = {};
+        for (var u in combined) {
+          uniq[u.id] = u;
+        }
+        newBase = uniq.values.toList();
+      } else {
+        newBase = validUsers;
+      }
 
-      _storage.saveDiscoverUsers(validUsers);
+      _storage.saveDiscoverUsers(newBase);
+      // persist current index
+      _storage.setDiscoverIndex(_currentIndex);
       _storage.setDiscoverLastFetchTime(now);
 
       final filtered = _applyFilters(
-        _filterSwipedLeft(validUsers, state.swipedLeftIds),
+        _filterSwipedLeft(newBase, state.swipedLeftIds),
         departmentName: state.selectedDepartmentName,
         batchYear: state.selectedBatchYear,
       );
 
       state = state.copyWith(
-        baseStudents: validUsers,
+        baseStudents: newBase,
         students: state.searchQuery.isEmpty ? filtered : state.students,
         connectionStatus: statuses,
-        topCardIndex: 0,
+        topCardIndex: _currentIndex == 0 ? 0 : state.topCardIndex,
         isLoading: false,
         isRefreshing: false,
         errorMessage: null,
@@ -381,17 +404,19 @@ class DiscoverConnectNotifier extends Notifier<DiscoverConnectState> {
     advanceCard();
   }
 
-  Future<void> swipeRight(User student) async {
-    try {
-      await _repository.sendConnectionRequest(student.id);
-      final updatedStatuses = Map<String, String>.from(state.connectionStatus)
-        ..[student.id] = 'outgoing_request';
-      state = state.copyWith(connectionStatus: updatedStatuses);
-    } catch (e) {
-      logger.e('[DiscoverConnectNotifier] swipeRight failed: $e');
-    } finally {
-      advanceCard();
-    }
+  void swipeRight(User student) {
+    final updatedStatuses = Map<String, String>.from(state.connectionStatus)
+      ..[student.id] = 'outgoing_request';
+    state = state.copyWith(connectionStatus: updatedStatuses);
+    advanceCard();
+
+    Future(() async {
+      try {
+        await _repository.sendConnectionRequest(student.id);
+      } catch (e) {
+        logger.e('[DiscoverConnectNotifier] swipeRight failed: $e');
+      }
+    });
   }
 
   Future<void> cancelConnectionRequest(String targetId) async {
@@ -408,6 +433,25 @@ class DiscoverConnectNotifier extends Notifier<DiscoverConnectState> {
   void advanceCard() {
     if (state.topCardIndex < state.students.length) {
       state = state.copyWith(topCardIndex: state.topCardIndex + 1);
+    }
+    // If we're nearing the end, fetch next index
+    final threshold = 3;
+    if (!_isFetchingNext &&
+        state.topCardIndex >= (state.students.length - threshold)) {
+      _fetchNextPage();
+    }
+  }
+
+  Future<void> _fetchNextPage() async {
+    _isFetchingNext = true;
+    try {
+      _currentIndex += _pageSize;
+      _storage.setDiscoverIndex(_currentIndex);
+      await refreshDiscoverUsers(forceRefresh: true);
+    } catch (e) {
+      logger.e('[DiscoverConnectNotifier] _fetchNextPage failed: $e');
+    } finally {
+      _isFetchingNext = false;
     }
   }
 }
@@ -507,10 +551,7 @@ class DiscoverRequestsNotifier extends Notifier<DiscoverRequestsState> {
       );
     } catch (e) {
       logger.e('[DiscoverRequestsNotifier] refreshRequests failed: $e');
-      state = state.copyWith(
-        isLoading: false,
-        errorMessage: e.toString(),
-      );
+      state = state.copyWith(isLoading: false, errorMessage: e.toString());
     }
   }
 
@@ -567,4 +608,4 @@ class DiscoverRequestsNotifier extends Notifier<DiscoverRequestsState> {
       state = state.copyWith(didChangeRequests: true);
     }
   }
-  }
+}

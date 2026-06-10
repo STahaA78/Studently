@@ -1,6 +1,6 @@
 import 'package:hive/hive.dart';
 import 'package:studently/models/notifications.dart';
-import '../logger.dart'; 
+import '../logger.dart';
 
 class NotificationStorage {
   final Box _box;
@@ -14,7 +14,7 @@ class NotificationStorage {
       // We convert the list into a Map where the Key is the ID.
       // Using putAll updates existing ones and adds new ones seamlessly.
       final Map<String, AppNotification> notificationMap = {
-        for (var n in notifications) n.id: n
+        for (var n in notifications) n.id: n,
       };
       await _box.putAll(notificationMap);
       logger.i('Saved ${notifications.length} notifications to local cache.');

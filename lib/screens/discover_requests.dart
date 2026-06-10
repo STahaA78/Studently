@@ -57,13 +57,13 @@ class _RequestsPageState extends ConsumerState<RequestsPage> {
             style: TextStyle(
               color: Colors.black,
               fontWeight: FontWeight.w600,
-              fontSize: AppStyle.appBarTitleSize),
+              fontSize: AppStyle.appBarTitleSize,
+            ),
           ),
         ),
         body: Builder(
           builder: (context) {
-            if (requestsState.isLoading &&
-                !requestsState.hasLoadedRequests) {
+            if (requestsState.isLoading && !requestsState.hasLoadedRequests) {
               return const Center(child: CircularProgressIndicator());
             }
 
@@ -175,8 +175,8 @@ class _RequestsPageState extends ConsumerState<RequestsPage> {
                 backgroundColor: Colors.grey[300],
                 backgroundImage:
                     user.picture != null && user.picture!.isNotEmpty
-                        ? NetworkImage(user.picture!)
-                        : null,
+                    ? NetworkImage(user.picture!)
+                    : null,
                 child: user.picture == null || user.picture!.isEmpty
                     ? const Icon(Icons.person, size: 32, color: Colors.grey)
                     : null,

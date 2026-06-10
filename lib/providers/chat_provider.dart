@@ -125,7 +125,7 @@ class ChatNotifier extends Notifier<ChatState> {
 
     socketService.connect();
     _initSocketListener();
-    
+
     // Start periodic refresh of user pictures (similar to feed's silentRefresh)
     _startUserPicsRefreshTimer();
     state = state.copyWith(isBootstrapping: false);
@@ -139,10 +139,14 @@ class ChatNotifier extends Notifier<ChatState> {
           event.type == 'profile_photo_removed' ||
           event.type == 'profile_updated' ||
           event.type == 'friendship_changed') {
-        ref.read(cacheCoordinatorProvider).invalidate(CacheDomain.chatUserProfiles);
+        ref
+            .read(cacheCoordinatorProvider)
+            .invalidate(CacheDomain.chatUserProfiles);
         _refreshAllUserPicturesFromServer(force: true);
       } else if (event.type == 'chat_state_changed') {
-        ref.read(cacheCoordinatorProvider).invalidate(CacheDomain.chatConversations);
+        ref
+            .read(cacheCoordinatorProvider)
+            .invalidate(CacheDomain.chatConversations);
         fetchConversations();
       }
     });
@@ -197,7 +201,7 @@ class ChatNotifier extends Notifier<ChatState> {
         final profile = await _chatRepo.getUserProfileBasic(userId);
         final newName = profile['name'] ?? "Unknown User";
         final newPic = profile['picture'] ?? "";
-        
+
         // Only update if changed (to avoid unnecessary UI rebuilds)
         if (updatedNames[userId] != newName || updatedPics[userId] != newPic) {
           updatedNames[userId] = newName;
@@ -333,7 +337,9 @@ class ChatNotifier extends Notifier<ChatState> {
 
       state = state.copyWith(conversations: mergedConvos);
       _chatStorage.saveConversations(mergedConvos);
-      ref.read(cacheCoordinatorProvider).markFresh(CacheDomain.chatConversations);
+      ref
+          .read(cacheCoordinatorProvider)
+          .markFresh(CacheDomain.chatConversations);
 
       await _fetchMissingNames(mergedConvos);
     } catch (e) {
@@ -538,7 +544,9 @@ class ChatNotifier extends Notifier<ChatState> {
               updatedPics[userId] = profile['picture'] ?? "";
               hasChanges = true;
             } catch (e) {
-              logger.w("[ChatProvider] Failed to fetch profile for $userId: $e");
+              logger.w(
+                "[ChatProvider] Failed to fetch profile for $userId: $e",
+              );
             }
           }
         }
@@ -558,26 +566,36 @@ class ChatNotifier extends Notifier<ChatState> {
   /// This ensures the change is reflected in both active chats and the friends list
   Future<void> refreshUserPictureFromServer(String userId) async {
     final cache = ref.read(cacheCoordinatorProvider);
-    if (!cache.tryBeginRefresh(CacheDomain.chatUserProfiles, scopeId: userId)) return;
+    if (!cache.tryBeginRefresh(CacheDomain.chatUserProfiles, scopeId: userId)){
+      return;
+    }
     try {
       final profile = await _chatRepo.getUserProfileBasic(userId);
       final newPic = profile['picture'] ?? "";
       final newName = profile['name'] ?? "Unknown User";
-      
+
       final updatedPics = Map<String, String>.from(state.userPics);
       final updatedNames = Map<String, String>.from(state.userNames);
-      
+
       updatedPics[userId] = newPic;
       updatedNames[userId] = newName;
-      
+
       state = state.copyWith(userNames: updatedNames, userPics: updatedPics);
       _chatStorage.saveUserNames(updatedNames);
       _chatStorage.saveUserPics(updatedPics);
-      cache.endRefresh(CacheDomain.chatUserProfiles, scopeId: userId, success: true);
-      
+      cache.endRefresh(
+        CacheDomain.chatUserProfiles,
+        scopeId: userId,
+        success: true,
+      );
+
       logger.i("[ChatProvider] Refreshed picture for user $userId from server");
     } catch (e) {
-      cache.endRefresh(CacheDomain.chatUserProfiles, scopeId: userId, success: false);
+      cache.endRefresh(
+        CacheDomain.chatUserProfiles,
+        scopeId: userId,
+        success: false,
+      );
       logger.w("[ChatProvider] Failed to refresh picture for $userId: $e");
     }
   }

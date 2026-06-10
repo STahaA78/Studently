@@ -146,8 +146,6 @@ class _ChatPageState extends ConsumerState<ChatPage> {
     }
   }
 
-
-
   Future<void> _sendMessage() async {
     final text = _messageController.text.trim();
     if (text.isEmpty) return;
@@ -168,7 +166,9 @@ class _ChatPageState extends ConsumerState<ChatPage> {
 
   String _formatTime(String timestamp) {
     try {
-      final String safeTimestamp = timestamp.endsWith('Z') ? timestamp : '${timestamp}Z';
+      final String safeTimestamp = timestamp.endsWith('Z')
+          ? timestamp
+          : '${timestamp}Z';
       final DateTime dt = DateTime.parse(safeTimestamp).toLocal();
       final hour = dt.hour > 12 ? dt.hour - 12 : (dt.hour == 0 ? 12 : dt.hour);
       final period = dt.hour >= 12 ? "PM" : "AM";
@@ -290,22 +290,22 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                 : messages.isEmpty
                 ? const Center(child: Text("No messages yet. Say Hi!"))
                 : (() {
-                      final reversedMessages = messages.reversed.toList();
-                      return ListView.builder(
-                        controller: _scrollController,
-                        reverse: true, // Anchors the list to the bottom
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 12,
-                          vertical: 10,
-                        ),
-                        itemCount: reversedMessages.length,
-                        itemBuilder: (context, index) {
-                          final msg = reversedMessages[index];
-                          final bool isMe =
-                              msg.senderId == authService.value.currentUser?.uid;
-                          return _buildMessageBubble(msg, isMe);
-                        },
-                      );
+                    final reversedMessages = messages.reversed.toList();
+                    return ListView.builder(
+                      controller: _scrollController,
+                      reverse: true, // Anchors the list to the bottom
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 10,
+                      ),
+                      itemCount: reversedMessages.length,
+                      itemBuilder: (context, index) {
+                        final msg = reversedMessages[index];
+                        final bool isMe =
+                            msg.senderId == authService.value.currentUser?.uid;
+                        return _buildMessageBubble(msg, isMe);
+                      },
+                    );
                   })(),
           ),
           _buildInputArea(),
@@ -518,7 +518,10 @@ class _ChatPageState extends ConsumerState<ChatPage> {
             const SizedBox(width: 4),
             Expanded(
               child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 15,vertical: 1),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 15,
+                  vertical: 1,
+                ),
                 decoration: BoxDecoration(
                   color: Colors.white,
                   borderRadius: BorderRadius.circular(24),

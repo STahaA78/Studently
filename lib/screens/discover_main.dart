@@ -17,15 +17,18 @@ class ConnectDiscoverPage extends ConsumerStatefulWidget {
   const ConnectDiscoverPage({super.key});
 
   @override
-  ConsumerState<ConnectDiscoverPage> createState() =>_ConnectDiscoverPageState();
+  ConsumerState<ConnectDiscoverPage> createState() =>
+      _ConnectDiscoverPageState();
 }
 
-class _ConnectDiscoverPageState extends ConsumerState<ConnectDiscoverPage> with WidgetsBindingObserver {
+class _ConnectDiscoverPageState extends ConsumerState<ConnectDiscoverPage>
+    with WidgetsBindingObserver {
   final TextEditingController _searchController = TextEditingController();
   final Color primaryBlue = const Color(0xFF0F74C5);
   final ValueNotifier<double> _swipeProgressNotifier = ValueNotifier<double>(
     0.0,
   );
+  final Set<String> _precachedCardIds = <String>{};
 
   @override
   void initState() {
@@ -44,6 +47,26 @@ class _ConnectDiscoverPageState extends ConsumerState<ConnectDiscoverPage> with 
     super.dispose();
   }
 
+  void _precacheUpcomingCardImages(
+    BuildContext context,
+    List<User> students,
+    int topCardIndex,
+  ) {
+    for (var i = topCardIndex; i < topCardIndex + 4 && i < students.length; i++) {
+      final student = students[i];
+      final thumbnail = student.thumbnail;
+      if (thumbnail == null || thumbnail.isEmpty) {
+        continue;
+      }
+
+      if (!_precachedCardIds.add(student.id)) {
+        continue;
+      }
+
+      precacheImage(CachedNetworkImageProvider(thumbnail), context);
+    }
+  }
+
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     // Reload pending count when app resumes (returning from another screen)
@@ -51,6 +74,7 @@ class _ConnectDiscoverPageState extends ConsumerState<ConnectDiscoverPage> with 
       ref.read(discoverConnectProvider.notifier).refreshPendingRequests();
     }
   }
+
   void _clearSearch() {
     _searchController.clear();
     ref.read(discoverConnectProvider.notifier).clearSearch();
@@ -76,208 +100,200 @@ class _ConnectDiscoverPageState extends ConsumerState<ConnectDiscoverPage> with 
         return SafeArea(
           child: Padding(
             padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-            child: Consumer(builder: (context, ref, _) {
-              return ref.watch(backendConfigProvider).when(
-                loading: () => const SizedBox(height: 120, child: Center(child: CircularProgressIndicator())),
-                error: (e, _) => Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 20),
-                  child: Center(child: Text('Error loading config: $e')),
-                ),
-                data: (config) {
-                  final batchYears = List<String>.generate(
-                    config.batchRange.end - config.batchRange.start + 1,
-                    (i) => (config.batchRange.start + i).toString(),
-                  );
-
-                  return Column(
-                    mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Text(
-                            'Filter',
-                            style: const TextStyle(
-                              fontSize: 40,
-                              fontWeight: FontWeight.w800,
-                              color: Colors.black,
-                            ),
-                          ),
-                          IconButton(
-                            icon: const Icon(Icons.close),
-                            onPressed: () => Navigator.pop(context),
-                            padding: EdgeInsets.zero,
-                            constraints: const BoxConstraints(),
-                          ),
-                        ],
+            child: Consumer(
+              builder: (context, ref, _) {
+                return ref
+                    .watch(backendConfigProvider)
+                    .when(
+                      loading: () => const SizedBox(
+                        height: 120,
+                        child: Center(child: CircularProgressIndicator()),
                       ),
-                      const SizedBox(height: 24),
-                const Text(
-                        'Department',
-                        style: TextStyle(
-                          fontWeight: FontWeight.w500,
-                          fontSize: 15,
-                        ),
+                      error: (e, _) => Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 20),
+                        child: Center(child: Text('Error loading config: $e')),
                       ),
-                      const SizedBox(height: 6),
+                      data: (config) {
+                        final batchYears = List<String>.generate(
+                          config.batchRange.end - config.batchRange.start + 1,
+                          (i) => (config.batchRange.start + i).toString(),
+                        );
 
-                      Container(
-                        height: 50,
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(16),
-                          border: Border.all(
-                            color: const Color(0xFFD0D0D0),
-                            width: 1.2,
-                          ),
-                        ),
-                        child: DropdownButtonFormField<String>(
-                          initialValue: tempDept,
-                          hint: const Text('Select Department'),
-                          style: const TextStyle(
-                            fontSize: 15,
-                            color: Colors.black87,
-                          ),
-                          decoration: const InputDecoration(
-                            filled: false,
-                            contentPadding: EdgeInsets.symmetric(
-                              horizontal: 18,
-                              vertical: 8,
-                            ),
-                            border: InputBorder.none,
-                            enabledBorder: InputBorder.none,
-                            focusedBorder: InputBorder.none,
-                          ),
-                          isExpanded: true,
-                          dropdownColor: Colors.white,
-                          icon: const Icon(
-                            Icons.keyboard_arrow_down_rounded,
-                            color: Colors.grey,
-                          ),
-                          items: config.departments
-                              .map(
-                                (dept) => DropdownMenuItem(
-                                  value: dept.name,
-                                  child: Text(dept.name),
+                        return Column(
+                          mainAxisSize: MainAxisSize.min,
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Text(
+                                  'Filter',
+                                  style: const TextStyle(
+                                    fontSize: 40,
+                                    fontWeight: FontWeight.w800,
+                                    color: Colors.black,
+                                  ),
                                 ),
-                              )
-                              .toList(),
-                          onChanged: (val) {
-                            setState(() {
-                              tempDept = val;
-                            });
-                          },
-                          borderRadius: BorderRadius.circular(20),
-                          menuMaxHeight: 220,
-                        ),
-                      ),
-
-                      const SizedBox(height: 16),
-
-                      const Text(
-                        'Batch Year',
-                        style: TextStyle(
-                          fontWeight: FontWeight.w500,
-                          fontSize: 15,
-                        ),
-                      ),
-                      const SizedBox(height: 6),
-
-                      Container(
-                        height: 50,
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(16),
-                          border: Border.all(
-                            color: const Color(0xFFD0D0D0),
-                            width: 1.2,
-                          ),
-                        ),
-                        child: DropdownButtonFormField<String>(
-                          initialValue: tempBatch,
-                          hint: const Text('Select Batch'),
-                          style: const TextStyle(
-                            fontSize: 15,
-                            color: Colors.black87,
-                          ),
-                          decoration: const InputDecoration(
-                            filled: false,
-                            contentPadding: EdgeInsets.symmetric(
-                              horizontal: 18,
-                              vertical: 8,
-                            ),
-                            border: InputBorder.none,
-                            enabledBorder: InputBorder.none,
-                            focusedBorder: InputBorder.none,
-                          ),
-                          isExpanded: true,
-                          dropdownColor: Colors.white,
-                          icon: const Icon(
-                            Icons.keyboard_arrow_down_rounded,
-                            color: Colors.grey,
-                          ),
-                          items: batchYears
-                              .map(
-                                (b) => DropdownMenuItem(
-                                  value: b,
-                                  child: Text(b),
+                                IconButton(
+                                  icon: const Icon(Icons.close),
+                                  onPressed: () => Navigator.pop(context),
+                                  padding: EdgeInsets.zero,
+                                  constraints: const BoxConstraints(),
                                 ),
-                              )
-                              .toList(),
-                          onChanged: (val) {
-                            setState(() {
-                              tempBatch = val;
-                            });
-                          },
-                          borderRadius: BorderRadius.circular(20),
-                          menuMaxHeight: 220,
-                        ),
-                      ),
-                      const SizedBox(height: 20),
-                      Row(
-                        children: [
-
-                          Expanded(
-                            child: SizedBox(
-                              height:40,
-                              child: OutlinedButton(
-                                onPressed: () {
-                                  Navigator.pop(context);
-                                  _swipeProgressNotifier.value = 0.0;
-                                  ref.read(discoverConnectProvider.notifier).resetFilters();
-                                },
-                                child: const Text('Reset'),
-                              )
-                            )
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: SizedBox(
-                              height: 40,
-                              child: ElevatedButton(
-                                onPressed: () {
-                                  Navigator.pop(context);
-                                  _swipeProgressNotifier.value = 0.0;
-                                  ref
-                                      .read(discoverConnectProvider.notifier)
-                                      .applyFilters(
-                                        departmentName: tempDept,
-                                        batchYear: tempBatch,
-                                      );
-                                },
-                                child: const Text('Apply'),
+                              ],
+                            ),
+                            const SizedBox(height: 24),
+                            const Text(
+                              'Department',
+                              style: TextStyle(
+                                fontWeight: FontWeight.w500,
+                                fontSize: 15,
                               ),
                             ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 16),
-                    ],
-                  );
-                },
-              );
-            }),
+                            const SizedBox(height: 6),
+
+                            Container(
+                              height: 50,
+                              decoration:
+                                  AppStyle.dropdownContainerDecoration(),
+                              child: DropdownButtonFormField<String>(
+                                initialValue: tempDept,
+                                hint: const Text('Select Department'),
+                                style: const TextStyle(
+                                  fontSize: 15,
+                                  color: Colors.black87,
+                                ),
+                                decoration: AppStyle.dropdownInputDecoration(
+                                  hintText: 'Select Department',
+                                ),
+                                isExpanded: true,
+                                dropdownColor: Colors.white,
+                                icon: const Icon(
+                                  Icons.keyboard_arrow_down_rounded,
+                                  color: Colors.grey,
+                                ),
+                                items: config.departments
+                                    .map(
+                                      (dept) => DropdownMenuItem(
+                                        value: dept.name,
+                                        child: Text(dept.name),
+                                      ),
+                                    )
+                                    .toList(),
+                                onChanged: (val) {
+                                  setState(() {
+                                    tempDept = val;
+                                  });
+                                },
+                                borderRadius: BorderRadius.circular(20),
+                                menuMaxHeight: 220,
+                              ),
+                            ),
+
+                            const SizedBox(height: 16),
+
+                            const Text(
+                              'Batch Year',
+                              style: TextStyle(
+                                fontWeight: FontWeight.w500,
+                                fontSize: 15,
+                              ),
+                            ),
+                            const SizedBox(height: 6),
+
+                            Container(
+                              height: 50,
+                              decoration:
+                                  AppStyle.dropdownContainerDecoration(),
+                              child: DropdownButtonFormField<String>(
+                                initialValue: tempBatch,
+                                hint: const Text('Select Batch'),
+                                style: const TextStyle(
+                                  fontSize: 15,
+                                  color: Colors.black87,
+                                ),
+                                decoration: AppStyle.dropdownInputDecoration(
+                                  hintText: 'Select Batch',
+                                ),
+                                isExpanded: true,
+                                dropdownColor: Colors.white,
+                                icon: const Icon(
+                                  Icons.keyboard_arrow_down_rounded,
+                                  color: Colors.grey,
+                                ),
+                                items: batchYears
+                                    .map(
+                                      (b) => DropdownMenuItem(
+                                        value: b,
+                                        child: Text(b),
+                                      ),
+                                    )
+                                    .toList(),
+                                onChanged: (val) {
+                                  setState(() {
+                                    tempBatch = val;
+                                  });
+                                },
+                                borderRadius: BorderRadius.circular(20),
+                                menuMaxHeight: 220,
+                              ),
+                            ),
+                            const SizedBox(height: 20),
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: SizedBox(
+                                    height: 46,
+                                    child: OutlinedButton(
+                                      onPressed: () {
+                                        Navigator.pop(context);
+                                        _swipeProgressNotifier.value = 0.0;
+                                        ref
+                                            .read(
+                                              discoverConnectProvider.notifier,
+                                            )
+                                            .resetFilters();
+                                      },
+                                      child: const Text(
+                                        'Reset',
+                                        style: TextStyle(fontSize: 14),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: SizedBox(
+                                    height: 46,
+                                    child: ElevatedButton(
+                                      onPressed: () {
+                                        Navigator.pop(context);
+                                        _swipeProgressNotifier.value = 0.0;
+                                        ref
+                                            .read(
+                                              discoverConnectProvider.notifier,
+                                            )
+                                            .applyFilters(
+                                              departmentName: tempDept,
+                                              batchYear: tempBatch,
+                                            );
+                                      },
+                                      child: const Text(
+                                        'Apply',
+                                        style: TextStyle(fontSize: 14),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 16),
+                          ],
+                        );
+                      },
+                    );
+              },
+            ),
           ),
         );
       },
@@ -287,7 +303,56 @@ class _ConnectDiscoverPageState extends ConsumerState<ConnectDiscoverPage> with 
   // ---------------- BUILD ----------------
   @override
   Widget build(BuildContext context) {
-    final discoverState = ref.watch(discoverConnectProvider);
+    // Use selectors to avoid rebuilding the whole page when unrelated state changes
+    final students = ref.watch(
+      discoverConnectProvider.select((s) => s.students),
+    );
+    final topCardIndex = ref.watch(
+      discoverConnectProvider.select((s) => s.topCardIndex),
+    );
+    final isLoading = ref.watch(
+      discoverConnectProvider.select((s) => s.isLoading),
+    );
+    final isRefreshing = ref.watch(
+      discoverConnectProvider.select((s) => s.isRefreshing),
+    );
+    final errorMessage = ref.watch(
+      discoverConnectProvider.select((s) => s.errorMessage),
+    );
+    final isSearchFocused = ref.watch(
+      discoverConnectProvider.select((s) => s.isSearchFocused),
+    );
+    final recentSearches = ref.watch(
+      discoverConnectProvider.select((s) => s.recentSearches),
+    );
+    final pendingRequestsCount = ref.watch(
+      discoverConnectProvider.select((s) => s.pendingRequestsCount),
+    );
+
+    // Rebuild a lightweight state object for passing to builder methods
+    final discoverState = DiscoverConnectState(
+      baseStudents: const [],
+      students: students,
+      connectionStatus: const {},
+      pendingRequestsCount: pendingRequestsCount,
+      isSearchFocused: isSearchFocused,
+      recentSearches: recentSearches,
+      selectedDepartmentName: null,
+      selectedBatchYear: null,
+      topCardIndex: topCardIndex,
+      isLoading: isLoading,
+      isRefreshing: isRefreshing,
+      errorMessage: errorMessage,
+      searchQuery: '',
+      swipedLeftIds: const {},
+    );
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) {
+        return;
+      }
+      _precacheUpcomingCardImages(context, students, topCardIndex);
+    });
     return Scaffold(
       backgroundColor: Colors.white,
       appBar: AppBar(
@@ -308,12 +373,11 @@ class _ConnectDiscoverPageState extends ConsumerState<ConnectDiscoverPage> with 
             IconButton(
               icon: const Icon(Icons.refresh, color: Colors.black),
               tooltip: 'Refresh profiles',
-              onPressed:
-                  discoverState.isRefreshing
-                      ? null
-                      : () => ref
-                          .read(discoverConnectProvider.notifier)
-                          .refreshDiscoverUsers(forceRefresh: true),
+              onPressed: discoverState.isRefreshing
+                  ? null
+                  : () => ref
+                        .read(discoverConnectProvider.notifier)
+                        .refreshDiscoverUsers(forceRefresh: true),
             ),
           IconButton(
             icon: Stack(
@@ -384,11 +448,10 @@ class _ConnectDiscoverPageState extends ConsumerState<ConnectDiscoverPage> with 
                     onChanged: (value) => ref
                         .read(discoverConnectProvider.notifier)
                         .onSearchChanged(value),
-                    onTap:
-                        () => ref
-                            .read(discoverConnectProvider.notifier)
-                            .setSearchFocused(true),
-                    decoration: AppStyle.searchDecoration("Search Students ")
+                    onTap: () => ref
+                        .read(discoverConnectProvider.notifier)
+                        .setSearchFocused(true),
+                    decoration: AppStyle.searchDecoration("Search Students "),
                   ),
                 ),
                 Padding(
@@ -546,11 +609,9 @@ class _ConnectDiscoverPageState extends ConsumerState<ConnectDiscoverPage> with 
                     ),
                   ),
                   GestureDetector(
-                    onTap:
-                        () =>
-                            ref
-                                .read(discoverConnectProvider.notifier)
-                                .clearRecentSearches(),
+                    onTap: () => ref
+                        .read(discoverConnectProvider.notifier)
+                        .clearRecentSearches(),
                     child: Text(
                       "Clear all",
                       style: TextStyle(color: primaryBlue, fontSize: 12),
@@ -608,12 +669,7 @@ class _ConnectDiscoverPageState extends ConsumerState<ConnectDiscoverPage> with 
       return _buildEmptyState('All caught up!');
     }
     if (state.topCardIndex >= state.students.length) {
-      return Center(
-        child: Text(
-         "You've seen everyone!",
-         style: Theme.of(context).textTheme.titleMedium,
-        )
-      );
+      return _buildEmptyState('You have seen everyone!');
     }
 
     final remaining = state.students.length - state.topCardIndex;
@@ -680,7 +736,14 @@ class _ConnectDiscoverPageState extends ConsumerState<ConnectDiscoverPage> with 
 
   Widget _buildEmptyState(String message) {
     return Center(
-      child: Text(message, style: TextStyle(fontSize: 18, color: Colors.grey, fontWeight: FontWeight.w500)),
+      child: Text(
+        message,
+        style: TextStyle(
+          fontSize: 18,
+          color: Colors.grey,
+          fontWeight: FontWeight.w500,
+        ),
+      ),
     );
   }
 
@@ -697,143 +760,147 @@ class _ConnectDiscoverPageState extends ConsumerState<ConnectDiscoverPage> with 
               );
             }
           : null,
-      child: Container(
-        clipBehavior: Clip.hardEdge,
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(24),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.1),
-              blurRadius: 12,
-              offset: const Offset(0, 4),
-            ),
-          ],
-        ),
-        child: Stack(
-          children: [
-            Positioned.fill(child: _buildCardBackground(student)),
-            Column(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Padding(
-                  padding: const EdgeInsets.only(top: 10, left: 20),
-                  child: SizedBox(
-                    width: double.infinity,
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          student.name,
-                          style: const TextStyle(
-                            fontSize: 28,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.white,
-                          ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          textAlign: TextAlign.left,
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          "${student.department} • Batch ${student.batch}",
-                          style: const TextStyle(
-                            fontSize: 14,
-                            color: Colors.white,
-                          ),
-                          textAlign: TextAlign.left,
-                        ),
-                      ],
-                    ),
-                  ),
+      child: RepaintBoundary(
+          child: Container(
+            clipBehavior: Clip.none,
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(24),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.04),
+                  blurRadius: 4,
+                  offset: const Offset(0, 1),
                 ),
-                if (student.interests.isNotEmpty)
-                  Padding(
-                    padding: const EdgeInsets.only(
-                      left: 10,
-                      right: 10,
-                      bottom: 16,
-                    ),
-                    child: Container(
-                      clipBehavior: Clip.hardEdge,
-                      decoration: BoxDecoration(
-                        border: Border.all(color: Colors.grey.shade300),
-                        borderRadius: BorderRadius.circular(16),
-                        color: Colors.white,
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Padding(
-                            padding: EdgeInsets.symmetric(
-                              horizontal: 16,
-                              vertical: 12,
-                            ),
-                            child: Text(
-                              'Interests',
-                              style: TextStyle(
-                                fontSize: 14,
-                                fontWeight: FontWeight.w600,
-                                color: Colors.black87,
-                              ),
-                            ),
-                          ),
-                          Divider(height: 1, color: Colors.grey.shade300),
-                          Padding(
-                            padding: const EdgeInsets.all(12),
-                            child: Wrap(
-                              spacing: 6,
-                              runSpacing: 6,
-                              children: student.interests
-                                  .take(5) // Safety check, Although should never be more than 5
-                                  .map(
-                                    (Interest interest) => Container(
-                                      padding: const EdgeInsets.symmetric(
-                                        horizontal: 10,
-                                        vertical: 4,
-                                      ),
-                                      decoration: BoxDecoration(
-                                        color: Colors.grey.shade100,
-                                        borderRadius: BorderRadius.circular(16),
-                                        border: Border.all(
-                                          color: const Color(0xFFE0E6ED),
-                                        ),
-                                      ),
-                                      child: Row(
-                                        mainAxisSize: MainAxisSize.min,
-                                        children: [
-                                          if (interest.emoji.isNotEmpty) ...[
-                                            Text(
-                                              interest.emoji,
-                                              style: const TextStyle(
-                                                fontSize: 12,
-                                              ),
-                                            ),
-                                            const SizedBox(width: 4),
-                                          ],
-                                          Text(
-                                            interest.name,
-                                            style: const TextStyle(
-                                              color: Color(0xFF334155),
-                                              fontSize: 11,
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-                                  )
-                                  .toList(),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
               ],
             ),
-          ],
+            child: Stack(
+              children: [
+                Positioned.fill(child: _buildCardBackground(student)),
+                Column(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.only(top: 10, left: 20),
+                      child: SizedBox(
+                        width: double.infinity,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              student.name,
+                              style: const TextStyle(
+                                fontSize: 28,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.white,
+                              ),
+                              maxLines: 3,
+                              overflow: TextOverflow.ellipsis,
+                              textAlign: TextAlign.left,
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              "${student.department?.name ?? 'N/A'} • Batch ${student.batch}",
+                              style: const TextStyle(
+                                fontSize: 14,
+                                color: Colors.white,
+                              ),
+                              textAlign: TextAlign.left,
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                    if (student.interests.isNotEmpty)
+                      Padding(
+                        padding: const EdgeInsets.only(
+                          left: 10,
+                          right: 10,
+                          bottom: 16,
+                        ),
+                        child: Container(
+                          clipBehavior: Clip.none,
+                          decoration: BoxDecoration(
+                            border: Border.all(color: Colors.grey.shade300),
+                            borderRadius: BorderRadius.circular(16),
+                            color: Colors.white,
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Padding(
+                                padding: EdgeInsets.symmetric(
+                                  horizontal: 16,
+                                  vertical: 12,
+                                ),
+                                child: Text(
+                                  'Interests',
+                                  style: TextStyle(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w600,
+                                    color: Colors.black87,
+                                  ),
+                                ),
+                              ),
+                              Divider(height: 1, color: Colors.grey.shade300),
+                              Padding(
+                                padding: const EdgeInsets.all(12),
+                                child: Wrap(
+                                  spacing: 6,
+                                  runSpacing: 6,
+                                  children: student.interests
+                                      .take(3)
+                                      .map(
+                                        (Interest interest) => Container(
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 10,
+                                            vertical: 4,
+                                          ),
+                                          decoration: BoxDecoration(
+                                            color: Colors.grey.shade100,
+                                            borderRadius: BorderRadius.circular(
+                                              16,
+                                            ),
+                                            border: Border.all(
+                                              color: const Color(0xFFE0E6ED),
+                                            ),
+                                          ),
+                                          child: Row(
+                                            mainAxisSize: MainAxisSize.min,
+                                            children: [
+                                              if (interest.emoji.isNotEmpty) ...[
+                                                Text(
+                                                  interest.emoji,
+                                                  style: const TextStyle(
+                                                    fontSize: 12,
+                                                  ),
+                                                ),
+                                                const SizedBox(width: 4),
+                                              ],
+                                              Text(
+                                                interest.name,
+                                                style: const TextStyle(
+                                                  color: Color(0xFF334155),
+                                                  fontSize: 11,
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                      )
+                                      .toList(),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+              ],
+            ),
+          ),
         ),
-      ),
     );
   }
 
@@ -844,12 +911,12 @@ class _ConnectDiscoverPageState extends ConsumerState<ConnectDiscoverPage> with 
       return Stack(
         fit: StackFit.expand,
         children: [
-          Image.network(
-            backgroundUrl,
+          CachedNetworkImage(
+            imageUrl: backgroundUrl,
             fit: BoxFit.cover,
-            errorBuilder: (context, error, stackTrace) =>
-                _buildDefaultBackground(),
-          ),  
+            placeholder: (context, url) => _buildDefaultBackground(),
+            errorWidget: (context, url, error) => _buildDefaultBackground(),
+          ),
           Container(
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(24),
@@ -962,7 +1029,9 @@ class _DraggableCardState extends State<_DraggableCard>
   late Animation<Offset> _animation;
   bool _animating = false;
 
-  static const double _swipeThreshold = 100.0;
+  double get _swipeThreshold {
+    return MediaQuery.of(context).size.width * 0.25; // 25% of screen width
+  }
 
   void _setStateIfMounted(VoidCallback fn) {
     if (!mounted) return;
@@ -1025,11 +1094,16 @@ class _DraggableCardState extends State<_DraggableCard>
       _animating = true;
       final dir = _offset.dx > 0 ? 1.0 : -1.0;
       double screenWidth = MediaQuery.of(context).size.width;
+      _controller.duration = const Duration(milliseconds: 250);
       _animation = Tween<Offset>(
         begin: _offset,
         end: Offset(dir * screenWidth * 1.5, _offset.dy),
       ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeIn));
       _controller.forward(from: 0).then((_) {
+        // Reset swipe progress immediately before callback
+        if (widget.swipeNotifier != null) {
+          widget.swipeNotifier!.value = 0.0;
+        }
         if (dir > 0) {
           widget.onSwipedRight();
         } else {
@@ -1038,17 +1112,14 @@ class _DraggableCardState extends State<_DraggableCard>
         if (mounted) {
           _offset = Offset.zero;
           _animating = false;
-          if (widget.swipeNotifier != null) {
-            widget.swipeNotifier!.value = 0.0;
-          }
         }
       });
     } else {
       // Snap back
+      _controller.duration = const Duration(milliseconds: 300);
       _animation = Tween<Offset>(begin: _offset, end: Offset.zero).animate(
         CurvedAnimation(parent: _controller, curve: Curves.easeOutQuint),
       );
-      _controller.duration = const Duration(milliseconds: 300);
       _controller.forward(from: 0).then((_) {
         _controller.duration = const Duration(milliseconds: 250);
         _animating = false;

@@ -17,7 +17,10 @@ class NotificationBadgeIcon extends StatelessWidget {
     this.svgAssetPath,
     this.iconColor = Colors.grey,
     this.iconSize = 25,
-  }) : assert(icon != null || svgAssetPath != null, 'Either icon or svgAssetPath must be provided');
+  }) : assert(
+         icon != null || svgAssetPath != null,
+         'Either icon or svgAssetPath must be provided',
+       );
 
   @override
   Widget build(BuildContext context) {
