@@ -56,6 +56,9 @@ class ChatConversation {
   String? courseId;
   String? title;
 
+  // NEW FIELDS FOR SOFT DELETE
+  List<String> deletedForUsers = []; // Users who have deleted this chat
+
   ChatConversation({
     required this.id,
     List<String>? participants,
@@ -65,9 +68,11 @@ class ChatConversation {
     this.isGroup = false,
     this.courseId,
     this.title,
+    List<String>? deletedForUsers,
   }) {
     if (participants != null) this.participants = participants;
     if (unreadCounts != null) this.unreadCounts = unreadCounts;
+    if (deletedForUsers != null) this.deletedForUsers = deletedForUsers;
   }
 
   factory ChatConversation.fromJson(Map<String, dynamic> json) {
@@ -84,9 +89,10 @@ class ChatConversation {
       lastMessage: json['last_message'],
       unreadCounts: parsedCounts,
       createdAt: json['created_at'] ?? '',
-      isGroup: json['is_group'] ?? false, // Added
-      courseId: json['course_id'], // Added
-      title: json['title'], // Added
+      isGroup: json['is_group'] ?? false,
+      courseId: json['course_id'],
+      title: json['title'],
+      deletedForUsers: List<String>.from(json['deleted_for_users'] ?? []),
     );
   }
 
@@ -99,6 +105,7 @@ class ChatConversation {
     'is_group': isGroup,
     'course_id': courseId,
     'title': title,
+    'deleted_for_users': deletedForUsers,
   };
 
   ChatConversation copyWith({
@@ -110,6 +117,7 @@ class ChatConversation {
     bool? isGroup,
     String? courseId,
     String? title,
+    List<String>? deletedForUsers,
   }) {
     return ChatConversation(
       id: id ?? this.id,
@@ -120,6 +128,7 @@ class ChatConversation {
       isGroup: isGroup ?? this.isGroup,
       courseId: courseId ?? this.courseId,
       title: title ?? this.title,
+      deletedForUsers: deletedForUsers ?? this.deletedForUsers,
     );
   }
 }

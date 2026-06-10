@@ -17,6 +17,7 @@ import 'package:studently/providers/chat_provider.dart';
 import 'package:studently/services/chat_presence.dart';
 import 'package:studently/services/firebase_auth.dart';
 import 'package:studently/logger.dart';
+import 'package:studently/screens/chat_info_page.dart';
 
 class ChatPage extends ConsumerStatefulWidget {
   final String conversationId;
@@ -277,6 +278,35 @@ class _ChatPageState extends ConsumerState<ChatPage> {
           ),
         ),
         centerTitle: true,
+        actions: [
+          IconButton(
+            icon: const Icon(
+              Icons.info_outline,
+              color: Colors.black87,
+            ),
+            onPressed: () {
+              final chatState = ref.read(chatProvider);
+              final conversation = chatState.conversations.firstWhere(
+                (c) => c.id == widget.conversationId,
+                orElse: () => ChatConversation(
+                  id: widget.conversationId,
+                  createdAt: DateTime.now().toIso8601String(),
+                ),
+              );
+              
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => ChatInfoPage(
+                    conversationId: widget.conversationId,
+                    isGroup: conversation.isGroup,
+                    otherUserId: widget.otherUserId,
+                  ),
+                ),
+              );
+            },
+          ),
+        ],
       ),
       body: Column(
         children: [

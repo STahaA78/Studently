@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:studently/models/chat.dart';
+import 'package:studently/models/chat_info.dart';
 import 'package:studently/repositories/chat.dart';
 import 'package:studently/services/socket.dart';
 import 'package:studently/services/firebase_auth.dart';
@@ -20,6 +21,8 @@ class ChatState {
   final Map<String, String> userNames;
   final Map<String, String> userPics;
   final bool isBootstrapping;
+  final ChatInfoData? currentChatInfo;
+  final bool isLoadingChatInfo;
 
   ChatState({
     this.conversations = const [],
@@ -29,6 +32,8 @@ class ChatState {
     this.userNames = const {},
     this.userPics = const {},
     this.isBootstrapping = false,
+    this.currentChatInfo,
+    this.isLoadingChatInfo = false,
   });
 
   ChatState copyWith({
@@ -39,6 +44,8 @@ class ChatState {
     Map<String, String>? userNames,
     Map<String, String>? userPics,
     bool? isBootstrapping,
+    ChatInfoData? currentChatInfo,
+    bool? isLoadingChatInfo,
   }) {
     return ChatState(
       conversations: conversations ?? this.conversations,
@@ -48,6 +55,8 @@ class ChatState {
       userNames: userNames ?? this.userNames,
       userPics: userPics ?? this.userPics,
       isBootstrapping: isBootstrapping ?? this.isBootstrapping,
+      currentChatInfo: currentChatInfo ?? this.currentChatInfo,
+      isLoadingChatInfo: isLoadingChatInfo ?? this.isLoadingChatInfo,
     );
   }
 }
@@ -121,7 +130,9 @@ class ChatNotifier extends Notifier<ChatState> {
     state = state.copyWith(isBootstrapping: true);
     _loadNamesFromHive();
     await _loadConversationsFromHive();
+    if (!ref.mounted) return;
     await fetchConversations();
+    if (!ref.mounted) return;
 
     socketService.connect();
     _initSocketListener();
@@ -157,6 +168,7 @@ class ChatNotifier extends Notifier<ChatState> {
   void _startUserPicsRefreshTimer() {
     _userPicsRefreshTimer?.cancel();
     _userPicsRefreshTimer = Timer.periodic(const Duration(seconds: 45), (_) {
+      if (!ref.mounted) return;
       _refreshAllUserPicturesFromServer();
     });
   }
@@ -164,6 +176,7 @@ class ChatNotifier extends Notifier<ChatState> {
   /// Refresh all user pictures from the server without blocking UI
   /// This is called periodically to ensure profile picture updates are shown
   Future<void> _refreshAllUserPicturesFromServer({bool force = false}) async {
+    if (!ref.mounted) return;
     final cache = ref.read(cacheCoordinatorProvider);
     if (!force && !cache.isStale(CacheDomain.chatUserProfiles)) return;
     if (!cache.tryBeginRefresh(CacheDomain.chatUserProfiles)) return;
@@ -199,6 +212,10 @@ class ChatNotifier extends Notifier<ChatState> {
     for (final userId in userIdsToFetch) {
       try {
         final profile = await _chatRepo.getUserProfileBasic(userId);
+        if (!ref.mounted) {
+          cache.endRefresh(CacheDomain.chatUserProfiles, success: false);
+          return;
+        }
         final newName = profile['name'] ?? "Unknown User";
         final newPic = profile['picture'] ?? "";
 
@@ -256,6 +273,7 @@ class ChatNotifier extends Notifier<ChatState> {
   }
 
   Future<void> _fetchMissingNames(List<ChatConversation> convos) async {
+    if (!ref.mounted) return;
     final myUid = authService.value.currentUser?.uid;
     final Set<String> missingIds = {};
 
@@ -276,6 +294,7 @@ class ChatNotifier extends Notifier<ChatState> {
     for (final id in missingIds) {
       try {
         final profile = await _chatRepo.getUserProfileBasic(id);
+        if (!ref.mounted) return;
         updatedNames[id] = profile['name'] ?? "Unknown User";
         updatedPics[id] = profile['picture'] ?? "";
       } catch (e) {
@@ -300,8 +319,10 @@ class ChatNotifier extends Notifier<ChatState> {
   }
 
   Future<void> fetchConversations() async {
+    if (!ref.mounted) return;
     try {
       final convos = await _chatRepo.getUserConversations();
+      if (!ref.mounted) return;
 
       // RACE CONDITION FIX: The API response arrives after we may have already
       // locally zeroed an unread count (when the user opened a chat). If we
@@ -343,6 +364,7 @@ class ChatNotifier extends Notifier<ChatState> {
 
       await _fetchMissingNames(mergedConvos);
     } catch (e) {
+      if (!ref.mounted) return;
       logger.e("[ChatProvider] Error fetching conversations: $e");
     }
   }
@@ -352,6 +374,7 @@ class ChatNotifier extends Notifier<ChatState> {
   // Helper: zeros the unread count for [conversationId] in state and Hive.
   // Called in multiple places to guarantee the zero survives any race.
   void _zeroUnreadCount(String conversationId) {
+    if (!ref.mounted) return;
     final myUid = authService.value.currentUser?.uid;
     if (myUid == null) return;
 
@@ -372,6 +395,7 @@ class ChatNotifier extends Notifier<ChatState> {
   }
 
   Future<void> loadMessagesForChat(String conversationId) async {
+    if (!ref.mounted) return;
     ChatPresence.setActiveConversation(conversationId);
     state = state.copyWith(
       activeConversationId: conversationId,
@@ -389,10 +413,14 @@ class ChatNotifier extends Notifier<ChatState> {
 
     // Show cached messages instantly while the network request runs.
     final messages = _chatStorage.getCachedMessages(conversationId);
-    state = state.copyWith(activeMessages: messages, isLoading: false);
+    state = state.copyWith(
+      activeMessages: messages,
+      isLoading: messages.isEmpty,
+    );
 
     try {
       final freshMessages = await _chatRepo.getMessages(conversationId);
+      if (!ref.mounted) return;
       if (state.activeConversationId == conversationId) {
         state = state.copyWith(activeMessages: freshMessages, isLoading: false);
         // Re-zero after the message fetch in case fetchConversations ran
@@ -401,8 +429,11 @@ class ChatNotifier extends Notifier<ChatState> {
       }
       _chatStorage.saveMessages(conversationId, freshMessages);
     } catch (e) {
+      if (!ref.mounted) return;
       logger.e("[ChatProvider] Error fetching messages: $e");
-      state = state.copyWith(isLoading: false);
+      if (state.activeConversationId == conversationId) {
+        state = state.copyWith(isLoading: false);
+      }
     }
   }
 
@@ -466,6 +497,7 @@ class ChatNotifier extends Notifier<ChatState> {
   }
 
   void _handleIncomingMessage(ChatMessage message) {
+    if (!ref.mounted) return;
     if (state.activeConversationId == message.conversationId) {
       final filteredMessages = state.activeMessages
           .where((m) => !m.id.startsWith("temp_"))
@@ -474,6 +506,20 @@ class ChatNotifier extends Notifier<ChatState> {
       state = state.copyWith(activeMessages: filteredMessages);
       _chatStorage.saveMessages(message.conversationId, filteredMessages);
       _chatRepo.markChatAsRead(message.conversationId).catchError((_) {});
+    }
+
+    final targetConvIndex = state.conversations.indexWhere(
+      (c) => c.id == message.conversationId,
+    );
+
+    // If conversation not found in list (deleted/left), refresh conversations
+    // This handles re-engagement: when a message arrives for a deleted conversation
+    if (targetConvIndex == -1) {
+      logger.i(
+        "[ChatProvider] Message for non-existent conversation, refreshing...",
+      );
+      fetchConversations();
+      return;
     }
 
     final updatedConvos = state.conversations.map<ChatConversation>((conv) {
@@ -499,11 +545,11 @@ class ChatNotifier extends Notifier<ChatState> {
       return conv;
     }).toList();
 
-    final targetConvIndex = updatedConvos.indexWhere(
+    final updatedTargetConvIndex = updatedConvos.indexWhere(
       (c) => c.id == message.conversationId,
     );
-    if (targetConvIndex != -1) {
-      final targetConv = updatedConvos.removeAt(targetConvIndex);
+    if (updatedTargetConvIndex != -1) {
+      final targetConv = updatedConvos.removeAt(updatedTargetConvIndex);
       updatedConvos.insert(0, targetConv);
     }
 
@@ -515,6 +561,7 @@ class ChatNotifier extends Notifier<ChatState> {
   /// Called by auth provider when a user updates their profile picture
   /// This ensures the new profile pic shows up immediately in DM active chats and new chat list
   void refreshUserPicture(String userId, String newPhotoUrl) {
+    if (!ref.mounted) return;
     final updatedPics = Map<String, String>.from(state.userPics);
     updatedPics[userId] = newPhotoUrl;
     state = state.copyWith(userPics: updatedPics);
@@ -526,6 +573,7 @@ class ChatNotifier extends Notifier<ChatState> {
   /// Refresh all user pictures from the server
   /// Useful when multiple users' profiles might have changed
   Future<void> refreshAllUserPictures() async {
+    if (!ref.mounted) return;
     final convos = state.conversations;
     if (convos.isEmpty) return;
 
@@ -540,6 +588,7 @@ class ChatNotifier extends Notifier<ChatState> {
           if (userId != myUid && !updatedPics.containsKey(userId)) {
             try {
               final profile = await _chatRepo.getUserProfileBasic(userId);
+              if (!ref.mounted) return;
               updatedNames[userId] = profile['name'] ?? "Unknown User";
               updatedPics[userId] = profile['picture'] ?? "";
               hasChanges = true;
@@ -565,12 +614,21 @@ class ChatNotifier extends Notifier<ChatState> {
   /// Called when a user's profile picture has been updated
   /// This ensures the change is reflected in both active chats and the friends list
   Future<void> refreshUserPictureFromServer(String userId) async {
+    if (!ref.mounted) return;
     final cache = ref.read(cacheCoordinatorProvider);
-    if (!cache.tryBeginRefresh(CacheDomain.chatUserProfiles, scopeId: userId)){
+    if (!cache.tryBeginRefresh(CacheDomain.chatUserProfiles, scopeId: userId)) {
       return;
     }
     try {
       final profile = await _chatRepo.getUserProfileBasic(userId);
+      if (!ref.mounted) {
+        cache.endRefresh(
+          CacheDomain.chatUserProfiles,
+          scopeId: userId,
+          success: false,
+        );
+        return;
+      }
       final newPic = profile['picture'] ?? "";
       final newName = profile['name'] ?? "Unknown User";
 
@@ -591,12 +649,131 @@ class ChatNotifier extends Notifier<ChatState> {
 
       logger.i("[ChatProvider] Refreshed picture for user $userId from server");
     } catch (e) {
+      if (!ref.mounted) return;
       cache.endRefresh(
         CacheDomain.chatUserProfiles,
         scopeId: userId,
         success: false,
       );
       logger.w("[ChatProvider] Failed to refresh picture for $userId: $e");
+    }
+  }
+
+  // ========== CHAT INFO & DELETE METHODS ==========
+
+  /// Load chat information (user details for DM, participants for group)
+  Future<void> loadChatInfo(String conversationId) async {
+    if (!ref.mounted) return;
+    state = state.copyWith(isLoadingChatInfo: true);
+    try {
+      final chatInfo = await _chatRepo.getChatInfo(conversationId);
+      if (!ref.mounted) return;
+      state = state.copyWith(
+        currentChatInfo: chatInfo,
+        isLoadingChatInfo: false,
+      );
+    } catch (e) {
+      if (!ref.mounted) return;
+      logger.e("[ChatProvider] Error loading chat info: $e");
+      state = state.copyWith(isLoadingChatInfo: false);
+    }
+  }
+
+  /// Delete a conversation (soft delete - only for current user)
+  Future<bool> deleteChat(String conversationId) async {
+    if (!ref.mounted) return false;
+    try {
+      await _chatRepo.deleteConversation(conversationId);
+      if (!ref.mounted) return false;
+
+      // Clear active messages if this is the active conversation
+      if (state.activeConversationId == conversationId) {
+        state = state.copyWith(activeMessages: const []);
+      }
+
+      // Remove from conversations list
+      final updatedConversations = state.conversations
+          .where((conv) => conv.id != conversationId)
+          .toList();
+
+      state = state.copyWith(
+        conversations: updatedConversations,
+        currentChatInfo: null,
+      );
+
+      logger.i("[ChatProvider] Successfully deleted chat: $conversationId");
+      return true;
+    } catch (e) {
+      if (!ref.mounted) return false;
+      logger.e("[ChatProvider] Error deleting chat: $e");
+      return false;
+    }
+  }
+
+  /// Leave a group chat
+  Future<bool> leaveGroupChat(String conversationId) async {
+    if (!ref.mounted) return false;
+    try {
+      await _chatRepo.leaveGroupChat(conversationId);
+      if (!ref.mounted) return false;
+
+      // Clear active messages if this is the active conversation
+      if (state.activeConversationId == conversationId) {
+        state = state.copyWith(activeMessages: const []);
+      }
+
+      // Remove from conversations list
+      final updatedConversations = state.conversations
+          .where((conv) => conv.id != conversationId)
+          .toList();
+
+      state = state.copyWith(
+        conversations: updatedConversations,
+        currentChatInfo: null,
+      );
+
+      logger.i("[ChatProvider] Successfully left group chat: $conversationId");
+      return true;
+    } catch (e) {
+      if (!ref.mounted) return false;
+      logger.e("[ChatProvider] Error leaving group chat: $e");
+      return false;
+    }
+  }
+
+  /// Clear all messages in a chat for current user
+  Future<bool> clearChatMessages(String conversationId) async {
+    if (!ref.mounted) return false;
+    try {
+      await _chatRepo.clearChatMessages(conversationId);
+      if (!ref.mounted) return false;
+
+      // Update the conversation's last_message to null in the conversations list
+      final updatedConversations = state.conversations.map((conv) {
+        if (conv.id == conversationId) {
+          return conv.copyWith(lastMessage: null);
+        }
+        return conv;
+      }).toList();
+
+      // Clear messages for this conversation if it's the active one
+      if (state.activeConversationId == conversationId) {
+        state = state.copyWith(
+          activeMessages: const [],
+          conversations: updatedConversations,
+        );
+      } else {
+        state = state.copyWith(conversations: updatedConversations);
+      }
+
+      _chatStorage.saveConversations(updatedConversations);
+
+      logger.i("[ChatProvider] Successfully cleared messages: $conversationId");
+      return true;
+    } catch (e) {
+      if (!ref.mounted) return false;
+      logger.e("[ChatProvider] Error clearing messages: $e");
+      return false;
     }
   }
 }
