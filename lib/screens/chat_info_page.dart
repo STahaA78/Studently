@@ -4,6 +4,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:studently/app_style.dart';
 import 'package:studently/models/chat.dart';
 import 'package:studently/providers/chat_provider.dart';
+import 'package:studently/providers/carpool_provider.dart';
 import 'package:studently/logger.dart';
 
 class ChatInfoPage extends ConsumerStatefulWidget {
@@ -526,6 +527,10 @@ class _ChatInfoPageState extends ConsumerState<ChatInfoPage> {
     final success = await notifier.leaveGroupChat(widget.conversationId);
 
     if (success && mounted) {
+      // Refresh carpool data since leaving a ride chat frees a seat
+      ref.invalidate(carpoolOffersProvider);
+      ref.invalidate(myOffersProvider);
+
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Left group successfully')),
       );

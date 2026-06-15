@@ -18,6 +18,7 @@ import 'package:studently/providers/backend_config_provider.dart';
 import 'package:studently/providers/feed_provider.dart';
 import 'package:studently/providers/chat_provider.dart';
 import 'package:studently/providers/knowledge_hub_provider.dart';
+import 'package:studently/providers/carpool_provider.dart';
 import 'screens/community_feed_page.dart';
 import 'screens/signup_basic_page.dart';
 
@@ -50,6 +51,10 @@ class MyApp extends ConsumerWidget {
           ref.invalidate(allCoursesProvider);
           ref.invalidate(allResourceGroupsProvider);
           ref.invalidate(backendConfigProvider);
+          ref.invalidate(carpoolOffersProvider);
+          ref.invalidate(carpoolRequestsProvider);
+          ref.invalidate(myOffersProvider);
+          ref.invalidate(myRequestsProvider);
 
           // Reset navigation stack to root on logout and ensure we are on the base route
           if (appNavigatorKey.currentState != null) {

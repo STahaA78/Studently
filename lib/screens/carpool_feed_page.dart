@@ -206,7 +206,7 @@ class _OfferCard extends StatelessWidget {
                 Icon(
                     offer.direction == 'campus_to_home'
                         ? Icons.school
-                        : Icons.home,
+                        : Icons.location_on,
                     color: AppStyle.primaryBlue,
                     size: 20),
                 const SizedBox(width: 8),

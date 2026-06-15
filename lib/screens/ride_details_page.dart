@@ -58,13 +58,13 @@ class _State extends ConsumerState<RideDetailsPage> {
           const Text("Route", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
           const SizedBox(height: 12),
           Row(children: [
-            Icon(offer.direction == 'campus_to_home' ? Icons.school : Icons.home, color: Colors.blue),
+            Icon(offer.direction == 'campus_to_home' ? Icons.school : Icons.location_on, color: Colors.blue),
             const SizedBox(width: 8),
             Expanded(child: Text(offer.direction == 'campus_to_home' ? offer.campus : offer.homeLocation, style: const TextStyle(fontSize: 16))),
           ]),
           const Padding(padding: EdgeInsets.only(left: 11, top: 4, bottom: 4), child: Icon(Icons.more_vert, color: Colors.grey, size: 20)),
           Row(children: [
-            Icon(offer.direction == 'campus_to_home' ? Icons.home : Icons.school, color: Colors.red),
+            Icon(offer.direction == 'campus_to_home' ? Icons.location_on : Icons.school, color: Colors.red),
             const SizedBox(width: 8),
             Expanded(child: Text(offer.direction == 'campus_to_home' ? offer.homeLocation : offer.campus, style: const TextStyle(fontSize: 16))),
           ]),

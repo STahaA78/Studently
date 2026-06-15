@@ -120,9 +120,9 @@ class _OfferRidePageState extends ConsumerState<OfferRidePage> {
           const Text("Direction", style: TextStyle(fontWeight: FontWeight.w600, fontSize: 15)),
           const SizedBox(height: 8),
           Row(children: [
-            Expanded(child: ChoiceChip(label: const Text("FAST → Home"), selected: _dir == "campus_to_home", selectedColor: AppStyle.primaryBlue.withOpacity(0.15), onSelected: (_) => setState(() => _dir = "campus_to_home"))),
+            Expanded(child: ChoiceChip(label: const Text("FAST → Area"), selected: _dir == "campus_to_home", selectedColor: AppStyle.primaryBlue.withOpacity(0.15), onSelected: (_) => setState(() => _dir = "campus_to_home"))),
             const SizedBox(width: 8),
-            Expanded(child: ChoiceChip(label: const Text("Home → FAST"), selected: _dir == "home_to_campus", selectedColor: AppStyle.primaryBlue.withOpacity(0.15), onSelected: (_) => setState(() => _dir = "home_to_campus"))),
+            Expanded(child: ChoiceChip(label: const Text("Area → FAST"), selected: _dir == "home_to_campus", selectedColor: AppStyle.primaryBlue.withOpacity(0.15), onSelected: (_) => setState(() => _dir = "home_to_campus"))),
           ]),
           const SizedBox(height: 20),
 
