@@ -1,13 +1,9 @@
-import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:studently/app_style.dart';
 import 'package:studently/models/knowledge_hub.dart';
-import 'package:studently/providers/knowledge_hub_provider.dart';
-import 'package:studently/services/storage.dart';
 import 'package:syncfusion_flutter_pdfviewer/pdfviewer.dart';
 import 'package:studently/logger.dart';
-import 'dart:typed_data';
 
 class PdfGalleryScreen extends ConsumerStatefulWidget {
   final List<ResourceItem> resources;
@@ -28,6 +24,7 @@ class PdfGalleryScreen extends ConsumerStatefulWidget {
 class _PdfGalleryScreenState extends ConsumerState<PdfGalleryScreen> {
   late PageController _pageController;
   late int _currentIndex; // Track current page for the title
+  final Set<String> _loadedResourceIds = {};
 
   @override
   void initState() {
@@ -43,6 +40,7 @@ class _PdfGalleryScreenState extends ConsumerState<PdfGalleryScreen> {
     final totalResources = widget.resources.length;
 
     return Scaffold(
+      backgroundColor: Colors.white,
       appBar: AppBar(
         backgroundColor: Colors.white,
         shadowColor: Colors.transparent,
@@ -60,49 +58,29 @@ class _PdfGalleryScreenState extends ConsumerState<PdfGalleryScreen> {
           mainAxisAlignment: MainAxisAlignment.center,
           crossAxisAlignment: CrossAxisAlignment.center,
           children: [
-            // Course name and code
             Text(
-              "${currentItem.course.name} (${currentItem.course.code})",
+              _buildResourceLabel(currentItem),
               style: const TextStyle(
                 color: Colors.black,
                 fontWeight: FontWeight.w600,
                 fontSize: AppStyle.appBarTitleSize,
               ),
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 10),
-            // Type, Year, Semester, Mid number and Status (if applicable)
-            Text(
-              _buildResourceLabel(currentItem),
-              style: const TextStyle(
-                color: Colors.grey,
-                fontWeight: FontWeight.w500,
-                fontSize: 13,
-              ),
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
             ),
-            const SizedBox(height: 8),
+            const SizedBox(height: 4),
             // Page indicator
             Text(
               "${_currentIndex + 1} of $totalResources",
               style: const TextStyle(
-                color: Colors.blue,
-                fontWeight: FontWeight.w600,
+                color: Colors.grey,
+                fontWeight: FontWeight.w500,
                 fontSize: 13,
               ),
             ),
           ],
         ),
         centerTitle: true,
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.download, color: Colors.black87),
-            onPressed: () => _downloadAndCacheFile(context, ref, currentItem),
-          ),
-        ],
         bottom: PreferredSize(
           preferredSize: const Size.fromHeight(8),
           child: SizedBox(),
@@ -119,14 +97,10 @@ class _PdfGalleryScreenState extends ConsumerState<PdfGalleryScreen> {
         },
         itemBuilder: (context, index) {
           final item = widget.resources[index];
-          final localFilePath = ref.watch(
-            resourceLocalFilePathProvider((widget.courseCode, item.id)),
-          );
-
           return Column(
             children: [
               Expanded(
-                child: _buildPdfViewer(context, ref, item, localFilePath),
+                child: _buildPdfViewer(context, ref, item),
               ),
             ],
           );
@@ -140,120 +114,43 @@ class _PdfGalleryScreenState extends ConsumerState<PdfGalleryScreen> {
     BuildContext context,
     WidgetRef ref,
     ResourceItem item,
-    String? localFilePath,
   ) {
-    // If local file exists and is accessible, use it
-    if (localFilePath != null && localFilePath.isNotEmpty) {
-      final file = File(localFilePath);
-      if (file.existsSync()) {
-        logger.i('Using cached local file: $localFilePath');
-        return SfPdfViewer.file(
-          file,
-          key: ValueKey(item.id),
-          onDocumentLoadFailed: (details) {
-            logger.e(
-              "Error loading local file: ${details.error} - ${details.description}",
-            );
-          },
-        );
-      }
-    }
+    final isLoaded = _loadedResourceIds.contains(item.id);
 
     // Otherwise, stream from Cloudflare R2 URL
     if (item.fileUrl.isNotEmpty) {
       logger.i('Streaming PDF from Cloudflare R2: ${item.fileUrl}');
-      return SfPdfViewer.network(
-        item.fileUrl,
-        key: ValueKey(item.id),
-        onDocumentLoadFailed: (details) {
-          logger.e(
-            "Error loading network PDF: ${details.error} - ${details.description}",
-          );
-        },
+      return Stack(
+        children: [
+          Container(color: Colors.white),
+          SfPdfViewer.network(
+            item.fileUrl,
+            key: ValueKey(item.id),
+            onDocumentLoaded: (_) {
+              if (mounted && !_loadedResourceIds.contains(item.id)) {
+                setState(() => _loadedResourceIds.add(item.id));
+              }
+            },
+            onDocumentLoadFailed: (details) {
+              logger.e(
+                "Error loading network PDF: ${details.error} - ${details.description}",
+              );
+            },
+          ),
+          if (!isLoaded)
+            Positioned.fill(
+              child: Container(
+                color: Colors.white,
+                child: const Center(
+                  child: CircularProgressIndicator(),
+                ),
+              ),
+            ),
+        ],
       );
     }
 
     return const Center(child: Text('No file URL available'));
-  }
-
-  /// Download file from Cloudflare R2 and cache it locally
-  void _downloadAndCacheFile(
-    BuildContext context,
-    WidgetRef ref,
-    ResourceItem item,
-  ) async {
-    try {
-      if (item.fileUrl.isEmpty) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(const SnackBar(content: Text('No file URL available')));
-        return;
-      }
-
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('Downloading file...')));
-
-      // Download from Cloudflare URL
-      final fileBytes = await ref.read(
-        downloadResourceFromUrlProvider(item.fileUrl).future,
-      );
-
-      // Save to local storage
-      await _savePdfLocally(ref, item, fileBytes);
-
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).clearSnackBars();
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('File downloaded and cached successfully'),
-          ),
-        );
-      }
-    } catch (e) {
-      logger.e('Error downloading file: $e');
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).clearSnackBars();
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Error downloading file: $e')));
-      }
-    }
-  }
-
-  /// Save PDF file locally and update resource path
-  Future<void> _savePdfLocally(
-    WidgetRef ref,
-    ResourceItem item,
-    Uint8List fileBytes,
-  ) async {
-    try {
-      final storage = StorageService().knowledgeHubStorage;
-      final cacheDir = await storage.getDownloadsCacheDir();
-
-      // Create file path
-      final fileName = '${item.id}.pdf';
-      final filePath = '$cacheDir/$fileName';
-      final file = File(filePath);
-
-      // Save file
-      await file.writeAsBytes(fileBytes);
-      logger.i('File saved locally: $filePath');
-
-      // Update resource with local path in storage
-      await storage.updateResourceWithLocalPath(
-        widget.courseCode,
-        item.id,
-        filePath,
-      );
-      logger.i('Resource updated with local path');
-
-      // Refresh provider to reflect new local path
-      ref.invalidate(saveResourceLocalPathProvider);
-    } catch (e) {
-      logger.e('Error saving PDF locally: $e');
-      // Don't rethrow - the file was already downloaded, just local caching failed
-    }
   }
 
   /// Build a descriptive label for the resource (Type, Year, Semester, Mid number, Status)

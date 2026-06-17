@@ -13,6 +13,7 @@ class DiscoverStorage {
   static const _swipedLeftKey = 'discover_swiped_left_ids';
   static const _recentSearchesKey = 'discover_recent_searches';
   static const _discoverIndexKey = 'discover_index';
+  static const _pendingInteractionsKey = 'discover_pending_interactions';
 
   DiscoverStorage(this._box);
 
@@ -68,6 +69,39 @@ class DiscoverStorage {
 
   void setDiscoverIndex(int index) {
     _box.put(_discoverIndexKey, index);
+  }
+
+  List<Map<String, dynamic>> getPendingInteractions() {
+    final String? cachedJson = _box.get(_pendingInteractionsKey);
+    if (cachedJson == null) return [];
+
+    try {
+      final List<dynamic> decoded = jsonDecode(cachedJson);
+      return decoded
+          .whereType<Map>()
+          .map((e) => Map<String, dynamic>.from(e))
+          .toList();
+    } catch (e) {
+      logger.e('[DiscoverStorage] Error decoding pending interactions: $e');
+      return [];
+    }
+  }
+
+  void savePendingInteractions(List<Map<String, dynamic>> interactions) {
+    try {
+      _box.put(_pendingInteractionsKey, jsonEncode(interactions));
+    } catch (e) {
+      logger.e('[DiscoverStorage] Error saving pending interactions: $e');
+    }
+  }
+
+  void addPendingInteraction(Map<String, dynamic> interaction) {
+    final interactions = getPendingInteractions()..add(interaction);
+    savePendingInteractions(interactions);
+  }
+
+  void clearPendingInteractions() {
+    _box.delete(_pendingInteractionsKey);
   }
 
   List<User> getCachedPendingRequests() {
@@ -132,6 +166,7 @@ class DiscoverStorage {
       _pendingRequestsKey,
       _pendingLastFetchKey,
       _swipedLeftKey,
+      _pendingInteractionsKey,
     ]);
   }
 }

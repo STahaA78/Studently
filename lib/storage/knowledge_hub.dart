@@ -10,10 +10,12 @@ class KnowledgeHubStorage {
   static const String _coursesBoxName = 'kh_courses';
   static const String _resourcesBoxName = 'kh_resources';
   static const String _downloadedFilesBoxName = 'kh_downloaded_files';
+  static const String _metadataBoxName = 'kh_metadata';
 
   late Box<Course> _coursesBox;
   late Box<ResourceItem> _resourcesBox;
   late Box<String> _downloadedFilesBox;
+  late Box<String> _metadataBox;
   bool _isInitialized = false;
 
   static final KnowledgeHubStorage _instance = KnowledgeHubStorage._internal();
@@ -34,6 +36,7 @@ class KnowledgeHubStorage {
       _coursesBox = await Hive.openBox<Course>(_coursesBoxName);
       _resourcesBox = await Hive.openBox<ResourceItem>(_resourcesBoxName);
       _downloadedFilesBox = await Hive.openBox<String>(_downloadedFilesBoxName);
+      _metadataBox = await Hive.openBox<String>(_metadataBoxName);
       _isInitialized = true;
       logger.i('[KnowledgeHubStorage] Initialized successfully');
     } catch (e) {
@@ -46,6 +49,7 @@ class KnowledgeHubStorage {
           await Hive.deleteBoxFromDisk(_coursesBoxName);
           await Hive.deleteBoxFromDisk(_resourcesBoxName);
           await Hive.deleteBoxFromDisk(_downloadedFilesBoxName);
+          await Hive.deleteBoxFromDisk(_metadataBoxName);
 
           // Retry opening boxes
           _coursesBox = await Hive.openBox<Course>(_coursesBoxName);
@@ -53,6 +57,7 @@ class KnowledgeHubStorage {
           _downloadedFilesBox = await Hive.openBox<String>(
             _downloadedFilesBoxName,
           );
+          _metadataBox = await Hive.openBox<String>(_metadataBoxName);
           _isInitialized = true;
           logger.i(
             '[KnowledgeHubStorage] Boxes cleared and reinitialized after schema migration',
@@ -99,6 +104,16 @@ class KnowledgeHubStorage {
       logger.e('[KnowledgeHubStorage] Error saving courses: $e');
       rethrow;
     }
+  }
+
+  Future<void> saveCoursesEtag(String etag) async {
+    _ensureInitialized(throwOnFailure: true);
+    await _metadataBox.put('courses_etag', etag);
+  }
+
+  String? getCoursesEtag() {
+    if (!_ensureInitialized()) return null;
+    return _metadataBox.get('courses_etag');
   }
 
   /// Get all cached courses
@@ -160,6 +175,16 @@ class KnowledgeHubStorage {
       );
       rethrow;
     }
+  }
+
+  Future<void> saveResourcesEtag(String courseCode, String etag) async {
+    _ensureInitialized(throwOnFailure: true);
+    await _metadataBox.put('resources_etag:$courseCode', etag);
+  }
+
+  String? getResourcesEtag(String courseCode) {
+    if (!_ensureInitialized()) return null;
+    return _metadataBox.get('resources_etag:$courseCode');
   }
 
   /// Get cached resources for a course
@@ -293,6 +318,7 @@ class KnowledgeHubStorage {
       await _coursesBox.clear();
       await _resourcesBox.clear();
       await _downloadedFilesBox.clear();
+      await _metadataBox.clear();
 
       // 2. Delete the physical files on disk
       if (!kIsWeb) {

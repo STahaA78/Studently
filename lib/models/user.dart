@@ -67,6 +67,7 @@ class User {
   String? birthday; // MM/DD/YYYY
   Department? department;
   String? batch;
+  Campus? campus;
   Gender? gender;
   List<Interest> interests;
   String? university;
@@ -85,6 +86,7 @@ class User {
     this.birthday,
     this.department,
     this.batch,
+    this.campus,
     this.gender,
     List<Interest>? interests,
     this.university,
@@ -107,6 +109,7 @@ class User {
           ? Department.fromJson(json['department'])
           : null,
       batch: json['batch'],
+      campus: json['campus'] != null ? Campus.fromJson(json['campus']) : null,
       gender: json['gender'] != null
           ? GenderExtension.fromString(json['gender'])
           : null,
@@ -134,6 +137,7 @@ class User {
       'birthday': birthday,
       'department': department?.toJson(),
       'batch': batch,
+      'campus': campus?.toJson(),
       'gender': gender?.toApiString(),
       'university': university,
       'picture': picture,

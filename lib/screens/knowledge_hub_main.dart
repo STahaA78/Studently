@@ -7,6 +7,7 @@ import '../widgets/custom_nav_bar.dart';
 import 'package:studently/models/knowledge_hub.dart';
 import 'package:studently/providers/knowledge_hub_provider.dart';
 import 'package:studently/screens/knowledge_hub_course.dart';
+import 'package:studently/screens/knowledge_hub_add_course.dart';
 import 'package:studently/utils/web_utils.dart' as web_utils;
 
 // NEW IMPORTS FOR GROUP CHAT
@@ -291,17 +292,28 @@ class _KnowledgeHubPageState extends ConsumerState<KnowledgeHubPage> {
                     fontSize: AppStyle.appBarTitleSize,
                   ),
                 ),
-                actions: kIsWeb & !web_utils.isStandalonePwa()
-                    ? [
-                        IconButton(
-                          icon: const Icon(Icons.refresh, color: Colors.black),
-                          onPressed: () async {
-                            final refresh = ref.read(refreshAllCoursesProvider);
-                            await refresh();
-                          },
+                actions: [
+                  if (kIsWeb && !web_utils.isStandalonePwa())
+                    IconButton(
+                      icon: const Icon(Icons.refresh, color: Colors.black),
+                      onPressed: () async {
+                        final refresh = ref.read(refreshAllCoursesProvider);
+                        await refresh();
+                      },
+                    ),
+                  IconButton(
+                    icon: const Icon(Icons.add, color: Colors.black),
+                    tooltip: 'Add course',
+                    onPressed: () async {
+                      await Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => const AddCoursePage(),
                         ),
-                      ]
-                    : [],
+                      );
+                    },
+                  ),
+                ],
                 bottom: PreferredSize(
                   preferredSize: const Size.fromHeight(8),
                   child: const SizedBox(),

@@ -4,7 +4,7 @@ import 'package:studently/models/knowledge_hub.dart';
 import 'package:studently/logger.dart';
 import 'package:studently/providers/cache_freshness_provider.dart';
 import 'package:studently/repositories/knowledge_hub.dart';
-import 'dart:typed_data';
+// import 'dart:typed_data';
 
 // ==================== REPOSITORY PROVIDER ====================
 /// Global singleton instance of KnowledgeHubRepository
@@ -17,7 +17,7 @@ final knowledgeHubRepositoryProvider = Provider<KnowledgeHubRepository>((ref) {
 /// Provider for fetching all available courses with automatic caching
 /// - First load: Checks cache, returns if available, otherwise fetches from API
 /// - Pull-to-refresh: Use ref.read(allCoursesFreshProvider.future) to force API fetch
-final allCoursesProvider = FutureProvider<List<Course>>((ref) async {
+final allCoursesProvider = FutureProvider.autoDispose<List<Course>>((ref) async {
   ref.watch(cacheInvalidationBusProvider);
   final repository = ref.watch(knowledgeHubRepositoryProvider);
   final cache = ref.read(cacheCoordinatorProvider);
@@ -26,17 +26,17 @@ final allCoursesProvider = FutureProvider<List<Course>>((ref) async {
   void scheduleRefreshChecks() {
     refreshTimer?.cancel();
     refreshTimer = Timer.periodic(const Duration(seconds: 15), (_) {
-      if (cache.isStale(CacheDomain.knowledgeCourses)) {
-        repository
-            .fetchAllCourses(forceRefresh: true)
-            .then((_) {
-              cache.markFresh(CacheDomain.knowledgeCourses);
-              ref.invalidateSelf();
-            })
-            .catchError((e) {
-              logger.w('[KnowledgeHub] Auto refresh for courses failed: $e');
-            });
-      }
+      if (!cache.tryBeginRefresh(CacheDomain.knowledgeCourses)) return;
+      repository
+          .fetchAllCourses(forceRefresh: true)
+          .then((_) {
+            cache.endRefresh(CacheDomain.knowledgeCourses, success: true);
+            ref.invalidateSelf();
+          })
+          .catchError((e) {
+            cache.endRefresh(CacheDomain.knowledgeCourses, success: false);
+            logger.w('[KnowledgeHub] Auto refresh for courses failed: $e');
+          });
     });
     ref.onDispose(() => refreshTimer?.cancel());
   }
@@ -44,16 +44,6 @@ final allCoursesProvider = FutureProvider<List<Course>>((ref) async {
   scheduleRefreshChecks();
 
   final courses = await repository.fetchAllCourses();
-  if (cache.isStale(CacheDomain.knowledgeCourses)) {
-    // fire-and-forget refresh while returning cached-first result
-    repository
-        .fetchAllCourses(forceRefresh: true)
-        .then((_) {
-          cache.markFresh(CacheDomain.knowledgeCourses);
-          ref.invalidateSelf();
-        })
-        .catchError((_) {});
-  }
   return courses;
 });
 
@@ -74,7 +64,7 @@ final allCoursesFreshProvider = FutureProvider<List<Course>>((ref) async {
 /// Provider for fetching resources for a specific course with automatic caching
 /// Parameters: courseId (e.g., "CS101")
 /// - First load: Checks cache, returns if available, otherwise fetches from API
-final resourcesByCourseProvider = FutureProvider.family<ResourceGroup, String>((
+final resourcesByCourseProvider = FutureProvider.autoDispose.family<ResourceGroup, String>((
   ref,
   courseId,
 ) async {
@@ -86,25 +76,27 @@ final resourcesByCourseProvider = FutureProvider.family<ResourceGroup, String>((
   void scheduleRefreshChecks() {
     refreshTimer?.cancel();
     refreshTimer = Timer.periodic(const Duration(seconds: 15), (_) {
-      if (cache.isStale(
-        CacheDomain.knowledgeCourseResources,
-        scopeId: courseId,
-      )) {
-        repository
-            .fetchResourcesByCourse(courseId, forceRefresh: true)
-            .then((_) {
-              cache.markFresh(
-                CacheDomain.knowledgeCourseResources,
-                scopeId: courseId,
-              );
-              ref.invalidateSelf();
-            })
-            .catchError((e) {
-              logger.w(
-                '[KnowledgeHub] Auto refresh for course $courseId failed: $e',
-              );
-            });
-      }
+      if (!cache.tryBeginRefresh(CacheDomain.knowledgeCourseResources,scopeId: courseId,)) return;
+      repository
+          .fetchResourcesByCourse(courseId, forceRefresh: true)
+          .then((_) {
+            cache.endRefresh(
+              CacheDomain.knowledgeCourseResources,
+              scopeId: courseId,
+              success: true,
+            );
+            ref.invalidateSelf();
+          })
+          .catchError((e) {
+            cache.endRefresh(
+              CacheDomain.knowledgeCourseResources,
+              scopeId: courseId,
+              success: false,
+            );
+            logger.w(
+              '[KnowledgeHub] Auto refresh for course $courseId failed: $e',
+            );
+          });
     });
     ref.onDispose(() => refreshTimer?.cancel());
   }
@@ -114,18 +106,6 @@ final resourcesByCourseProvider = FutureProvider.family<ResourceGroup, String>((
   final resources = await repository.fetchResourcesByCourse(
     courseId,
   ); // Uses default forceRefresh: false
-  if (cache.isStale(CacheDomain.knowledgeCourseResources, scopeId: courseId)) {
-    repository
-        .fetchResourcesByCourse(courseId, forceRefresh: true)
-        .then((_) {
-          cache.markFresh(
-            CacheDomain.knowledgeCourseResources,
-            scopeId: courseId,
-          );
-          ref.invalidateSelf();
-        })
-        .catchError((_) {});
-  }
   return resources;
 });
 
@@ -158,37 +138,37 @@ final allResourceGroupsProvider = FutureProvider<List<ResourceGroup>>((
 
 // ==================== DOWNLOAD PROVIDERS ====================
 
-/// Provider for downloading resource file from a direct Cloudflare URL
-/// Parameters: fileUrl (direct Cloudflare R2 URL)
-final downloadResourceFromUrlProvider =
-    FutureProvider.family<Uint8List, String>((ref, fileUrl) async {
-      final repository = ref.watch(knowledgeHubRepositoryProvider);
-      return repository.downloadFromUrl(fileUrl);
-    });
+// /// Provider for downloading resource file from a direct Cloudflare URL
+// /// Parameters: fileUrl (direct Cloudflare R2 URL)
+// final downloadResourceFromUrlProvider =
+//     FutureProvider.family<Uint8List, String>((ref, fileUrl) async {
+//       final repository = ref.watch(knowledgeHubRepositoryProvider);
+//       return repository.downloadFromUrl(fileUrl);
+//     });
 
-/// Provider for getting local file path of a cached resource
-/// Parameters: (courseCode, resourceId)
-final resourceLocalFilePathProvider =
-    Provider.family<String?, (String, String)>((ref, params) {
-      final repository = ref.watch(knowledgeHubRepositoryProvider);
-      return repository.getLocalFilePath(params.$1, params.$2);
-    });
+// /// Provider for getting local file path of a cached resource
+// /// Parameters: (courseCode, resourceId)
+// final resourceLocalFilePathProvider =
+//     Provider.family<String?, (String, String)>((ref, params) {
+//       final repository = ref.watch(knowledgeHubRepositoryProvider);
+//       return repository.getLocalFilePath(params.$1, params.$2);
+//     });
 
-/// Provider to save resource local path
-final saveResourceLocalPathProvider =
-    Provider.family<Future<void> Function(String), (String, String)>((
-      ref,
-      params,
-    ) {
-      final repository = ref.watch(knowledgeHubRepositoryProvider);
-      return (String localFilePath) async {
-        await repository.updateResourceLocalPath(
-          params.$1,
-          params.$2,
-          localFilePath,
-        );
-      };
-    });
+// /// Provider to save resource local path
+// final saveResourceLocalPathProvider =
+//     Provider.family<Future<void> Function(String), (String, String)>((
+//       ref,
+//       params,
+//     ) {
+//       final repository = ref.watch(knowledgeHubRepositoryProvider);
+//       return (String localFilePath) async {
+//         await repository.updateResourceLocalPath(
+//           params.$1,
+//           params.$2,
+//           localFilePath,
+//         );
+//       };
+//     });
 
 // ==================== UPLOAD PROVIDER ====================
 

@@ -87,7 +87,7 @@ class AuthNotifier extends AsyncNotifier<User?> {
       }
 
       // No cache found, but logged into Firebase: Fetch fresh from FastAPI
-      final freshUser = await _fetchAndSaveFreshProfile(firebaseUser.uid);
+      final freshUser = await _fetchAndSaveFreshProfile();
       ref.read(cacheCoordinatorProvider).markFresh(CacheDomain.userProfile);
 
       await _ensureUserStorageInitialized();
@@ -142,9 +142,9 @@ class AuthNotifier extends AsyncNotifier<User?> {
 
   // --- Helper Methods ---
 
-  Future<User> _fetchAndSaveFreshProfile(String uid) async {
+  Future<User> _fetchAndSaveFreshProfile() async {
     final userRepo = ref.read(userRepositoryProvider);
-    final profileResponse = await userRepo.fetchUserProfile(userId: uid);
+    final profileResponse = await userRepo.fetchUserProfile();
 
     if (!profileResponse.exists || profileResponse.data == null) {
       throw Exception("User profile not found");
@@ -158,14 +158,13 @@ class AuthNotifier extends AsyncNotifier<User?> {
   }
 
   Future<User> _waitForUpdatedPhotoProfile({
-    required String uid,
     required String? previousPhotoUrl,
   }) async {
     final userRepo = ref.read(userRepositoryProvider);
     User? latestUser;
 
     for (int attempt = 0; attempt < 10; attempt++) {
-      final response = await userRepo.fetchUserProfile(userId: uid);
+      final response = await userRepo.fetchUserProfile();
 
       if (response.exists && response.data != null) {
         latestUser = response.data!;
@@ -197,7 +196,7 @@ class AuthNotifier extends AsyncNotifier<User?> {
     final cache = ref.read(cacheCoordinatorProvider);
     if (!cache.tryBeginRefresh(CacheDomain.userProfile)) return;
     try {
-      final freshUser = await _fetchAndSaveFreshProfile(uid);
+      final freshUser = await _fetchAndSaveFreshProfile();
       state = AsyncValue.data(freshUser); // Update the state silently
       cache.endRefresh(CacheDomain.userProfile, success: true);
 
@@ -361,6 +360,7 @@ class AuthNotifier extends AsyncNotifier<User?> {
     required String birthday,
     required Department department,
     required String batch,
+    required Campus campus,
     required List<Interest> interests,
     Gender? gender,
     bool extractedFields = true,
@@ -380,13 +380,14 @@ class AuthNotifier extends AsyncNotifier<User?> {
         birthday: birthday,
         department: department,
         batch: batch,
+        campus: campus,
         interests: interests,
         gender: gender?.toApiString(),
         extractedFields: extractedFields,
       );
 
       if (success) {
-        final user = await _fetchAndSaveFreshProfile(firebaseUser.uid);
+        final user = await _fetchAndSaveFreshProfile();
         ref.read(cacheCoordinatorProvider).markFresh(CacheDomain.userProfile);
         // Clear signup flag after successful signup
         setSignupInProgress(false);
@@ -484,6 +485,7 @@ class AuthNotifier extends AsyncNotifier<User?> {
         name: updatedData['name'] ?? currentUser.name,
         department: updatedDepartment ?? currentUser.department,
         batch: updatedData['batch'] ?? currentUser.batch,
+        campus: updatedData['campus'] ?? currentUser.campus,
         gender: currentUser.gender,
         interests: updatedData['interests'] != null
             ? List<Interest>.from(updatedData['interests'])
@@ -535,7 +537,6 @@ class AuthNotifier extends AsyncNotifier<User?> {
       final firebaseUser = authService.value.currentUser;
       if (firebaseUser != null) {
         final updatedUser = await _waitForUpdatedPhotoProfile(
-          uid: firebaseUser.uid,
           previousPhotoUrl: oldPhotoUrl,
         );
         final newPhotoUrl = updatedUser.picture;
@@ -631,6 +632,7 @@ class AuthNotifier extends AsyncNotifier<User?> {
         birthday: currentUser.birthday,
         department: currentUser.department,
         batch: currentUser.batch,
+        campus: currentUser.campus,
         gender: currentUser.gender,
         interests: currentUser.interests,
         picture: '', // Wipe the photo locally
@@ -698,6 +700,7 @@ class AuthNotifier extends AsyncNotifier<User?> {
         birthday: currentUser.birthday,
         department: currentUser.department,
         batch: currentUser.batch,
+        campus: currentUser.campus,
         interests: currentUser.interests,
         picture: currentUser.picture,
         friendsCount: (currentUser.friendsCount ?? 0) + 1, // Instantly +1

@@ -90,6 +90,7 @@ class _ConnectDiscoverPageState extends ConsumerState<ConnectDiscoverPage>
     final discoverState = ref.read(discoverConnectProvider);
     String? tempDept = discoverState.selectedDepartmentName;
     String? tempBatch = discoverState.selectedBatchYear;
+    String? tempCampus = discoverState.selectedCampusCode;
 
     showModalBottomSheet<void>(
       context: context,
@@ -118,6 +119,12 @@ class _ConnectDiscoverPageState extends ConsumerState<ConnectDiscoverPage>
                           config.batchRange.end - config.batchRange.start + 1,
                           (i) => (config.batchRange.start + i).toString(),
                         );
+                        final campuses = config.campuses;
+                        final resolvedCampus = campuses.any(
+                          (campus) => campus.code == tempCampus,
+                        )
+                            ? tempCampus
+                            : null;
 
                         return Column(
                           mainAxisSize: MainAxisSize.min,
@@ -143,6 +150,52 @@ class _ConnectDiscoverPageState extends ConsumerState<ConnectDiscoverPage>
                               ],
                             ),
                             const SizedBox(height: 24),
+                            const Text(
+                              'Campus',
+                              style: TextStyle(
+                                fontWeight: FontWeight.w500,
+                                fontSize: 15,
+                              ),
+                            ),
+                            const SizedBox(height: 6),
+                            Container(
+                              height: 50,
+                              decoration: AppStyle.dropdownContainerDecoration(),
+                              child: DropdownButtonFormField<String>(
+                                key: ValueKey(tempCampus),
+                                initialValue: resolvedCampus,
+                                hint: const Text('Select Campus'),
+                                style: const TextStyle(
+                                  fontSize: 15,
+                                  color: Colors.black87,
+                                ),
+                                decoration: AppStyle.dropdownInputDecoration(
+                                  hintText: 'Select Campus',
+                                ),
+                                isExpanded: true,
+                                dropdownColor: Colors.white,
+                                icon: const Icon(
+                                  Icons.keyboard_arrow_down_rounded,
+                                  color: Colors.grey,
+                                ),
+                                items: campuses
+                                    .map(
+                                      (campus) => DropdownMenuItem(
+                                        value: campus.code,
+                                        child: Text(campus.name),
+                                      ),
+                                    )
+                                    .toList(),
+                                onChanged: (val) {
+                                  setState(() {
+                                    tempCampus = val;
+                                  });
+                                },
+                                borderRadius: BorderRadius.circular(20),
+                                menuMaxHeight: 220,
+                              ),
+                            ),
+                            const SizedBox(height: 16),
                             const Text(
                               'Department',
                               style: TextStyle(
@@ -276,6 +329,18 @@ class _ConnectDiscoverPageState extends ConsumerState<ConnectDiscoverPage>
                                             .applyFilters(
                                               departmentName: tempDept,
                                               batchYear: tempBatch,
+                                              campusCode: tempCampus,
+                                              campusName: campuses
+                                                  .firstWhere(
+                                                    (campus) =>
+                                                        campus.code ==
+                                                        tempCampus,
+                                                    orElse: () => Campus(
+                                                      name: '',
+                                                      code: '',
+                                                    ),
+                                                  )
+                                                  .name,
                                             );
                                       },
                                       child: const Text(
@@ -325,6 +390,18 @@ class _ConnectDiscoverPageState extends ConsumerState<ConnectDiscoverPage>
     final recentSearches = ref.watch(
       discoverConnectProvider.select((s) => s.recentSearches),
     );
+    final selectedDepartmentName = ref.watch(
+      discoverConnectProvider.select((s) => s.selectedDepartmentName),
+    );
+    final selectedBatchYear = ref.watch(
+      discoverConnectProvider.select((s) => s.selectedBatchYear),
+    );
+    final selectedCampusName = ref.watch(
+      discoverConnectProvider.select((s) => s.selectedCampusName),
+    );
+    final selectedCampusCode = ref.watch(
+      discoverConnectProvider.select((s) => s.selectedCampusCode),
+    );
     final pendingRequestsCount = ref.watch(
       discoverConnectProvider.select((s) => s.pendingRequestsCount),
     );
@@ -337,8 +414,10 @@ class _ConnectDiscoverPageState extends ConsumerState<ConnectDiscoverPage>
       pendingRequestsCount: pendingRequestsCount,
       isSearchFocused: isSearchFocused,
       recentSearches: recentSearches,
-      selectedDepartmentName: null,
-      selectedBatchYear: null,
+      selectedDepartmentName: selectedDepartmentName,
+      selectedBatchYear: selectedBatchYear,
+      selectedCampusName: selectedCampusName,
+      selectedCampusCode: selectedCampusCode,
       topCardIndex: topCardIndex,
       isLoading: isLoading,
       isRefreshing: isRefreshing,
@@ -377,7 +456,10 @@ class _ConnectDiscoverPageState extends ConsumerState<ConnectDiscoverPage>
                   ? null
                   : () => ref
                         .read(discoverConnectProvider.notifier)
-                        .refreshDiscoverUsers(forceRefresh: true),
+                        .refreshDiscoverUsers(
+                          forceRefresh: true,
+                          replaceExisting: true,
+                        ),
             ),
           IconButton(
             icon: Stack(
@@ -420,7 +502,10 @@ class _ConnectDiscoverPageState extends ConsumerState<ConnectDiscoverPage>
               if (result == true) {
                 ref
                     .read(discoverConnectProvider.notifier)
-                    .refreshDiscoverUsers(forceRefresh: true);
+                    .refreshDiscoverUsers(
+                      forceRefresh: true,
+                      replaceExisting: true,
+                    );
               }
             },
           ),
@@ -579,6 +664,13 @@ class _ConnectDiscoverPageState extends ConsumerState<ConnectDiscoverPage>
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                     ),
+                    const SizedBox(height: 4),
+                    Text(
+                      user.campus?.name ?? 'N/A',
+                      style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
                   ],
                 ),
               ),
@@ -662,11 +754,19 @@ class _ConnectDiscoverPageState extends ConsumerState<ConnectDiscoverPage>
     if (state.isLoading && state.students.isEmpty) {
       return const Center(child: CircularProgressIndicator());
     }
+    if (state.isRefreshing && state.students.isEmpty) {
+      return const Center(child: CircularProgressIndicator());
+    }
     if (state.errorMessage != null && state.students.isEmpty) {
       return _buildErrorState();
     }
     if (state.students.isEmpty) {
-      return _buildEmptyState('All caught up!');
+      final hasActiveFilters = state.selectedDepartmentName != null ||
+          state.selectedBatchYear != null ||
+          state.selectedCampusCode != null;
+      return _buildEmptyState(
+        hasActiveFilters ? 'No Results Found!' : 'All caught up!',
+      );
     }
     if (state.topCardIndex >= state.students.length) {
       return _buildEmptyState('You have seen everyone!');
@@ -801,6 +901,15 @@ class _ConnectDiscoverPageState extends ConsumerState<ConnectDiscoverPage>
                             const SizedBox(height: 4),
                             Text(
                               "${student.department?.name ?? 'N/A'} • Batch ${student.batch}",
+                              style: const TextStyle(
+                                fontSize: 14,
+                                color: Colors.white,
+                              ),
+                              textAlign: TextAlign.left,
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              student.campus?.name ?? 'N/A',
                               style: const TextStyle(
                                 fontSize: 14,
                                 color: Colors.white,
@@ -974,7 +1083,10 @@ class _ConnectDiscoverPageState extends ConsumerState<ConnectDiscoverPage>
               child: ElevatedButton(
                 onPressed: () => ref
                     .read(discoverConnectProvider.notifier)
-                    .refreshDiscoverUsers(forceRefresh: true),
+                    .refreshDiscoverUsers(
+                      forceRefresh: true,
+                      replaceExisting: true,
+                    ),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: primaryBlue,
                   foregroundColor: Colors.white,

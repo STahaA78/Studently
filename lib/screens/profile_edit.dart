@@ -26,6 +26,7 @@ class _EditProfilePageState extends ConsumerState<EditProfilePage> {
   late TextEditingController nameController;
   String? selectedDepartment;
   String? selectedBatch;
+  String? selectedCampus;
   List<Interest> interests = [];
   bool isSaving = false;
   String? _departmentError;
@@ -44,6 +45,7 @@ class _EditProfilePageState extends ConsumerState<EditProfilePage> {
     nameController = TextEditingController(text: widget.user.name);
     selectedDepartment = widget.user.department?.name;
     selectedBatch = widget.user.batch?.trim();
+    selectedCampus = widget.user.campus?.name;
     interests = List<Interest>.from(widget.user.interests);
   }
 
@@ -198,6 +200,9 @@ class _EditProfilePageState extends ConsumerState<EditProfilePage> {
       configBatches,
       selectedBatch ?? widget.user.batch,
     );
+    final campusName = selectedCampus?.trim().isNotEmpty == true
+        ? selectedCampus!.trim()
+        : (widget.user.campus?.name ?? '');
 
     final effectiveDepartmentValue = _normalizeSelectedValue(
       selectedDepartment,
@@ -427,6 +432,34 @@ class _EditProfilePageState extends ConsumerState<EditProfilePage> {
                           ),
                         ),
                       ),
+                    const SizedBox(height: 20),
+                    // Campus - Read Only
+                    const Text(
+                      'Campus',
+                      style: TextStyle(
+                        fontWeight: FontWeight.w500,
+                        fontSize: 15,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    Container(
+                      height: 50,
+                      decoration: BoxDecoration(
+                        color: Colors.grey.shade100,
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                      padding: const EdgeInsets.symmetric(horizontal: 18),
+                      alignment: Alignment.centerLeft,
+                      child: Text(
+                        campusName.isNotEmpty ? campusName : 'Not specified',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          color: Colors.grey.shade700,
+                          fontSize: 15,
+                        ),
+                      ),
+                    ),
                     const SizedBox(height: 20),
                     // Gender - Read Only
                     const Text(

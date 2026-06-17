@@ -10,6 +10,9 @@ enum CacheDomain {
   notifications,
   knowledgeCourses,
   knowledgeCourseResources,
+  backendConfig,
+  teachers,
+  teacherReviews,
 }
 
 class CachePolicy {
@@ -46,6 +49,9 @@ class CacheCoordinator {
     CacheDomain.knowledgeCourseResources: CachePolicy(
       ttl: Duration(seconds: 45),
     ),
+    CacheDomain.backendConfig: CachePolicy(ttl: Duration(seconds: 30)),
+    CacheDomain.teachers: CachePolicy(ttl: Duration(seconds: 60)),
+    CacheDomain.teacherReviews: CachePolicy(ttl: Duration(seconds: 45)),
   };
 
   String _key(CacheDomain domain, String? scopeId) =>

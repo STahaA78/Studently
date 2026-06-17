@@ -5,6 +5,7 @@ import 'package:studently/screens/community_feed_page.dart';
 import 'package:studently/screens/discover_main.dart';
 import 'package:studently/screens/profile_main.dart';
 import 'package:studently/screens/knowledge_hub_main.dart';
+import 'package:studently/screens/teachers_main.dart';
 import 'package:studently/screens/create_post_page.dart';
 import 'package:studently/screens/carpool_feed_page.dart';
 
@@ -63,6 +64,10 @@ class CustomNavBar extends StatelessWidget {
           break;
 
         case 5:
+          destination = const TeachersPage();
+          break;
+
+        case 6:
           destination = const ProfilePage();
           break;
       }
@@ -96,12 +101,13 @@ class CustomNavBar extends StatelessWidget {
           'assets/images/knowledgehub-outlined.svg',
           'assets/images/knowledgehub-filled.svg',
         ),
-        (
-          'assets/images/profile-outlined.svg',
-          'assets/images/profile-filled.svg',
-        ),
+        ('assets/images/teacher.svg', 'assets/images/teacher-filled.svg'),
+        ('assets/images/profile-outlined.svg', 'assets/images/profile-filled.svg'),
       ];
-      return isSelected ? paths[index].$2 : paths[index].$1;
+      if (index < paths.length) {
+        return isSelected ? paths[index].$2 : paths[index].$1;
+      }
+      return paths.last.$1;
     }
 
     return ColoredBox(
@@ -118,7 +124,7 @@ class CustomNavBar extends StatelessWidget {
           unselectedItemColor: Colors.grey,
           showUnselectedLabels: false,
           showSelectedLabels: false,
-          items: List.generate(6, (index) {
+          items: List.generate(7, (index) {
             if (index == 3) {
               return BottomNavigationBarItem(
                 icon: Icon(

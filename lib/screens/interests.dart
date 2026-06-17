@@ -65,6 +65,7 @@ class _InterestsSelectionPageState
             birthday: widget.user!.birthday!,
             department: widget.user!.department!,
             batch: widget.user!.batch!,
+            campus: widget.user!.campus!,
             interests: selectedInterests,
             gender: widget.user!.gender,
             extractedFields: widget.extractedFields,
