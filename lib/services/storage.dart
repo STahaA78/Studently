@@ -8,6 +8,7 @@ import 'package:studently/storage/feed_storage.dart';
 import 'package:studently/storage/chat_storage.dart';
 import 'package:studently/storage/discover_storage.dart';
 import 'package:studently/storage/notifications.dart';
+import 'package:studently/storage/teachers.dart';
 import 'package:studently/logger.dart';
 
 class StorageService {
@@ -29,6 +30,7 @@ class StorageService {
   late DiscoverStorage _discoverStorage;
   late ChatStorage _chatStorage;
   late NotificationStorage _notificationStorage;
+  late TeacherStorage _teacherStorage;
 
   bool _isAppStorageInitialized = false;
   bool _isUserStorageInitialized = false;
@@ -76,6 +78,8 @@ class StorageService {
       _discoverStorage = DiscoverStorage(_discoverBox);
       _chatStorage = ChatStorage(_conversationsBox, _messagesBox);
       _notificationStorage = NotificationStorage(_notificationsBox);
+      _teacherStorage = TeacherStorage();
+      await _teacherStorage.init();
 
       // Initialize the dedicated backend config storage
       _backendConfigStorage = BackendConfigStorage();
@@ -155,6 +159,7 @@ class StorageService {
         await _conversationsBox.clear();
         await _messagesBox.clear();
         await _notificationsBox.clear();
+        await _teacherStorage.clearStorage();
 
         logger.i('[StorageService] All core storage boxes cleared');
       }
@@ -259,6 +264,13 @@ class StorageService {
       throw Exception('App storage not initialized.');
     }
     return _notificationStorage;
+  }
+
+  TeacherStorage get teacherStorage {
+    if (!_isAppStorageInitialized) {
+      throw Exception('App storage not initialized.');
+    }
+    return _teacherStorage;
   }
 
   BackendConfigStorage get backendConfigStorage {

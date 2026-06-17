@@ -2,6 +2,7 @@ import 'dart:io';
 import 'dart:convert';
 import 'dart:async';
 import 'package:studently/config.dart';
+import 'package:studently/services/analytics_service.dart';
 import 'package:studently/services/firebase_auth.dart';
 import 'package:studently/logger.dart';
 import 'package:http/http.dart' as http;
@@ -61,22 +62,66 @@ class ApiService {
   /// ===============================
   /// GET
   /// ===============================
-  Future<http.Response> get(String endpoint) async {
+  Future<http.Response> get(
+    String endpoint, {
+    Map<String, String>? headers,
+    bool allowNotModified = false,
+  }) async {
     logger.i("[$runtimeType] GET request to $endpoint Initiated");
 
     final url = Uri.parse("$_baseUrl$endpoint");
+    final stopwatch = Stopwatch()..start();
+    final normalizedEndpoint = _normalizeEndpoint(endpoint);
 
     try {
-      final response = await http.get(url, headers: await _getAuthHeaders());
+      final requestHeaders = await _getAuthHeaders();
+      if (headers != null) {
+        requestHeaders.addAll(headers);
+      }
+      final response = await http.get(url, headers: requestHeaders);
 
       logger.i("[$runtimeType] GET request Completed ${response.statusCode}");
+      stopwatch.stop();
+      unawaited(
+        AnalyticsService.logApiRequest(
+          method: 'GET',
+          endpoint: normalizedEndpoint,
+          statusCode: response.statusCode,
+          durationMs: stopwatch.elapsedMilliseconds,
+          success:
+              (response.statusCode >= 200 && response.statusCode < 300) ||
+              (allowNotModified && response.statusCode == 304),
+          cacheResult:
+              allowNotModified && response.statusCode == 304
+                  ? 'not_modified'
+                  : null,
+        ),
+      );
 
-      return _handleResponse(response);
+      return _handleResponse(response, allowNotModified: allowNotModified);
     } on SocketException {
       logger.e("[$runtimeType] No Internet connection");
+      stopwatch.stop();
+      unawaited(
+        AnalyticsService.logApiFailure(
+          method: 'GET',
+          endpoint: normalizedEndpoint,
+          durationMs: stopwatch.elapsedMilliseconds,
+          errorType: 'socket_exception',
+        ),
+      );
       throw Exception('No Internet connection');
     } catch (e) {
       logger.e("[$runtimeType] GET request Failed: $e");
+      stopwatch.stop();
+      unawaited(
+        AnalyticsService.logApiFailure(
+          method: 'GET',
+          endpoint: normalizedEndpoint,
+          durationMs: stopwatch.elapsedMilliseconds,
+          errorType: e.runtimeType.toString(),
+        ),
+      );
       throw Exception('Error occurred: $e');
     }
   }
@@ -86,11 +131,13 @@ class ApiService {
   /// ===============================
   Future<http.Response> post(
     String endpoint, {
-    Map<String, dynamic>? body,
+    dynamic body,
   }) async {
     logger.i("[$runtimeType] POST request to $endpoint Initiated");
 
     final url = Uri.parse("$_baseUrl$endpoint");
+    final stopwatch = Stopwatch()..start();
+    final normalizedEndpoint = _normalizeEndpoint(endpoint);
 
     try {
       final response = await http.post(
@@ -100,13 +147,41 @@ class ApiService {
       );
 
       logger.i("[$runtimeType] POST request Completed ${response.statusCode}");
+      stopwatch.stop();
+      unawaited(
+        AnalyticsService.logApiRequest(
+          method: 'POST',
+          endpoint: normalizedEndpoint,
+          statusCode: response.statusCode,
+          durationMs: stopwatch.elapsedMilliseconds,
+          success: response.statusCode >= 200 && response.statusCode < 300,
+        ),
+      );
 
       return _handleResponse(response);
     } on SocketException {
       logger.e("[$runtimeType] No Internet connection");
+      stopwatch.stop();
+      unawaited(
+        AnalyticsService.logApiFailure(
+          method: 'POST',
+          endpoint: normalizedEndpoint,
+          durationMs: stopwatch.elapsedMilliseconds,
+          errorType: 'socket_exception',
+        ),
+      );
       throw Exception('No Internet connection');
     } catch (e) {
       logger.e("[$runtimeType] POST request Failed: $e");
+      stopwatch.stop();
+      unawaited(
+        AnalyticsService.logApiFailure(
+          method: 'POST',
+          endpoint: normalizedEndpoint,
+          durationMs: stopwatch.elapsedMilliseconds,
+          errorType: e.runtimeType.toString(),
+        ),
+      );
       throw Exception('Error occurred: $e');
     }
   }
@@ -116,11 +191,13 @@ class ApiService {
   /// ===============================
   Future<http.Response> patch(
     String endpoint, {
-    Map<String, dynamic>? body,
+    dynamic body,
   }) async {
     logger.i("[$runtimeType] PATCH request to $endpoint Initiated");
 
     final url = Uri.parse("$_baseUrl$endpoint");
+    final stopwatch = Stopwatch()..start();
+    final normalizedEndpoint = _normalizeEndpoint(endpoint);
 
     try {
       final response = await http.patch(
@@ -130,13 +207,41 @@ class ApiService {
       );
 
       logger.i("[$runtimeType] PATCH request Completed ${response.statusCode}");
+      stopwatch.stop();
+      unawaited(
+        AnalyticsService.logApiRequest(
+          method: 'PATCH',
+          endpoint: normalizedEndpoint,
+          statusCode: response.statusCode,
+          durationMs: stopwatch.elapsedMilliseconds,
+          success: response.statusCode >= 200 && response.statusCode < 300,
+        ),
+      );
 
       return _handleResponse(response);
     } on SocketException {
       logger.e("[$runtimeType] No Internet connection");
+      stopwatch.stop();
+      unawaited(
+        AnalyticsService.logApiFailure(
+          method: 'PATCH',
+          endpoint: normalizedEndpoint,
+          durationMs: stopwatch.elapsedMilliseconds,
+          errorType: 'socket_exception',
+        ),
+      );
       throw Exception('No Internet connection');
     } catch (e) {
       logger.e("[$runtimeType] PATCH request Failed: $e");
+      stopwatch.stop();
+      unawaited(
+        AnalyticsService.logApiFailure(
+          method: 'PATCH',
+          endpoint: normalizedEndpoint,
+          durationMs: stopwatch.elapsedMilliseconds,
+          errorType: e.runtimeType.toString(),
+        ),
+      );
       throw Exception('Error occurred: $e');
     }
   }
@@ -146,10 +251,12 @@ class ApiService {
   /// ===============================
   Future<http.Response> delete(
     String endpoint, {
-    Map<String, dynamic>? body,
+    dynamic body,
   }) async {
     logger.i("[$runtimeType] DELETE request to $endpoint Initiated");
     final url = Uri.parse("$_baseUrl$endpoint");
+    final stopwatch = Stopwatch()..start();
+    final normalizedEndpoint = _normalizeEndpoint(endpoint);
     try {
       final response = await http.delete(
         url,
@@ -159,12 +266,40 @@ class ApiService {
       logger.i(
         "[$runtimeType] DELETE request Completed ${response.statusCode}",
       );
+      stopwatch.stop();
+      unawaited(
+        AnalyticsService.logApiRequest(
+          method: 'DELETE',
+          endpoint: normalizedEndpoint,
+          statusCode: response.statusCode,
+          durationMs: stopwatch.elapsedMilliseconds,
+          success: response.statusCode >= 200 && response.statusCode < 300,
+        ),
+      );
       return _handleResponse(response);
     } on SocketException {
       logger.e("[$runtimeType] No Internet connection");
+      stopwatch.stop();
+      unawaited(
+        AnalyticsService.logApiFailure(
+          method: 'DELETE',
+          endpoint: normalizedEndpoint,
+          durationMs: stopwatch.elapsedMilliseconds,
+          errorType: 'socket_exception',
+        ),
+      );
       throw Exception('No Internet connection');
     } catch (e) {
       logger.e("[$runtimeType] DELETE request Failed: $e");
+      stopwatch.stop();
+      unawaited(
+        AnalyticsService.logApiFailure(
+          method: 'DELETE',
+          endpoint: normalizedEndpoint,
+          durationMs: stopwatch.elapsedMilliseconds,
+          errorType: e.runtimeType.toString(),
+        ),
+      );
       throw Exception('Error occurred: $e');
     }
   }
@@ -174,10 +309,12 @@ class ApiService {
   /// ===============================
   Future<http.Response> put(
     String endpoint, {
-    Map<String, dynamic>? body,
+    dynamic body,
   }) async {
     logger.i("[$runtimeType] PUT request to $endpoint Initiated");
     final url = Uri.parse("$_baseUrl$endpoint");
+    final stopwatch = Stopwatch()..start();
+    final normalizedEndpoint = _normalizeEndpoint(endpoint);
     try {
       final response = await http.put(
         url,
@@ -185,12 +322,40 @@ class ApiService {
         body: body != null ? jsonEncode(body) : null,
       );
       logger.i("[$runtimeType] PUT request Completed ${response.statusCode}");
+      stopwatch.stop();
+      unawaited(
+        AnalyticsService.logApiRequest(
+          method: 'PUT',
+          endpoint: normalizedEndpoint,
+          statusCode: response.statusCode,
+          durationMs: stopwatch.elapsedMilliseconds,
+          success: response.statusCode >= 200 && response.statusCode < 300,
+        ),
+      );
       return _handleResponse(response);
     } on SocketException {
       logger.e("[$runtimeType] No Internet connection");
+      stopwatch.stop();
+      unawaited(
+        AnalyticsService.logApiFailure(
+          method: 'PUT',
+          endpoint: normalizedEndpoint,
+          durationMs: stopwatch.elapsedMilliseconds,
+          errorType: 'socket_exception',
+        ),
+      );
       throw Exception('No Internet connection');
     } catch (e) {
       logger.e("[$runtimeType] PUT request Failed: $e");
+      stopwatch.stop();
+      unawaited(
+        AnalyticsService.logApiFailure(
+          method: 'PUT',
+          endpoint: normalizedEndpoint,
+          durationMs: stopwatch.elapsedMilliseconds,
+          errorType: e.runtimeType.toString(),
+        ),
+      );
       throw Exception('Error occurred: $e');
     }
   }
@@ -206,6 +371,8 @@ class ApiService {
     logger.i("[$runtimeType] Multipart POST request Initiated");
 
     final url = Uri.parse("$_baseUrl$endpoint");
+    final stopwatch = Stopwatch()..start();
+    final normalizedEndpoint = _normalizeEndpoint(endpoint);
 
     try {
       var request = http.MultipartRequest('POST', url)
@@ -215,10 +382,30 @@ class ApiService {
         ..files.add(await http.MultipartFile.fromPath('file', file.path));
 
       final response = await request.send();
-
-      return _handleResponse(await http.Response.fromStream(response));
+      final materialized = await http.Response.fromStream(response);
+      stopwatch.stop();
+      unawaited(
+        AnalyticsService.logApiRequest(
+          method: 'POST',
+          endpoint: normalizedEndpoint,
+          statusCode: materialized.statusCode,
+          durationMs: stopwatch.elapsedMilliseconds,
+          success:
+              materialized.statusCode >= 200 && materialized.statusCode < 300,
+        ),
+      );
+      return _handleResponse(materialized);
     } catch (e) {
       logger.e("[$runtimeType] Multipart request Failed: $e");
+      stopwatch.stop();
+      unawaited(
+        AnalyticsService.logApiFailure(
+          method: 'POST',
+          endpoint: normalizedEndpoint,
+          durationMs: stopwatch.elapsedMilliseconds,
+          errorType: e.runtimeType.toString(),
+        ),
+      );
       throw Exception('Error occurred: $e');
     }
   }
@@ -234,6 +421,8 @@ class ApiService {
     logger.i("[$runtimeType] File Upload request to $endpoint Initiated");
 
     final url = Uri.parse("$_baseUrl$endpoint");
+    final stopwatch = Stopwatch()..start();
+    final normalizedEndpoint = _normalizeEndpoint(endpoint);
 
     try {
       var request = http.MultipartRequest('POST', url)
@@ -245,11 +434,31 @@ class ApiService {
 
       final streamedResponse = await request.send();
 
-      final response = await http.Response.fromStream(streamedResponse);
+      final materialized = await http.Response.fromStream(streamedResponse);
+      stopwatch.stop();
+      unawaited(
+        AnalyticsService.logApiRequest(
+          method: 'POST',
+          endpoint: normalizedEndpoint,
+          statusCode: materialized.statusCode,
+          durationMs: stopwatch.elapsedMilliseconds,
+          success:
+              materialized.statusCode >= 200 && materialized.statusCode < 300,
+        ),
+      );
 
-      return _handleResponse(response);
+      return _handleResponse(materialized);
     } catch (e) {
       logger.e("[$runtimeType] File Upload Failed: $e");
+      stopwatch.stop();
+      unawaited(
+        AnalyticsService.logApiFailure(
+          method: 'POST',
+          endpoint: normalizedEndpoint,
+          durationMs: stopwatch.elapsedMilliseconds,
+          errorType: e.runtimeType.toString(),
+        ),
+      );
       throw Exception('Error occurred: $e');
     }
   }
@@ -268,6 +477,8 @@ class ApiService {
     logger.i("[$runtimeType] Multipart (bytes) request to $endpoint Initiated");
 
     final url = Uri.parse("$_baseUrl$endpoint");
+    final stopwatch = Stopwatch()..start();
+    final normalizedEndpoint = _normalizeEndpoint(endpoint);
 
     MediaType inferImageMediaType(String name) {
       final lower = name.toLowerCase();
@@ -307,10 +518,29 @@ class ApiService {
       final streamedResponse = await request.send();
 
       final response = await http.Response.fromStream(streamedResponse);
+      stopwatch.stop();
+      unawaited(
+        AnalyticsService.logApiRequest(
+          method: 'POST',
+          endpoint: normalizedEndpoint,
+          statusCode: response.statusCode,
+          durationMs: stopwatch.elapsedMilliseconds,
+          success: response.statusCode >= 200 && response.statusCode < 300,
+        ),
+      );
 
       return _handleResponse(response);
     } catch (e) {
       logger.e("[$runtimeType] Multipart (bytes) request Failed: $e");
+      stopwatch.stop();
+      unawaited(
+        AnalyticsService.logApiFailure(
+          method: 'POST',
+          endpoint: normalizedEndpoint,
+          durationMs: stopwatch.elapsedMilliseconds,
+          errorType: e.runtimeType.toString(),
+        ),
+      );
       throw Exception('Error occurred: $e');
     }
   }
@@ -322,13 +552,34 @@ class ApiService {
     logger.i("[$runtimeType] Download request $endpoint");
 
     final url = Uri.parse("$_baseUrl$endpoint");
+    final stopwatch = Stopwatch()..start();
+    final normalizedEndpoint = _normalizeEndpoint(endpoint);
 
     try {
       final response = await http.get(url);
+      stopwatch.stop();
+      unawaited(
+        AnalyticsService.logApiRequest(
+          method: 'GET',
+          endpoint: normalizedEndpoint,
+          statusCode: response.statusCode,
+          durationMs: stopwatch.elapsedMilliseconds,
+          success: response.statusCode >= 200 && response.statusCode < 300,
+        ),
+      );
 
       return _handleResponse(response);
     } catch (e) {
       logger.e("[$runtimeType] Download failed: $e");
+      stopwatch.stop();
+      unawaited(
+        AnalyticsService.logApiFailure(
+          method: 'GET',
+          endpoint: normalizedEndpoint,
+          durationMs: stopwatch.elapsedMilliseconds,
+          errorType: e.runtimeType.toString(),
+        ),
+      );
       throw Exception('Error occurred: $e');
     }
   }
@@ -338,13 +589,33 @@ class ApiService {
   /// ===============================
   Future<http.Response> downloadFromUrl(String externalUrl) async {
     logger.i("[$runtimeType] Download from external URL: $externalUrl");
+    final stopwatch = Stopwatch()..start();
 
     try {
       final response = await http.get(Uri.parse(externalUrl));
+      stopwatch.stop();
+      unawaited(
+        AnalyticsService.logApiRequest(
+          method: 'GET',
+          endpoint: 'external_download',
+          statusCode: response.statusCode,
+          durationMs: stopwatch.elapsedMilliseconds,
+          success: response.statusCode >= 200 && response.statusCode < 300,
+        ),
+      );
 
       return _handleResponse(response);
     } catch (e) {
       logger.e("[$runtimeType] Download from external URL failed: $e");
+      stopwatch.stop();
+      unawaited(
+        AnalyticsService.logApiFailure(
+          method: 'GET',
+          endpoint: 'external_download',
+          durationMs: stopwatch.elapsedMilliseconds,
+          errorType: e.runtimeType.toString(),
+        ),
+      );
       throw Exception('Error occurred: $e');
     }
   }
@@ -352,15 +623,38 @@ class ApiService {
   /// ===============================
   /// RESPONSE HANDLER
   /// ===============================
-  http.Response _handleResponse(http.Response response) {
+  http.Response _handleResponse(
+    http.Response response, {
+    bool allowNotModified = false,
+  }) {
+    if (response.statusCode == 304 && allowNotModified) {
+      return response;
+    }
+
     if (response.statusCode >= 200 && response.statusCode < 300) {
       return response;
     } else {
+      var message = 'Request failed with status: ${response.statusCode}';
+      try {
+        final decoded = jsonDecode(response.body);
+        if (decoded is Map<String, dynamic>) {
+          final detail = decoded['detail'] ?? decoded['message'];
+          if (detail != null && detail.toString().trim().isNotEmpty) {
+            message = detail.toString();
+          }
+        } else if (response.body.trim().isNotEmpty) {
+          message = response.body.trim();
+        }
+      } catch (_) {
+        if (response.body.trim().isNotEmpty) {
+          message = response.body.trim();
+        }
+      }
       logger.e(
         "[$runtimeType] Request failed ${response.statusCode} body: ${response.body}",
       );
 
-      throw Exception('Request failed with status: ${response.statusCode}');
+      throw Exception(message);
     }
   }
 
@@ -373,5 +667,33 @@ class ApiService {
     logger.d("[$runtimeType] Complete URL: $completeUrl");
 
     return completeUrl;
+  }
+
+  String _normalizeEndpoint(String endpoint) {
+    final path = Uri.parse(endpoint).path;
+    final normalized = path
+        .replaceAll(
+          RegExp(r'^/teachers/[^/]+/reviews/?$'),
+          '/teachers/:id/reviews',
+        )
+        .replaceAll(RegExp(r'^/teachers/[^/]+/?$'), '/teachers/:id')
+        .replaceAll(
+          RegExp(r'^/hub/resources/[^/]+/?$'),
+          '/hub/resources/:course',
+        )
+        .replaceAll(RegExp(r'^/users/[^/]+/status/?$'), '/users/:id/status')
+        .replaceAll(
+          RegExp(r'^/users/[^/]+/requests/?$'),
+          '/users/:id/requests',
+        );
+
+    if (normalized.startsWith('/users/search')) {
+      return '/users/search';
+    }
+    if (normalized.startsWith('/users/discover/interactions')) {
+      return '/users/discover/interactions';
+    }
+
+    return normalized.isEmpty ? endpoint : normalized;
   }
 }

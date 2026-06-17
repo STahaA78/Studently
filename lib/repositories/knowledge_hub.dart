@@ -1,7 +1,9 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 import 'package:studently/models/knowledge_hub.dart';
+import 'package:studently/services/analytics_service.dart';
 import 'package:studently/services/api.dart';
 import 'package:studently/storage/knowledge_hub.dart';
 import 'package:studently/services/storage.dart';
@@ -28,11 +30,52 @@ class KnowledgeHubRepository {
         final cachedCourses = _storage.getCachedCourses();
         // Ensure cached courses are sorted
         cachedCourses.sort((a, b) => a.name.compareTo(b.name));
+        _refreshCoursesInBackground();
         return cachedCourses;
       }
 
+      final headers = <String, String>{};
+      final cachedEtag = _storage.getCoursesEtag();
+      if (cachedEtag != null && cachedEtag.isNotEmpty) {
+        headers['If-None-Match'] = cachedEtag;
+      }
+
       // Fetch from API
-      final response = await _apiService.get('/hub/courses');
+      final response = await _apiService.get(
+        '/hub/courses',
+        headers: headers,
+        allowNotModified: true,
+      );
+
+      if (response.statusCode == 304 && _storage.hasCachedCourses()) {
+        logger.i("[$runtimeType] Courses unchanged (304)");
+        final cachedCourses = _storage.getCachedCourses();
+        cachedCourses.sort((a, b) => a.name.compareTo(b.name));
+        return cachedCourses;
+      } else if (response.statusCode == 304) {
+        logger.w(
+          "[$runtimeType] Received 304 for courses but no cache was available; refetching without ETag",
+        );
+        final fallbackResponse = await _apiService.get('/hub/courses');
+        final List<dynamic> fallbackJson = jsonDecode(fallbackResponse.body);
+        final fallbackCourses =
+            fallbackJson
+                .where((item) {
+                  bool hasCode = item['code'] != null;
+                  bool hasName = item['name'] != null;
+                  return hasCode && hasName;
+                })
+                .map((item) => Course.fromJson(item))
+                .toList()
+              ..sort((a, b) => a.name.compareTo(b.name));
+        await _storage.saveCourses(fallbackCourses);
+        final fallbackEtag = fallbackResponse.headers['etag'];
+        if (fallbackEtag != null && fallbackEtag.isNotEmpty) {
+          await _storage.saveCoursesEtag(fallbackEtag);
+        }
+        return fallbackCourses;
+      }
+
       final List<dynamic> jsonData = jsonDecode(response.body);
       logger.d("[$runtimeType] Fetched ${jsonData.length} courses from API");
 
@@ -61,6 +104,10 @@ class KnowledgeHubRepository {
 
       // Cache the results
       await _storage.saveCourses(courses);
+      final etag = response.headers['etag'];
+      if (etag != null && etag.isNotEmpty) {
+        await _storage.saveCoursesEtag(etag);
+      }
       logger.i("[$runtimeType] Cached ${courses.length} courses");
       logger.i("[$runtimeType] Fetch All Courses Completed Successfully");
 
@@ -75,6 +122,42 @@ class KnowledgeHubRepository {
         cachedCourses.sort((a, b) => a.name.compareTo(b.name));
         return cachedCourses;
       }
+      rethrow;
+    }
+  }
+
+  Future<void> _refreshCoursesInBackground() async {
+    try {
+      await fetchAllCourses(forceRefresh: true);
+    } catch (e) {
+      logger.w("[$runtimeType] Background course refresh failed: $e");
+    }
+  }
+
+  Future<void> addCourse(Course course) async {
+    logger.i("[$runtimeType] Add Course Initiated for ${course.code}");
+    try {
+      await _apiService.post(
+        '/hub/courses/add',
+        body: [course.toJson()],
+      );
+      await _storage.saveCourses(
+        [..._storage.getCachedCourses(), course]
+          ..sort((a, b) => a.name.compareTo(b.name)),
+      );
+      unawaited(
+        AnalyticsService.logEvent(
+          AnalyticsEvents.courseAdd,
+          parameters: {
+            'course_code': course.code,
+            'course_name_length': course.name.length,
+            'source': 'knowledge_hub',
+          },
+        ),
+      );
+      logger.i("[$runtimeType] Add Course Completed Successfully");
+    } catch (e) {
+      logger.e("[$runtimeType] Add Course Failed with error: $e");
       rethrow;
     }
   }
@@ -134,8 +217,56 @@ class KnowledgeHubRepository {
         }
       }
 
+      final headers = <String, String>{};
+      final cachedEtag = _storage.getResourcesEtag(courseId);
+      if (cachedEtag != null && cachedEtag.isNotEmpty) {
+        headers['If-None-Match'] = cachedEtag;
+      }
+
       // Fetch from API
-      final response = await _apiService.get('/hub/resources/$courseId');
+      final response = await _apiService.get(
+        '/hub/resources/$courseId',
+        headers: headers,
+        allowNotModified: true,
+      );
+
+      if (response.statusCode == 304) {
+        final cachedResources = _storage.getCachedResourcesForCourse(courseId);
+        if (cachedResources.isNotEmpty) {
+          logger.i(
+            "[$runtimeType] Resources for course $courseId unchanged (304)",
+          );
+          final Map<String, List<ResourceItem>> resourcesByType = {};
+          for (var resource in cachedResources) {
+            final type = resource.type;
+            if (!resourcesByType.containsKey(type)) {
+              resourcesByType[type] = [];
+            }
+            resourcesByType[type]!.add(resource);
+          }
+          return ResourceGroup(
+            course: Course(code: courseId, name: courseId),
+            resources: resourcesByType,
+          );
+        }
+        logger.w(
+          "[$runtimeType] Received 304 for course $courseId but no cache was available; refetching without ETag",
+        );
+        final fallbackResponse = await _apiService.get('/hub/resources/$courseId');
+        final Map<String, dynamic> fallbackJson = jsonDecode(fallbackResponse.body);
+        final fallbackGroup = ResourceGroup.fromJson(fallbackJson);
+        final allResources = <ResourceItem>[];
+        fallbackGroup.resources.forEach((type, resourceList) {
+          allResources.addAll(resourceList);
+        });
+        await _storage.saveResourcesForCourse(courseId, allResources);
+        final fallbackEtag = fallbackResponse.headers['etag'];
+        if (fallbackEtag != null && fallbackEtag.isNotEmpty) {
+          await _storage.saveResourcesEtag(courseId, fallbackEtag);
+        }
+        return fallbackGroup;
+      }
+
       final Map<String, dynamic> jsonData = jsonDecode(response.body);
       final resourceGroup = ResourceGroup.fromJson(jsonData);
 
@@ -145,6 +276,10 @@ class KnowledgeHubRepository {
         allResources.addAll(resourceList);
       });
       await _storage.saveResourcesForCourse(courseId, allResources);
+      final etag = response.headers['etag'];
+      if (etag != null && etag.isNotEmpty) {
+        await _storage.saveResourcesEtag(courseId, etag);
+      }
       logger.i(
         "[$runtimeType] Cached ${allResources.length} resources for course $courseId",
       );
@@ -246,6 +381,20 @@ class KnowledgeHubRepository {
         file: File(filePath),
         metadata: resourceItemRequest.toJson(),
       );
+      unawaited(
+        AnalyticsService.logEvent(
+          AnalyticsEvents.resourceAdd,
+          parameters: {
+            'course_code': resourceItemRequest.course.code,
+            'resource_type': resourceItemRequest.type,
+            'semester': resourceItemRequest.semester,
+            'year': resourceItemRequest.year,
+            'mid_number': resourceItemRequest.midNumber ?? 0,
+            'is_solved': resourceItemRequest.isSolved,
+            'upload_mode': 'file_path',
+          },
+        ),
+      );
       logger.i(
         "[$runtimeType] Upload Resource Completed Successfully for Course ${resourceItemRequest.course.code}",
       );
@@ -272,6 +421,20 @@ class KnowledgeHubRepository {
         fileBytes: fileBytes,
         filename: filename,
         metadata: resourceItemRequest.toJson(),
+      );
+      unawaited(
+        AnalyticsService.logEvent(
+          AnalyticsEvents.resourceAdd,
+          parameters: {
+            'course_code': resourceItemRequest.course.code,
+            'resource_type': resourceItemRequest.type,
+            'semester': resourceItemRequest.semester,
+            'year': resourceItemRequest.year,
+            'mid_number': resourceItemRequest.midNumber ?? 0,
+            'is_solved': resourceItemRequest.isSolved,
+            'upload_mode': 'bytes',
+          },
+        ),
       );
       logger.i(
         "[$runtimeType] Upload Resource (bytes) Completed Successfully for Course ${resourceItemRequest.course.code}",

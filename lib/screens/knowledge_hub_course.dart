@@ -1,7 +1,9 @@
+import 'dart:async';
 import 'package:studently/app_style.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:studently/services/analytics_service.dart';
 import 'package:studently/screens/knowledge_hub_upload.dart';
 import 'package:studently/screens/knowledge_hub_resource.dart';
 import '../widgets/custom_nav_bar.dart';
@@ -29,6 +31,16 @@ class _RepositoryUserPageState extends ConsumerState<RepositoryUserPage>
   void initState() {
     super.initState();
     _tabController = TabController(length: 2, vsync: this);
+    unawaited(
+      AnalyticsService.logEvent(
+        AnalyticsEvents.courseOpen,
+        parameters: {
+          'course_code': widget.course.code,
+          'course_name_length': widget.course.name.length,
+          'source': 'repository_page',
+        },
+      ),
+    );
   }
 
   @override
@@ -354,6 +366,22 @@ class _RepositoryUserPageState extends ConsumerState<RepositoryUserPage>
           onTap: () {
             logger.i(
               "Tapped on resource: Year ${item.year} - ${item.semester} - ID: ${item.id}",
+            );
+
+            unawaited(
+              AnalyticsService.logEvent(
+                AnalyticsEvents.resourceOpen,
+                parameters: {
+                  'course_code': widget.course.code,
+                  'resource_id_present': item.id.isNotEmpty,
+                  'resource_type': item.type,
+                  'semester': item.semester,
+                  'year': item.year,
+                  'mid_number': item.midNumber ?? 0,
+                  'is_solved': item.isSolved ?? false,
+                  'platform': kIsWeb ? 'web' : 'native',
+                },
+              ),
             );
 
             // For web (non-PWA), open PDF in a new tab

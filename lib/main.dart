@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:studently/app_style.dart';
+import 'package:studently/services/analytics_service.dart';
 import 'package:studently/providers/notifications_provider.dart';
 import 'package:studently/services/app_navigation.dart';
 
@@ -18,6 +19,7 @@ import 'package:studently/providers/backend_config_provider.dart';
 import 'package:studently/providers/feed_provider.dart';
 import 'package:studently/providers/chat_provider.dart';
 import 'package:studently/providers/knowledge_hub_provider.dart';
+import 'package:studently/providers/teachers_provider.dart';
 import 'screens/community_feed_page.dart';
 import 'screens/signup_basic_page.dart';
 
@@ -39,6 +41,7 @@ class MyApp extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     ref.listen(authProvider, (previous, next) {
       next.whenData((user) async {
+        await AnalyticsService.setUserContext(user: user);
         if (user == null) {
           await ref.read(notificationProvider.notifier).clearForLogout();
 
@@ -49,6 +52,7 @@ class MyApp extends ConsumerWidget {
           ref.invalidate(chatProvider);
           ref.invalidate(allCoursesProvider);
           ref.invalidate(allResourceGroupsProvider);
+          ref.invalidate(teachersProvider);
           ref.invalidate(backendConfigProvider);
 
           // Reset navigation stack to root on logout and ensure we are on the base route
@@ -92,7 +96,6 @@ class MyApp extends ConsumerWidget {
           if (firebaseUser != null && user == null) {
             return const SignupBasicPage();
           }
-
           return const LoginGooglePage();
         },
         // If the provider hits an error (like a wrong password or cancelled Google signin), stay on LoginPage
@@ -120,6 +123,7 @@ class MyApp extends ConsumerWidget {
 
       // Global theme settings
       theme: AppStyle.theme,
+      navigatorObservers: [AnalyticsService.observer],
     );
   }
 }

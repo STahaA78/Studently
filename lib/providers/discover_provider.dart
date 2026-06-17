@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:studently/services/analytics_service.dart';
 import 'package:studently/logger.dart';
 import 'package:studently/models/user.dart';
 import 'package:studently/providers/auth_provider.dart';
@@ -11,13 +12,11 @@ final discoverRepositoryProvider = Provider<DiscoverRepository>((ref) {
   return DiscoverRepository();
 });
 
-final discoverConnectProvider =
-    NotifierProvider.autoDispose<DiscoverConnectNotifier, DiscoverConnectState>(
+final discoverConnectProvider = NotifierProvider.autoDispose<DiscoverConnectNotifier, DiscoverConnectState>(
       DiscoverConnectNotifier.new,
     );
 
-final discoverRequestsProvider =
-    NotifierProvider.autoDispose<
+final discoverRequestsProvider = NotifierProvider.autoDispose<
       DiscoverRequestsNotifier,
       DiscoverRequestsState
     >(DiscoverRequestsNotifier.new);
@@ -33,6 +32,8 @@ class DiscoverConnectState {
   final List<String> recentSearches;
   final String? selectedDepartmentName;
   final String? selectedBatchYear;
+  final String? selectedCampusName;
+  final String? selectedCampusCode;
   final int topCardIndex;
   final bool isLoading;
   final bool isRefreshing;
@@ -49,6 +50,8 @@ class DiscoverConnectState {
     required this.recentSearches,
     required this.selectedDepartmentName,
     required this.selectedBatchYear,
+    required this.selectedCampusName,
+    required this.selectedCampusCode,
     required this.topCardIndex,
     required this.isLoading,
     required this.isRefreshing,
@@ -67,6 +70,8 @@ class DiscoverConnectState {
       recentSearches: [],
       selectedDepartmentName: null,
       selectedBatchYear: null,
+      selectedCampusName: null,
+      selectedCampusCode: null,
       topCardIndex: 0,
       isLoading: true,
       isRefreshing: false,
@@ -85,6 +90,8 @@ class DiscoverConnectState {
     List<String>? recentSearches,
     String? selectedDepartmentName,
     String? selectedBatchYear,
+    String? selectedCampusName,
+    String? selectedCampusCode,
     int? topCardIndex,
     bool? isLoading,
     bool? isRefreshing,
@@ -102,6 +109,8 @@ class DiscoverConnectState {
       selectedDepartmentName:
           selectedDepartmentName ?? this.selectedDepartmentName,
       selectedBatchYear: selectedBatchYear ?? this.selectedBatchYear,
+      selectedCampusName: selectedCampusName ?? this.selectedCampusName,
+      selectedCampusCode: selectedCampusCode ?? this.selectedCampusCode,
       topCardIndex: topCardIndex ?? this.topCardIndex,
       isLoading: isLoading ?? this.isLoading,
       isRefreshing: isRefreshing ?? this.isRefreshing,
@@ -118,18 +127,20 @@ class DiscoverConnectNotifier extends Notifier<DiscoverConnectState> {
   late DiscoverRepository _repository;
   late DiscoverStorage _storage;
   Timer? _searchDebounceTimer;
+  Timer? _interactionFlushTimer;
   bool _hasInitialized = false;
   bool _isFetchingNext = false;
-  int _currentIndex = 0;
+  bool _isFetchingFiltered = false;
   static const int _pageSize = 15;
+  static const int _interactionFlushThreshold = 5;
+  static const int _cardPrefetchThreshold = 3;
+  static const Duration _interactionFlushDelay = Duration(minutes: 1);
 
   static const int _cacheDurationMs = 300000;
 
   Future<void> init() async {
     if (_hasInitialized) return;
     _hasInitialized = true;
-    // load saved index
-    _currentIndex = _storage.getDiscoverIndex();
     _hydrateFromCache();
     await _refreshIfStale();
     await refreshPendingRequests();
@@ -139,6 +150,11 @@ class DiscoverConnectNotifier extends Notifier<DiscoverConnectState> {
   DiscoverConnectState build() {
     _repository = ref.read(discoverRepositoryProvider);
     _storage = StorageService().discoverStorage;
+    ref.onDispose(() {
+      _searchDebounceTimer?.cancel();
+      _interactionFlushTimer?.cancel();
+      unawaited(flushPendingInteractions(forceRefresh: true));
+    });
 
     // Use microtask to ensure repository/storage are used after build
     Future.microtask(() {
@@ -151,21 +167,24 @@ class DiscoverConnectNotifier extends Notifier<DiscoverConnectState> {
 
   void _hydrateFromCache() {
     final cachedUsers = _storage.getCachedDiscoverUsers();
-    final swipedLeft = _storage.getSwipedLeftIds();
-    final filteredCached = _filterSwipedLeft(cachedUsers, swipedLeft);
-    final filtered = _applyFilters(
-      filteredCached,
+    final userCampus = ref.read(authProvider).value?.campus;
+    final selectedCampusCode = state.selectedCampusCode ?? userCampus?.code;
+    final selectedCampusName = state.selectedCampusName ?? userCampus?.name;
+    final campusFiltered = _applyFilters(
+      cachedUsers,
       departmentName: state.selectedDepartmentName,
       batchYear: state.selectedBatchYear,
+      campusCode: selectedCampusCode,
     );
 
     state = state.copyWith(
       baseStudents: cachedUsers,
-      students: filtered,
-      swipedLeftIds: swipedLeft,
+      students: campusFiltered,
       pendingRequestsCount: _storage.getCachedPendingRequests().length,
       isLoading: cachedUsers.isEmpty,
       errorMessage: null,
+      selectedCampusCode: selectedCampusCode,
+      selectedCampusName: selectedCampusName,
       topCardIndex: 0,
     );
   }
@@ -176,7 +195,10 @@ class DiscoverConnectNotifier extends Notifier<DiscoverConnectState> {
     if (state.baseStudents.isEmpty ||
         lastFetch == null ||
         (now - lastFetch) > _cacheDurationMs) {
-      await refreshDiscoverUsers(forceRefresh: true);
+      await refreshDiscoverUsers(
+        forceRefresh: true,
+        replaceExisting: true,
+      );
     }
   }
 
@@ -184,6 +206,7 @@ class DiscoverConnectNotifier extends Notifier<DiscoverConnectState> {
     List<User> users, {
     required String? departmentName,
     required String? batchYear,
+    required String? campusCode,
   }) {
     var filtered = users;
     if (departmentName != null) {
@@ -196,14 +219,26 @@ class DiscoverConnectNotifier extends Notifier<DiscoverConnectState> {
           .where((user) => user.batch?.toString() == batchYear)
           .toList();
     }
+    if (campusCode != null) {
+      filtered = filtered
+          .where((user) => user.campus?.code == campusCode)
+          .toList();
+    }
     return filtered;
   }
 
-  List<User> _filterSwipedLeft(List<User> users, Set<String> swipedLeftIds) {
-    return users.where((user) => !swipedLeftIds.contains(user.id)).toList();
-  }
+  bool get _hasActiveFilters =>
+      state.selectedDepartmentName != null ||
+      state.selectedBatchYear != null ||
+      state.selectedCampusCode != null;
 
-  Future<void> refreshDiscoverUsers({bool forceRefresh = false}) async {
+  bool get _isFilteredView => _hasActiveFilters;
+
+  Future<void> refreshDiscoverUsers({
+    bool forceRefresh = false,
+    bool replaceExisting = false,
+    bool skipFlush = false,
+  }) async {
     if (state.isRefreshing) return;
 
     final lastFetch = _storage.getDiscoverLastFetchTime();
@@ -222,7 +257,17 @@ class DiscoverConnectNotifier extends Notifier<DiscoverConnectState> {
     );
 
     try {
-      final users = await _repository.discoverUsers(index: _currentIndex);
+      if (forceRefresh && !skipFlush) {
+        await flushPendingInteractions(forceRefresh: true);
+      }
+
+      final users = await _repository.discoverUsers(
+        limit: _pageSize,
+        campusCode: state.selectedCampusCode,
+        departmentName: state.selectedDepartmentName,
+        batchYear: state.selectedBatchYear,
+        forceRefresh: forceRefresh,
+      );
       final statuses = await _repository.fetchConnectionStatuses(
         users.map((user) => user.id).toList(),
       );
@@ -232,35 +277,32 @@ class DiscoverConnectNotifier extends Notifier<DiscoverConnectState> {
                 statuses.containsKey(user.id) && statuses[user.id] == 'none',
           )
           .toList();
-      // Merge with existing base students when fetching subsequent pages
-      List<User> newBase;
-      if (_currentIndex > 0) {
-        final combined = [...state.baseStudents, ...validUsers];
-        final Map<String, User> uniq = {};
-        for (var u in combined) {
-          uniq[u.id] = u;
-        }
-        newBase = uniq.values.toList();
-      } else {
-        newBase = validUsers;
-      }
+      final newBase = replaceExisting
+          ? validUsers
+          : (() {
+              final combined = [...state.baseStudents, ...validUsers];
+              final Map<String, User> uniq = {};
+              for (var u in combined) {
+                uniq[u.id] = u;
+              }
+              return uniq.values.toList();
+            })();
 
       _storage.saveDiscoverUsers(newBase);
-      // persist current index
-      _storage.setDiscoverIndex(_currentIndex);
       _storage.setDiscoverLastFetchTime(now);
 
       final filtered = _applyFilters(
-        _filterSwipedLeft(newBase, state.swipedLeftIds),
+        newBase,
         departmentName: state.selectedDepartmentName,
         batchYear: state.selectedBatchYear,
+        campusCode: state.selectedCampusCode,
       );
 
       state = state.copyWith(
-        baseStudents: newBase,
+        baseStudents: replaceExisting ? users : newBase,
         students: state.searchQuery.isEmpty ? filtered : state.students,
         connectionStatus: statuses,
-        topCardIndex: _currentIndex == 0 ? 0 : state.topCardIndex,
+        topCardIndex: replaceExisting ? 0 : state.topCardIndex,
         isLoading: false,
         isRefreshing: false,
         errorMessage: null,
@@ -335,7 +377,6 @@ class DiscoverConnectNotifier extends Notifier<DiscoverConnectState> {
 
     try {
       final results = await _repository.searchUsers(query);
-      //final filtered = _filterSwipedLeft(results, state.swipedLeftIds);
       state = state.copyWith(students: results, isLoading: false);
     } catch (e) {
       logger.e('[DiscoverConnectNotifier] runSearch failed: $e');
@@ -346,9 +387,10 @@ class DiscoverConnectNotifier extends Notifier<DiscoverConnectState> {
   void clearSearch() {
     _searchDebounceTimer?.cancel();
     final filtered = _applyFilters(
-      _filterSwipedLeft(state.baseStudents, state.swipedLeftIds),
+      state.baseStudents,
       departmentName: state.selectedDepartmentName,
       batchYear: state.selectedBatchYear,
+      campusCode: state.selectedCampusCode,
     );
 
     state = state.copyWith(
@@ -373,42 +415,193 @@ class DiscoverConnectNotifier extends Notifier<DiscoverConnectState> {
     state = state.copyWith(recentSearches: updated);
   }
 
-  void applyFilters({String? departmentName, String? batchYear}) {
+  void applyFilters({
+    String? departmentName,
+    String? batchYear,
+    String? campusName,
+    String? campusCode,
+  }) {
     final nextState = state.copyWith(
       selectedDepartmentName: departmentName,
       selectedBatchYear: batchYear,
+      selectedCampusName: campusName,
+      selectedCampusCode: campusCode,
       topCardIndex: 0,
     );
 
     final filtered = _applyFilters(
-      _filterSwipedLeft(nextState.baseStudents, nextState.swipedLeftIds),
+      nextState.baseStudents,
       departmentName: departmentName,
       batchYear: batchYear,
+      campusCode: campusCode,
     );
+    final shouldFetchRemote = nextState.searchQuery.isEmpty &&
+        filtered.isEmpty &&
+        (departmentName != null || batchYear != null || campusCode != null);
+    final shouldPrefetchRemote = nextState.searchQuery.isEmpty &&
+        filtered.isNotEmpty &&
+        filtered.length <= 3;
 
     state = nextState.copyWith(
       students: nextState.searchQuery.isEmpty ? filtered : nextState.students,
     );
 
-    refreshDiscoverUsers();
+    unawaited(
+      AnalyticsService.logEvent(
+        AnalyticsEvents.discoverFilterChanged,
+        parameters: {
+          'action':
+              departmentName == null && batchYear == null && campusCode == null
+              ? 'reset'
+              : 'apply',
+          'department_set': departmentName != null,
+          'batch_set': batchYear != null,
+          'campus_set': campusCode != null,
+          'active_filter_count': [
+            departmentName,
+            batchYear,
+            campusCode,
+          ].where((value) => value != null).length,
+          'search_active': state.searchQuery.isNotEmpty,
+          'result_count': filtered.length,
+        },
+      ),
+    );
+
+    if (shouldFetchRemote) {
+      unawaited(
+        refreshFilteredDiscoverUsers(
+          departmentName: departmentName,
+          batchYear: batchYear,
+          campusCode: campusCode,
+          append: false,
+          showLoading: true,
+        ),
+      );
+    } else if (shouldPrefetchRemote) {
+      unawaited(
+        refreshFilteredDiscoverUsers(
+          departmentName: departmentName,
+          batchYear: batchYear,
+          campusCode: campusCode,
+          append: true,
+          showLoading: false,
+        ),
+      );
+    }
   }
 
   void resetFilters() {
-    applyFilters(departmentName: null, batchYear: null);
+    applyFilters(
+      departmentName: null,
+      batchYear: null,
+      campusName: null,
+      campusCode: null,
+    );
+  }
+
+  Future<void> refreshFilteredDiscoverUsers({
+    String? departmentName,
+    String? batchYear,
+    String? campusCode,
+    bool append = false,
+    bool showLoading = true,
+  }) async {
+    if (_isFetchingFiltered) return;
+    _isFetchingFiltered = true;
+
+    if (showLoading) {
+      state = state.copyWith(
+        isRefreshing: true,
+        isLoading: false,
+        errorMessage: null,
+        topCardIndex: 0,
+      );
+    }
+
+    try {
+      await _flushPendingInteractionsIfNeeded(forceRefresh: true);
+
+      final users = await _repository.discoverUsers(
+        limit: _pageSize,
+        campusCode: campusCode ?? state.selectedCampusCode,
+        departmentName: departmentName ?? state.selectedDepartmentName,
+        batchYear: batchYear ?? state.selectedBatchYear,
+        forceRefresh: true,
+      );
+      final statuses = await _repository.fetchConnectionStatuses(
+        users.map((user) => user.id).toList(),
+      );
+      final validUsers = users
+          .where(
+            (user) =>
+                statuses.containsKey(user.id) && statuses[user.id] == 'none',
+          )
+          .toList();
+
+      final nextStudents = append
+          ? _mergeUniqueStudents(state.students, validUsers)
+          : validUsers;
+      final nextStatuses = Map<String, String>.from(state.connectionStatus)
+        ..addAll(statuses);
+
+      state = state.copyWith(
+        students: nextStudents,
+        connectionStatus: nextStatuses,
+        isLoading: false,
+        isRefreshing: false,
+        errorMessage: null,
+        topCardIndex: append ? state.topCardIndex : 0,
+      );
+    } catch (e) {
+      logger.e('[DiscoverConnectNotifier] refreshFilteredDiscoverUsers failed: $e');
+      state = state.copyWith(
+        isLoading: false,
+        isRefreshing: false,
+        errorMessage: e.toString(),
+      );
+    } finally {
+      _isFetchingFiltered = false;
+    }
   }
 
   void swipeLeft(User student) {
-    final updated = Set<String>.from(state.swipedLeftIds)..add(student.id);
-    _storage.addSwipedLeftId(student.id);
-    state = state.copyWith(swipedLeftIds: updated);
-    advanceCard();
+    unawaited(
+      AnalyticsService.logEvent(
+        AnalyticsEvents.discoverCardSwipe,
+        parameters: {
+          'direction': 'left',
+          'result': 'dismissed',
+          'has_thumbnail': (student.thumbnail ?? '').isNotEmpty,
+          'department_code': student.department?.code,
+          'campus_code': student.campus?.code,
+          'batch_year': student.batch,
+        },
+      ),
+    );
+    _queueInteraction(student.id, 'left');
+    unawaited(advanceCard());
   }
 
   void swipeRight(User student) {
+    unawaited(
+      AnalyticsService.logEvent(
+        AnalyticsEvents.discoverCardSwipe,
+        parameters: {
+          'direction': 'right',
+          'result': 'connection_request',
+          'has_thumbnail': (student.thumbnail ?? '').isNotEmpty,
+          'department_code': student.department?.code,
+          'campus_code': student.campus?.code,
+          'batch_year': student.batch,
+        },
+      ),
+    );
+    _queueInteraction(student.id, 'right');
     final updatedStatuses = Map<String, String>.from(state.connectionStatus)
       ..[student.id] = 'outgoing_request';
     state = state.copyWith(connectionStatus: updatedStatuses);
-    advanceCard();
+    unawaited(advanceCard());
 
     Future(() async {
       try {
@@ -430,28 +623,112 @@ class DiscoverConnectNotifier extends Notifier<DiscoverConnectState> {
     }
   }
 
-  void advanceCard() {
+  Future<void> advanceCard() async {
     if (state.topCardIndex < state.students.length) {
       state = state.copyWith(topCardIndex: state.topCardIndex + 1);
     }
-    // If we're nearing the end, fetch next index
-    final threshold = 3;
-    if (!_isFetchingNext &&
-        state.topCardIndex >= (state.students.length - threshold)) {
-      _fetchNextPage();
+    final queueLength = _storage.getPendingInteractions().length;
+    final shouldPrefetchMore =
+        !_isFilteredView &&
+        !_isFetchingNext &&
+        _shouldPrefetchMore(state.students.length);
+    final shouldPrefetchFiltered =
+        _isFilteredView &&
+        !_isFetchingNext &&
+        _shouldPrefetchFiltered(state.students.length);
+
+    if (queueLength > 0 && (shouldPrefetchMore || shouldPrefetchFiltered)) {
+      await flushPendingInteractions(forceRefresh: true);
+    } else if (queueLength >= _interactionFlushThreshold) {
+      await flushPendingInteractions();
+    }
+
+    if (shouldPrefetchMore) {
+      await _fetchNextPage();
+    }
+    if (shouldPrefetchFiltered) {
+      await refreshFilteredDiscoverUsers(
+        departmentName: state.selectedDepartmentName,
+        batchYear: state.selectedBatchYear,
+        campusCode: state.selectedCampusCode,
+        append: true,
+        showLoading: false,
+      );
     }
   }
 
   Future<void> _fetchNextPage() async {
     _isFetchingNext = true;
     try {
-      _currentIndex += _pageSize;
-      _storage.setDiscoverIndex(_currentIndex);
-      await refreshDiscoverUsers(forceRefresh: true);
+      await refreshDiscoverUsers(
+        forceRefresh: true,
+        replaceExisting: false,
+        skipFlush: true,
+      );
     } catch (e) {
       logger.e('[DiscoverConnectNotifier] _fetchNextPage failed: $e');
     } finally {
       _isFetchingNext = false;
+    }
+  }
+
+  bool _shouldPrefetchMore(int totalCount) {
+    return state.topCardIndex >= (totalCount - _cardPrefetchThreshold);
+  }
+
+  bool _shouldPrefetchFiltered(int totalCount) {
+    if (!_isFilteredView) return false;
+    final remaining = totalCount - state.topCardIndex;
+    return remaining <= _cardPrefetchThreshold && totalCount > 0;
+  }
+
+  List<User> _mergeUniqueStudents(List<User> current, List<User> incoming) {
+    final merged = <String, User>{};
+    for (final user in current) {
+      merged[user.id] = user;
+    }
+    for (final user in incoming) {
+      merged[user.id] = user;
+    }
+    return merged.values.toList();
+  }
+
+  void _queueInteraction(String targetId, String direction) {
+    final interaction = <String, dynamic>{
+      'target_id': targetId,
+      'direction': direction,
+      'interacted_at': DateTime.now().toIso8601String(),
+    };
+    _storage.addPendingInteraction(interaction);
+    _interactionFlushTimer?.cancel();
+    _interactionFlushTimer = Timer(_interactionFlushDelay, () {
+      unawaited(flushPendingInteractions(forceRefresh: true));
+    });
+  }
+
+  Future<void> _flushPendingInteractionsIfNeeded({
+    bool forceRefresh = false,
+  }) async {
+    if (_storage.getPendingInteractions().isEmpty) {
+      _interactionFlushTimer?.cancel();
+      return;
+    }
+    await flushPendingInteractions(forceRefresh: forceRefresh);
+  }
+
+  Future<void> flushPendingInteractions({bool forceRefresh = false}) async {
+    _interactionFlushTimer?.cancel();
+    final queue = _storage.getPendingInteractions();
+    if (queue.isEmpty) return;
+
+    try {
+      await _repository.sendDiscoverInteractions(
+        queue,
+        forceRefresh: forceRefresh,
+      );
+      _storage.clearPendingInteractions();
+    } catch (e) {
+      logger.e('[DiscoverConnectNotifier] flushPendingInteractions failed: $e');
     }
   }
 }

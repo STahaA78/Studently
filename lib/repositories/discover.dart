@@ -11,16 +11,56 @@ class DiscoverRepository {
   DiscoverRepository({UserRepository? userRepository})
     : _userRepository = userRepository ?? UserRepository();
 
-  Future<List<User>> discoverUsers({int index = 0}) async {
+  Future<List<User>> discoverUsers({
+    int limit = 15,
+    String? campusCode,
+    String? departmentName,
+    String? batchYear,
+    bool forceRefresh = false,
+  }) async {
     logger.i('[DiscoverRepository] Discover Users Initiated');
     try {
-      final response = await _apiService.get('/users/discover?index=$index');
+      final params = <String>[
+        'limit=$limit',
+        if (campusCode != null && campusCode.isNotEmpty)
+          'campus_code=${Uri.encodeComponent(campusCode)}',
+        if (departmentName != null && departmentName.isNotEmpty)
+          'department_name=${Uri.encodeComponent(departmentName)}',
+        if (batchYear != null && batchYear.isNotEmpty)
+          'batch_year=${Uri.encodeComponent(batchYear)}',
+        if (forceRefresh) 'force_refresh=true',
+      ];
+      final response = await _apiService.get(
+        '/users/discover?${params.join('&')}',
+      );
       final List<dynamic> data = jsonDecode(response.body);
       logger.d('[DiscoverRepository] Raw API Response: $data');
       logger.i('[DiscoverRepository] Discover Users Completed Successfully');
       return data.map((item) => User.fromJson(item)).toList();
     } catch (e) {
       logger.e('[DiscoverRepository] Discover Users Failed with error: $e');
+      rethrow;
+    }
+  }
+
+  Future<void> sendDiscoverInteractions(List<Map<String, dynamic>> interactions,
+      {bool forceRefresh = false}) async {
+    logger.i(
+      '[DiscoverRepository] Send Discover Interactions Initiated count=${interactions.length}',
+    );
+    try {
+      await _apiService.post(
+        '/users/discover/interactions',
+        body: {
+          'interactions': interactions,
+          'force_refresh': forceRefresh,
+        },
+      );
+      logger.i('[DiscoverRepository] Send Discover Interactions Completed');
+    } catch (e) {
+      logger.e(
+        '[DiscoverRepository] Send Discover Interactions Failed with error: $e',
+      );
       rethrow;
     }
   }

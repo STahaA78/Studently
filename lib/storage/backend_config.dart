@@ -67,6 +67,9 @@ class BackendConfigStorage {
         'departments': config.departments
             .map((d) => {'name': d.name, 'code': d.code})
             .toList(),
+        'campuses': config.campuses
+            .map((c) => {'name': c.name, 'code': c.code})
+            .toList(),
         'interests': config.interests
             .map(
               (i) => {
@@ -86,6 +89,8 @@ class BackendConfigStorage {
           'year': config.currentTerm.year,
         },
         'allowed_email_domains': config.allowedEmailDomains,
+        'updated_at': config.updatedAt,
+        'version': config.version,
       });
 
       await _configBox.put(_configKey, configJson);

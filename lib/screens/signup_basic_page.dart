@@ -33,6 +33,7 @@ class _SignupBasicPageState extends ConsumerState<SignupBasicPage> {
   String? _genderError;
   String? _completionError;
   String? _departmentCode; // Selected department code (always via dropdown)
+  String? _campusCode;
   studently_user.Gender? _selectedGender; // Selected gender
   bool _batchExtracted = false; // Track if batch was extracted from name
   bool _extractedFields = true; // True only if both name and batch were found
@@ -62,7 +63,58 @@ class _SignupBasicPageState extends ConsumerState<SignupBasicPage> {
     final googleSignUpUser = authService.value.currentUser;
     if (googleSignUpUser != null) {
       _nameController.text = googleSignUpUser.displayName ?? '';
+      _campusCode = _deriveCampusCode(googleSignUpUser.email ?? '');
       _extractNameAndBatch(_nameController.text);
+    }
+  }
+
+  String? _deriveCampusCode(String email) {
+    final localPart = email.trim().split('@').first.toLowerCase();
+    if (localPart.isEmpty) return null;
+    switch (localPart[0]) {
+      case 'l':
+        return 'LHR';
+      case 'k':
+        return 'KHI';
+      case 'f':
+        return 'FSD';
+      case 'i':
+        return 'ISB';
+      case 'p':
+        return 'PES';
+      default:
+        return null;
+    }
+  }
+
+  String _stripRollPrefix(String fullName, String? email) {
+    final parts = fullName.trim().split(RegExp(r'\s+'));
+    if (parts.isEmpty) return fullName.trim();
+    final localPart = (email ?? '').trim().split('@').first.toLowerCase();
+    if (localPart.isNotEmpty && parts.first.toLowerCase() == localPart) {
+      return parts.skip(1).join(' ').trim();
+    }
+    final rollPattern = RegExp(r'^[a-zA-Z]\d+$');
+    if (rollPattern.hasMatch(parts.first)) {
+      return parts.skip(1).join(' ').trim();
+    }
+    return fullName.trim();
+  }
+
+  String _fallbackCampusName(String? code) {
+    switch (code?.toUpperCase()) {
+      case 'LHR':
+        return 'Lahore';
+      case 'KHI':
+        return 'Karachi';
+      case 'ISB':
+        return 'Islamabad';
+      case 'PES':
+        return 'Peshawar';
+      case 'FSD':
+        return 'Chiniot-Faisalabad';
+      default:
+        return '';
     }
   }
 
@@ -79,7 +131,9 @@ class _SignupBasicPageState extends ConsumerState<SignupBasicPage> {
   void _extractNameAndBatch(String fullName) {
     logger.d("[$runtimeType] Extracting name/batch from: $fullName");
 
-    final parts = fullName.split(' ');
+    final googleSignUpUser = authService.value.currentUser;
+    final cleanedName = _stripRollPrefix(fullName, googleSignUpUser?.email);
+    final parts = cleanedName.split(' ');
     final batchPattern = RegExp(r'^\d{4}$');
 
     String batch = '';
@@ -107,6 +161,7 @@ class _SignupBasicPageState extends ConsumerState<SignupBasicPage> {
     setState(() {
       _nameController.text = extractedName;
       _batchController.text = resolvedBatch;
+      _campusCode ??= _deriveCampusCode(googleSignUpUser?.email ?? '');
       _batchExtracted = hasValidExtraction;
       // Both name AND batch must have been resolved for "extractedFields" to be true.
       _extractedFields = hasValidExtraction;
@@ -213,9 +268,12 @@ class _SignupBasicPageState extends ConsumerState<SignupBasicPage> {
     final birthday = _birthdayController.text.trim();
     final departmentCode = _departmentCode ?? '';
     final batch = _batchController.text.trim();
+    final campusCode = _campusCode ?? _deriveCampusCode(
+      authService.value.currentUser?.email ?? '',
+    );
 
     logger.i(
-      "[$runtimeType] Google Signup Completion — Name: $name | Birthday: $birthday | DeptCode: $departmentCode | Batch: $batch | Gender: $_selectedGender",
+      "[$runtimeType] Google Signup Completion — Name: $name | Birthday: $birthday | DeptCode: $departmentCode | Batch: $batch | CampusCode: $campusCode | Gender: $_selectedGender",
     );
 
     // Extra guard: department must be selected
@@ -243,10 +301,27 @@ class _SignupBasicPageState extends ConsumerState<SignupBasicPage> {
             department ??= config.departments.isNotEmpty
                 ? config.departments.first
                 : null;
+            Campus? campus;
+            if (campusCode != null) {
+              for (final c in config.campuses) {
+                if (c.code.toUpperCase() == campusCode.toUpperCase()) {
+                  campus = c;
+                  break;
+                }
+              }
+            }
+            campus ??= config.campuses.isNotEmpty ? config.campuses.first : null;
 
             if (department == null) {
               setState(
                 () => _completionError = 'Department not found in config',
+              );
+              return;
+            }
+
+            if (campus == null) {
+              setState(
+                () => _completionError = 'Campus not found in config',
               );
               return;
             }
@@ -264,6 +339,7 @@ class _SignupBasicPageState extends ConsumerState<SignupBasicPage> {
                     password: '',
                     department: department,
                     batch: batch,
+                    campus: campus,
                     birthday: birthday,
                     gender: _selectedGender,
                     picture: googleSignUpUser.photoURL ?? '',
@@ -339,6 +415,20 @@ class _SignupBasicPageState extends ConsumerState<SignupBasicPage> {
     final double formWidth = isLandscape
         ? screenSize.width * 0.6
         : screenSize.width * 0.85;
+    final configAsync = ref.watch(backendConfigProvider);
+    final campusName = configAsync.maybeWhen(
+      data: (config) {
+        final code = _campusCode ?? _deriveCampusCode(
+          authService.value.currentUser?.email ?? '',
+        );
+        final match = config.campuses.where((c) => c.code == code).toList();
+        if (match.isNotEmpty) {
+          return match.first.name;
+        }
+        return _fallbackCampusName(code);
+      },
+      orElse: () => _fallbackCampusName(_campusCode),
+    );
 
     return Scaffold(
       backgroundColor: Colors.white,
@@ -507,12 +597,13 @@ class _SignupBasicPageState extends ConsumerState<SignupBasicPage> {
                         .watch(backendConfigProvider)
                         .when(
                           data: (config) {
-                            return Container(
-                              height: 50,
-                              decoration:
-                                  AppStyle.dropdownContainerDecoration(),
-                              child: DropdownButtonFormField<String>(
-                                initialValue: _departmentCode,
+                              return Container(
+                                height: 50,
+                                decoration:
+                                    AppStyle.dropdownContainerDecoration(),
+                                child: DropdownButtonFormField<String>(
+                                  key: ValueKey(_departmentCode),
+                                  initialValue: _departmentCode,
                                 style: const TextStyle(
                                   fontSize: 15,
                                   color: Colors.black87,
@@ -621,6 +712,7 @@ class _SignupBasicPageState extends ConsumerState<SignupBasicPage> {
                                 decoration:
                                     AppStyle.dropdownContainerDecoration(),
                                 child: DropdownButtonFormField<String>(
+                                  key: ValueKey(_batchController.text),
                                   initialValue: _batchController.text.isNotEmpty
                                       ? _batchController.text
                                       : null,
@@ -673,6 +765,40 @@ class _SignupBasicPageState extends ConsumerState<SignupBasicPage> {
                     const SizedBox(height: 16),
 
                     // Birthday ────────────────────────────────────────────
+                    const Text(
+                      'Campus',
+                      style: TextStyle(
+                        fontWeight: FontWeight.w500,
+                        fontSize: 15,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    SizedBox(
+                      height: 50,
+                      child: TextFormField(
+                        initialValue: campusName,
+                        enabled: false,
+                        decoration: InputDecoration(
+                          contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 18,
+                            vertical: 14,
+                          ),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                          disabledBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(16),
+                            borderSide: const BorderSide(
+                              color: Color(0xFFD0D0D0),
+                              width: 1.2,
+                            ),
+                          ),
+                          filled: true,
+                          fillColor: Colors.grey[200],
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
                     const Text(
                       'Birthday',
                       style: TextStyle(

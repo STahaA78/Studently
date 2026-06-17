@@ -287,6 +287,12 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
               )
             : null,
         actions: [
+          if (kIsWeb && !web_utils.isStandalonePwa())
+            IconButton(
+              icon: const Icon(Icons.refresh, color: Colors.black),
+              onPressed: _refreshProfile,
+              tooltip: 'Refresh',
+            ),
           if (isMyProfile)
             IconButton(
               icon: const Icon(Icons.settings_outlined, color: Colors.black),
@@ -297,12 +303,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                 );
               },
             ),
-          if (kIsWeb && !web_utils.isStandalonePwa())
-            IconButton(
-              icon: const Icon(Icons.refresh, color: Colors.black),
-              onPressed: _refreshProfile,
-              tooltip: 'Refresh',
-            ),
+
         ],
       ),
       body: isScreenLoading
@@ -594,7 +595,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
               ),
             ),
       bottomNavigationBar: isMyProfile
-          ? const CustomNavBar(currentIndex: 4)
+          ? const CustomNavBar(currentIndex: 5)
           : null,
     );
   }
